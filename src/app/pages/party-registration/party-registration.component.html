@@ -1,0 +1,62 @@
+<section class="register-shell">
+  <article class="card">
+    <h2>Party in Person Registration</h2>
+
+    <div class="radio-row">
+      <label>
+        <input
+          type="radio"
+          name="partyRole"
+          [checked]="selectedRole === 'PARTY_IN_PERSON'"
+          (change)="selectedRole = 'PARTY_IN_PERSON'"
+        />
+        Party in Person
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="partyRole"
+          [checked]="selectedRole === 'PARTY_IN_PERSON_REPRESENTATIVE'"
+          (change)="selectedRole = 'PARTY_IN_PERSON_REPRESENTATIVE'"
+        />
+        Party in Person Representative
+      </label>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" class="form-grid">
+      <label>
+        Full Name
+        <input type="text" formControlName="fullName" />
+      </label>
+      <label>
+        Email
+        <input type="email" formControlName="email" />
+      </label>
+      <label>
+        Mobile Number
+        <input type="text" formControlName="mobileNumber" />
+      </label>
+      <label>
+        Address
+        <input type="text" formControlName="address" />
+      </label>
+      <label class="full-width">
+        Password
+        <input type="password" formControlName="password" />
+      </label>
+
+      <button type="submit" [disabled]="submitInProgress" class="full-width">
+        {{ submitInProgress ? 'Submitting...' : 'Register Party in Person' }}
+      </button>
+    </form>
+
+    @if (successMessage) {
+      <p class="success">{{ successMessage }}</p>
+    }
+    @if (errorMessage) {
+      <p class="error">{{ errorMessage }}</p>
+    }
+
+    <a routerLink="/" class="back">Back to Home</a>
+  </article>
+</section>

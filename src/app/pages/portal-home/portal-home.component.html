@@ -1,0 +1,29 @@
+<section class="portal-home">
+  <article class="welcome-card">
+    <h2>Welcome, {{ displayName }}</h2>
+    <p class="role-text">Role: {{ role }}</p>
+    <div class="action-row">
+      <a routerLink="/" class="btn btn-secondary">Main Site</a>
+      <button type="button" class="btn btn-primary" (click)="logout()">Logout</button>
+    </div>
+  </article>
+
+  <section class="grid">
+    <article class="tile">
+      <h3>My Cases</h3>
+      <p>View and track case progress.</p>
+    </article>
+    <article class="tile">
+      <h3>New Application</h3>
+      <p>Create a new case request.</p>
+    </article>
+    <article class="tile">
+      <h3>Notices</h3>
+      <p>Check hearing and update notices.</p>
+    </article>
+    <article class="tile">
+      <h3>Profile</h3>
+      <p>Manage account details.</p>
+    </article>
+  </section>
+</section>

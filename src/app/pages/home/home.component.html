@@ -1,0 +1,102 @@
+<section class="hero">
+  <div class="hero-copy">
+    <span class="eyebrow">Government of Maharashtra</span>
+    <h2>RCCMS Digital Services Portal</h2>
+    <p>Unified platform for registration, case services, and role-based access.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" routerLink="/register/advocate">Register Advocate</a>
+      <a class="btn btn-secondary" routerLink="/register/party">Register Party</a>
+    </div>
+    <div class="highlight-row">
+      <article class="highlight-card">
+        <h4>24x7</h4>
+        <p>Online Access</p>
+      </article>
+      <article class="highlight-card">
+        <h4>Secure</h4>
+        <p>JWT Authentication</p>
+      </article>
+      <article class="highlight-card">
+        <h4>Fast</h4>
+        <p>Single Portal Workflow</p>
+      </article>
+    </div>
+  </div>
+  <aside class="auth-card">
+    <div class="login-head">
+      <h3>Login</h3>
+      <p>Access your dashboard</p>
+    </div>
+
+    <div class="radio-row">
+      <label class="role-option">
+        <input
+          type="radio"
+          name="loginRole"
+          [checked]="selectedLoginUserType === 'ADVOCATE'"
+          (change)="selectedLoginUserType = 'ADVOCATE'"
+        />
+        <span>Advocate</span>
+      </label>
+      <label class="role-option">
+        <input
+          type="radio"
+          name="loginRole"
+          [checked]="selectedLoginUserType === 'PARTY_IN_PERSON'"
+          (change)="selectedLoginUserType = 'PARTY_IN_PERSON'"
+        />
+        <span>Party In Person/Representative</span>
+      </label>
+      <label class="role-option">
+        <input
+          type="radio"
+          name="loginRole"
+          [checked]="selectedLoginUserType === 'OFFICER'"
+          (change)="selectedLoginUserType = 'OFFICER'"
+        />
+        <span>Officer</span>
+      </label>
+      <label class="role-option">
+        <input
+          type="radio"
+          name="loginRole"
+          [checked]="selectedLoginUserType === 'ADMIN'"
+          (change)="selectedLoginUserType = 'ADMIN'"
+        />
+        <span>Admin</span>
+      </label>
+    </div>
+
+    <form [formGroup]="loginForm" (ngSubmit)="loginUser()" class="form-grid">
+      <label>
+        Login ID
+        <input type="text" formControlName="loginId" placeholder="Enter login id" />
+      </label>
+
+      <label>
+        Password
+        <input type="password" formControlName="password" placeholder="Enter password" />
+      </label>
+
+      <button type="submit" class="btn btn-login" [disabled]="loginInProgress">
+        {{ loginInProgress ? 'Signing in...' : 'Login' }}
+      </button>
+    </form>
+
+    @if (loginErrorMessage) {
+      <p class="api-message error">{{ loginErrorMessage }}</p>
+    }
+  </aside>
+</section>
+
+<section class="overview">
+  <h3>Departments</h3>
+  <div class="department-grid">
+    @for (department of departments; track department) {
+      <article class="department-card">
+        <h4>{{ department }}</h4>
+        <p>Integrated service unit</p>
+      </article>
+    }
+  </div>
+</section>

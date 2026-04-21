@@ -1,0 +1,53 @@
+<section class="register-shell">
+  <article class="card">
+    <h2>Advocate Registration</h2>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" class="form-grid">
+      <label>
+        Full Name
+        <input type="text" formControlName="fullName" />
+      </label>
+      <label>
+        Email
+        <input type="email" formControlName="email" />
+      </label>
+      <label>
+        Mobile Number
+        <input type="text" formControlName="mobileNumber" />
+      </label>
+      <label>
+        Address
+        <input type="text" formControlName="address" />
+      </label>
+      <label>
+        Password
+        <input type="password" formControlName="password" />
+      </label>
+      <label>
+        Bar Council Number
+        <input type="text" formControlName="barCouncilNumber" />
+      </label>
+      <label>
+        Enrollment Number
+        <input type="text" formControlName="enrollmentNumber" />
+      </label>
+      <label>
+        Law Firm Name (Optional)
+        <input type="text" formControlName="lawFirmName" />
+      </label>
+
+      <button type="submit" [disabled]="submitInProgress">
+        {{ submitInProgress ? 'Submitting...' : 'Register Advocate' }}
+      </button>
+    </form>
+
+    @if (successMessage) {
+      <p class="success">{{ successMessage }}</p>
+    }
+    @if (errorMessage) {
+      <p class="error">{{ errorMessage }}</p>
+    }
+
+    <a routerLink="/" class="back">Back to Home</a>
+  </article>
+</section>

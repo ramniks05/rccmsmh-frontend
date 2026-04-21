@@ -1,0 +1,32 @@
+<div class="page-shell">
+  <header class="top-header">
+    <div class="brand">
+      <div class="brand-badge">RCCMS</div>
+      <div>
+        <h1>{{ appName }}</h1>
+        <p>Revenue Case and Citizen Management Portal</p>
+      </div>
+    </div>
+    <nav class="top-nav" aria-label="Primary navigation">
+      <a routerLink="/">Home</a>
+      <a routerLink="/register/advocate">Advocate</a>
+      <a routerLink="/register/party">Party</a>
+    </nav>
+  </header>
+
+  <main class="content">
+    <router-outlet />
+  </main>
+
+  <footer class="main-footer">
+    <div>
+      <strong>RCCMS Maharashtra</strong>
+      <p>Revenue Case and Citizen Management System</p>
+    </div>
+    <div class="footer-links">
+      <a href="#">Privacy</a>
+      <a href="#">Terms</a>
+      <a href="#">Support</a>
+    </div>
+  </footer>
+</div>

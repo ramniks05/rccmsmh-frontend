@@ -1,0 +1,74 @@
+.portal-home {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.welcome-card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 8px 22px rgba(24, 44, 78, 0.12);
+  padding: 1.5rem;
+}
+
+.welcome-card h2 {
+  margin: 0 0 0.4rem;
+}
+
+.role-text {
+  margin: 0;
+  color: #4b5563;
+}
+
+.action-row {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.btn-secondary {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.tile {
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 8px 22px rgba(24, 44, 78, 0.12);
+  padding: 1.2rem;
+}
+
+.tile h3 {
+  margin: 0 0 0.45rem;
+}
+
+.tile p {
+  margin: 0;
+  color: #4b5563;
+}
+
+@media (max-width: 700px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
