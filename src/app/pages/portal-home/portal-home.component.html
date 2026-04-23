@@ -13,10 +13,10 @@
       <h3>My Cases</h3>
       <p>View and track case progress.</p>
     </article>
-    <article class="tile">
+    <a class="tile tile-link" routerLink="/applications/new">
       <h3>New Application</h3>
       <p>Create a new case request.</p>
-    </article>
+    </a>
     <article class="tile">
       <h3>Notices</h3>
       <p>Check hearing and update notices.</p>
@@ -25,5 +25,12 @@
       <h3>Profile</h3>
       <p>Manage account details.</p>
     </article>
+
+    @if (role === 'ADMIN') {
+      <a class="tile tile-link" routerLink="/admin/masters">
+        <h3>Master Management</h3>
+        <p>Create and maintain master data (Admin)</p>
+      </a>
+    }
   </section>
 </section>

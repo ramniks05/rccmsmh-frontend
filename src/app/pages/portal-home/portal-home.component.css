@@ -58,6 +58,18 @@
   padding: 1.2rem;
 }
 
+.tile-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.tile-link:hover {
+  box-shadow: 0 12px 26px rgba(24, 44, 78, 0.16);
+  transform: translateY(-1px);
+  transition: box-shadow 160ms ease, transform 160ms ease;
+}
+
 .tile h3 {
   margin: 0 0 0.45rem;
 }

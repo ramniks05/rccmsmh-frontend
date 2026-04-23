@@ -1,0 +1,24 @@
+<section class="page">
+  <header class="page-head">
+    <div>
+      <h2>{{ title() }}</h2>
+      <p class="sub">Select application type and fill details</p>
+    </div>
+    <a routerLink="/portal-home" class="btn btn-secondary">Back</a>
+  </header>
+
+  @if (!selectedType()) {
+    <article class="card">
+      <h3>Choose application type</h3>
+      <div class="type-grid">
+        <button type="button" class="type-tile" (click)="selectedType.set('ORIGINAL_FILE_MUTATION')">
+          <strong>Original File</strong>
+          <span>Mutation case</span>
+        </button>
+      </div>
+    </article>
+  } @else if (selectedType() === 'ORIGINAL_FILE_MUTATION') {
+    <app-original-file-mutation />
+  }
+</section>
+
