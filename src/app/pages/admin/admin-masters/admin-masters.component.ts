@@ -9,12 +9,14 @@ import {
   ActRecord,
   SectionRecord,
   DepartmentRecord,
+  DocumentTypeMappingItemRecord,
   MasterRecord,
   DesignationRecord,
   EmployeePostingRecord,
   EmployeeRecord,
   OfficeLevel,
   OfficeRecord,
+  OfficeBranchRecord,
   OfficeTypeRecord,
   SubjectRecord,
   type CreateOrUpdateActRequest,
@@ -44,7 +46,8 @@ type MasterKind =
   | 'OFFICE_TYPE'
   | 'OFFICE'
   | 'DESIGNATION'
-  | 'EMPLOYEE';
+  | 'EMPLOYEE'
+  | 'DOCUMENT_TYPE_MAPPING';
 
 @Component({
   selector: 'app-admin-masters',
@@ -76,9 +79,12 @@ export class AdminMastersComponent {
   protected readonly subjects = signal<SubjectRecord[]>([]);
   protected readonly officeTypes = signal<OfficeTypeRecord[]>([]);
   protected readonly offices = signal<OfficeRecord[]>([]);
+  protected readonly officeBranches = signal<OfficeBranchRecord[]>([]);
   protected readonly designations = signal<DesignationRecord[]>([]);
   protected readonly employees = signal<EmployeeRecord[]>([]);
   protected readonly employeePostings = signal<EmployeePostingRecord[]>([]);
+  protected readonly documentTypeMappings = signal<DocumentTypeMappingItemRecord[]>([]);
+  protected readonly mappingSubjects = signal<SubjectRecord[]>([]);
 
   protected readonly editingDepartmentId = signal<number | null>(null);
   protected readonly editingActId = signal<number | null>(null);
@@ -112,6 +118,7 @@ export class AdminMastersComponent {
   protected readonly isOffice = computed(() => this.selected() === 'OFFICE');
   protected readonly isDesignation = computed(() => this.selected() === 'DESIGNATION');
   protected readonly isEmployee = computed(() => this.selected() === 'EMPLOYEE');
+  protected readonly isDocumentTypeMapping = computed(() => this.selected() === 'DOCUMENT_TYPE_MAPPING');
 
   protected readonly activeMasterList = computed<MasterRecord[]>(() => {
     const kind = this.selected();
@@ -315,6 +322,8 @@ export class AdminMastersComponent {
         return 'Create Designation';
       case 'EMPLOYEE':
         return 'Create Employee';
+      case 'DOCUMENT_TYPE_MAPPING':
+        return 'Document Type Mapping';
     }
   });
 
@@ -453,8 +462,20 @@ export class AdminMastersComponent {
 
   protected readonly postingForm = this.fb.nonNullable.group({
     officeId: [0, [Validators.required, Validators.min(1)]],
+    officeBranchId: [0, [Validators.min(0)]],
     designationId: [0, [Validators.required, Validators.min(1)]],
     fromDate: ['', [Validators.required]]
+  });
+
+  protected readonly documentTypeMappingForm = this.fb.nonNullable.group({
+    caseCategoryId: [0, [Validators.required, Validators.min(1)]],
+    subjectId: [0, [Validators.required, Validators.min(1)]]
+  });
+
+  protected readonly documentTypeMappingItemForm = this.fb.nonNullable.group({
+    documentTypeId: [0, [Validators.required, Validators.min(1)]],
+    required: [false],
+    displayOrder: [1, [Validators.required, Validators.min(1)]]
   });
 
   constructor() {
@@ -650,6 +671,15 @@ export class AdminMastersComponent {
     });
 
     this.designationForm.controls.departmentId.valueChanges.subscribe(() => this.loadDesignations());
+
+    this.postingForm.controls.officeId.valueChanges.subscribe((officeId) => {
+      this.postingForm.controls.officeBranchId.setValue(0);
+      if (!officeId || officeId < 1) {
+        this.officeBranches.set([]);
+        return;
+      }
+      this.loadOfficeBranches(officeId);
+    });
   }
 
   protected select(kind: MasterKind): void {
@@ -713,6 +743,9 @@ export class AdminMastersComponent {
       this.loadOffices();
       this.loadDesignations();
       this.loadEmployees();
+    } else if (kind === 'DOCUMENT_TYPE_MAPPING') {
+      this.loadDocumentMappingSubjects();
+      this.documentTypeMappings.set([]);
     }
   }
 
@@ -943,7 +976,11 @@ export class AdminMastersComponent {
       const serverMsg =
         typeof err.error === 'string'
           ? err.error
-          : (err.error && typeof err.error.message === 'string' ? err.error.message : null);
+          : err.error && typeof err.error.error === 'string'
+            ? err.error.error
+            : err.error && typeof err.error.message === 'string'
+              ? err.error.message
+              : null;
       return serverMsg || `Request failed (${err.status}).`;
     }
     if (err instanceof Error) {
@@ -1547,6 +1584,13 @@ export class AdminMastersComponent {
     });
   }
 
+  private loadOfficeBranches(officeId: number): void {
+    this.masters.getOfficeBranches(officeId).subscribe({
+      next: (rows) => this.officeBranches.set(rows),
+      error: () => this.officeBranches.set([])
+    });
+  }
+
   protected addPosting(): void {
     const employeeId = this.selectedEmployeeForPostingsId();
     if (!employeeId) return;
@@ -1563,12 +1607,15 @@ export class AdminMastersComponent {
       designationId: raw.designationId,
       fromDate: raw.fromDate
     };
+    if (raw.officeBranchId > 0) {
+      payload.officeBranchId = raw.officeBranchId;
+    }
 
     this.busy.set(true);
     this.masters.addEmployeePosting(employeeId, payload).subscribe({
       next: () => {
         this.apiMessage.set('Posting saved successfully.');
-        this.postingForm.reset({ officeId: 0, designationId: 0, fromDate: '' });
+        this.postingForm.reset({ officeId: 0, officeBranchId: 0, designationId: 0, fromDate: '' });
         this.loadEmployeePostings(employeeId);
       },
       error: (err: unknown) => this.apiError.set(this.formatError(err)),
@@ -1593,6 +1640,106 @@ export class AdminMastersComponent {
       error: (err: unknown) => this.apiError.set(this.formatError(err)),
       complete: () => this.busy.set(false)
     });
+  }
+
+  private loadDocumentMappingSubjects(): void {
+    this.masters.getSubjects().subscribe({
+      next: (rows) => this.mappingSubjects.set(rows),
+      error: () => this.mappingSubjects.set([])
+    });
+  }
+
+  protected loadDocumentTypeMappings(): void {
+    this.apiMessage.set(null);
+    this.apiError.set(null);
+
+    this.documentTypeMappingForm.markAllAsTouched();
+    if (this.documentTypeMappingForm.invalid) {
+      this.apiError.set('Please select case category and subject.');
+      return;
+    }
+
+    const raw = this.documentTypeMappingForm.getRawValue();
+    this.busy.set(true);
+    this.masters.getDocumentTypeMappings(raw.caseCategoryId, raw.subjectId).subscribe({
+      next: (rows) => {
+        this.documentTypeMappings.set(rows);
+        this.apiMessage.set('Mapping loaded.');
+      },
+      error: (err: unknown) => this.apiError.set(this.formatError(err)),
+      complete: () => this.busy.set(false)
+    });
+  }
+
+  protected addDocumentTypeMappingItem(): void {
+    this.apiMessage.set(null);
+    this.apiError.set(null);
+    this.documentTypeMappingItemForm.markAllAsTouched();
+    if (this.documentTypeMappingItemForm.invalid) {
+      this.apiError.set('Please enter valid document type item details.');
+      return;
+    }
+
+    const raw = this.documentTypeMappingItemForm.getRawValue();
+    if (this.documentTypeMappings().some((item) => item.documentTypeId === raw.documentTypeId)) {
+      this.apiError.set('Duplicate document type is not allowed.');
+      return;
+    }
+
+    const draftItem: DocumentTypeMappingItemRecord = {
+      documentTypeId: raw.documentTypeId,
+      required: raw.required,
+      displayOrder: raw.displayOrder,
+      documentType: {
+        id: raw.documentTypeId,
+        code: `DOC-${raw.documentTypeId}`,
+        name: `Document Type #${raw.documentTypeId}`,
+        localName: null,
+        validForPhotoId: false,
+        validForAddress: false,
+        sourceUrl: null
+      }
+    };
+
+    this.documentTypeMappings.set(
+      [...this.documentTypeMappings(), draftItem].sort((a, b) => a.displayOrder - b.displayOrder)
+    );
+    this.documentTypeMappingItemForm.reset({ documentTypeId: 0, required: false, displayOrder: raw.displayOrder + 1 });
+  }
+
+  protected removeDocumentTypeMappingItem(documentTypeId: number): void {
+    this.documentTypeMappings.set(this.documentTypeMappings().filter((item) => item.documentTypeId !== documentTypeId));
+  }
+
+  protected saveDocumentTypeMappings(): void {
+    this.apiMessage.set(null);
+    this.apiError.set(null);
+
+    this.documentTypeMappingForm.markAllAsTouched();
+    if (this.documentTypeMappingForm.invalid) {
+      this.apiError.set('Please select case category and subject.');
+      return;
+    }
+
+    const raw = this.documentTypeMappingForm.getRawValue();
+    const items = this.documentTypeMappings().map((item) => ({
+      documentTypeId: item.documentTypeId,
+      required: item.required,
+      displayOrder: item.displayOrder
+    }));
+
+    this.busy.set(true);
+    this.masters
+      .replaceDocumentTypeMappings({
+        caseCategoryId: raw.caseCategoryId,
+        subjectId: raw.subjectId,
+        items
+      })
+      .subscribe({
+        next: () => this.apiMessage.set('Mapping saved.'),
+        error: (err: unknown) => this.apiError.set(this.formatError(err)),
+        complete: () => this.busy.set(false)
+      });
   }
 
   private designationPayload(): CreateOrUpdateDesignationRequest {

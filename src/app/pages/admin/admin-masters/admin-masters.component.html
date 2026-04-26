@@ -76,6 +76,14 @@
     <button type="button" class="tab" [class.active]="selected() === 'EMPLOYEE'" (click)="select('EMPLOYEE')">
       Employee
     </button>
+    <button
+      type="button"
+      class="tab"
+      [class.active]="selected() === 'DOCUMENT_TYPE_MAPPING'"
+      (click)="select('DOCUMENT_TYPE_MAPPING')"
+    >
+      Document Type Mapping
+    </button>
   </nav>
 
   <article class="form-card">
@@ -872,6 +880,15 @@
                 </select>
               </label>
               <label>
+                Office Branch (optional)
+                <select formControlName="officeBranchId">
+                  <option [ngValue]="0">No branch</option>
+                  @for (b of officeBranches(); track b.id) {
+                    <option [ngValue]="b.id">{{ b.name }}</option>
+                  }
+                </select>
+              </label>
+              <label>
                 Designation *
                 <select formControlName="designationId">
                   <option [ngValue]="0">Select designation</option>
@@ -897,6 +914,7 @@
                   <tr>
                     <th>ID</th>
                     <th>Office</th>
+                    <th>Branch</th>
                     <th>Designation</th>
                     <th>From</th>
                     <th>To</th>
@@ -906,14 +924,15 @@
                 <tbody>
                   @if (employeePostings().length === 0) {
                     <tr>
-                      <td colspan="6" class="empty">No postings</td>
+                      <td colspan="7" class="empty">No postings</td>
                     </tr>
                   } @else {
                     @for (p of employeePostings(); track p.id) {
                       <tr>
                         <td>{{ p.id }}</td>
-                        <td>{{ p.officeId }}</td>
-                        <td>{{ p.designationId }}</td>
+                        <td>{{ p.officeName || p.officeId }}</td>
+                        <td>{{ p.officeBranchName || (p.officeBranchId || '-') }}</td>
+                        <td>{{ p.designationName || p.designationId }}</td>
                         <td>{{ p.fromDate }}</td>
                         <td>{{ p.toDate || '-' }}</td>
                         <td class="cell-actions">
@@ -932,9 +951,112 @@
           </section>
         }
       }
+
+      @case ('DOCUMENT_TYPE_MAPPING') {
+        <section class="filter-card" aria-label="Document type mapping">
+          <h4>Load Mapping</h4>
+          <form
+            class="filter-grid"
+            [formGroup]="documentTypeMappingForm"
+            (ngSubmit)="$event.preventDefault(); loadDocumentTypeMappings()"
+          >
+            <label>
+              Case Category ID *
+              <input type="number" formControlName="caseCategoryId" min="1" placeholder="1" />
+            </label>
+            <label>
+              Subject *
+              <select formControlName="subjectId">
+                <option [ngValue]="0">Select subject</option>
+                @for (s of mappingSubjects(); track s.id) {
+                  <option [ngValue]="s.id">{{ s.subjectCode }} - {{ s.subjectName }}</option>
+                }
+              </select>
+            </label>
+            <div class="row-actions">
+              <button type="button" class="btn btn-primary" (click)="loadDocumentTypeMappings()" [disabled]="busy()">
+                Load
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="filter-card" aria-label="Add mapping item">
+          <h4>Add / Update Items</h4>
+          <form
+            class="filter-grid"
+            [formGroup]="documentTypeMappingItemForm"
+            (ngSubmit)="$event.preventDefault(); addDocumentTypeMappingItem()"
+          >
+            <label>
+              Document Type ID *
+              <input type="number" formControlName="documentTypeId" min="1" placeholder="12" />
+            </label>
+            <label>
+              Display Order *
+              <input type="number" formControlName="displayOrder" min="1" />
+            </label>
+            <label class="inline-check">
+              <input type="checkbox" formControlName="required" />
+              Required
+            </label>
+            <div class="row-actions">
+              <button type="button" class="btn btn-primary" (click)="addDocumentTypeMappingItem()" [disabled]="busy()">
+                Add Item
+              </button>
+              <button type="button" class="btn btn-primary" (click)="saveDocumentTypeMappings()" [disabled]="busy()">
+                Save Mapping
+              </button>
+            </div>
+          </form>
+
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Document Type ID</th>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>Required</th>
+                  <th>Display Order</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @if (documentTypeMappings().length === 0) {
+                  <tr>
+                    <td colspan="6" class="empty">No mapping items</td>
+                  </tr>
+                } @else {
+                  @for (item of documentTypeMappings(); track item.documentTypeId) {
+                    <tr>
+                      <td>{{ item.documentTypeId }}</td>
+                      <td>{{ item.documentType.code || '-' }}</td>
+                      <td>{{ item.documentType.name || '-' }}</td>
+                      <td>{{ item.required ? 'Yes' : 'No' }}</td>
+                      <td>{{ item.displayOrder }}</td>
+                      <td class="cell-actions">
+                        <button
+                          type="button"
+                          class="btn btn-secondary danger"
+                          (click)="removeDocumentTypeMappingItem(item.documentTypeId)"
+                          [disabled]="busy()"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
     }
 
-    <section class="list-card" aria-label="Existing masters">
+    @if (!isDocumentTypeMapping()) {
+      <section class="list-card" aria-label="Existing masters">
       <header class="list-head">
         <h4>Existing</h4>
         <div class="pager">
@@ -1335,7 +1457,8 @@
           </table>
         }
       </div>
-    </section>
+      </section>
+    }
   </article>
 </section>
 

@@ -190,6 +190,13 @@
   color: #1f2937;
 }
 
+.inline-check {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  margin-top: 26px;
+}
+
 .filter-grid input,
 .filter-grid select {
   border-radius: 12px;

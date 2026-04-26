@@ -1,0 +1,365 @@
+<div class="rccms-app">
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h3>Applicant objection — disputed order</h3>
+        <p class="sub">{{ activeStep().title }} — {{ activeStep().hint }}</p>
+      </div>
+      <div class="step-meta">Step {{ stepIndex() + 1 }} / {{ steps.length }}</div>
+    </header>
+
+    <nav class="stepper" aria-label="Application steps">
+      @for (s of steps; track s.key; let i = $index) {
+        <button type="button" class="step" [class.active]="i === stepIndex()" (click)="stepIndex.set(i)">
+          <span class="num">{{ i + 1 }}</span>
+          <span class="label">{{ s.title }}</span>
+        </button>
+      }
+    </nav>
+
+    @if (apiError()) {
+      <p class="api-message error">{{ apiError() }}</p>
+    }
+
+    @switch (activeStep().key) {
+      @case ('DISPUTED_ORDER') {
+        <section class="section">
+          <div class="mini-card" [formGroup]="form">
+            <div class="mini-head">
+              <strong>Selection</strong>
+            </div>
+            <div class="grid">
+              <label class="span-2">
+                Subject *
+                <select formControlName="subjectId" [disabled]="loadingSubjects()">
+                  <option [ngValue]="0">{{ loadingSubjects() ? 'Loading...' : 'Select subject' }}</option>
+                  @for (s of subjects(); track s.id) {
+                    <option [ngValue]="s.id">{{ s.subjectCode }} - {{ s.subjectName }}</option>
+                  }
+                </select>
+              </label>
+
+              <label>
+                District *
+                <select formControlName="districtId" [disabled]="form.controls.subjectId.value < 1 || loadingDistricts()">
+                  <option [ngValue]="0">{{ loadingDistricts() ? 'Loading...' : 'Select district' }}</option>
+                  @for (d of districts(); track d.id) {
+                    <option [ngValue]="d.id">{{ d.name }}</option>
+                  }
+                </select>
+              </label>
+
+              <label>
+                Subdistrict
+                <select formControlName="subdistrictId" [disabled]="form.controls.districtId.value < 1 || loadingSubdistricts()">
+                  <option [ngValue]="0">{{ loadingSubdistricts() ? 'Loading...' : 'All / Select subdistrict' }}</option>
+                  @for (s of subdistricts(); track s.id) {
+                    <option [ngValue]="s.id">{{ s.name }}</option>
+                  }
+                </select>
+              </label>
+
+              <label>
+                Taluka *
+                <select formControlName="talukaId" [disabled]="form.controls.districtId.value < 1 || loadingTalukas()">
+                  <option [ngValue]="0">{{ loadingTalukas() ? 'Loading...' : 'Select taluka' }}</option>
+                  @for (t of talukas(); track t.id) {
+                    <option [ngValue]="t.id">{{ t.name }}</option>
+                  }
+                </select>
+              </label>
+
+              <label>
+                Office *
+                <select formControlName="officeId" [disabled]="form.controls.talukaId.value < 1 || loadingOffices()">
+                  <option [ngValue]="0">{{ loadingOffices() ? 'Loading...' : 'Select office' }}</option>
+                  @for (o of offices(); track o.id) {
+                    <option [ngValue]="o.id">{{ o.name }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="mini-card" [formGroup]="form">
+            <div class="mini-head">
+              <strong>Search lower court record</strong>
+            </div>
+
+            <div class="radio-row">
+              <label class="role-option">
+                <input
+                  type="radio"
+                  name="searchMode"
+                  [checked]="form.controls.searchMode.value === 'PARTY_NAME'"
+                  (change)="form.controls.searchMode.setValue('PARTY_NAME')"
+                />
+                <span>Party name</span>
+              </label>
+              <label class="role-option">
+                <input
+                  type="radio"
+                  name="searchMode"
+                  [checked]="form.controls.searchMode.value === 'CASE_NUMBER'"
+                  (change)="form.controls.searchMode.setValue('CASE_NUMBER')"
+                />
+                <span>Case number</span>
+              </label>
+              <label class="role-option">
+                <input
+                  type="radio"
+                  name="searchMode"
+                  [checked]="form.controls.searchMode.value === 'SURVEY_NUMBER'"
+                  (change)="form.controls.searchMode.setValue('SURVEY_NUMBER')"
+                />
+                <span>Survey no.</span>
+              </label>
+              <label class="role-option">
+                <input
+                  type="radio"
+                  name="searchMode"
+                  [checked]="form.controls.searchMode.value === 'GAT_NUMBER'"
+                  (change)="form.controls.searchMode.setValue('GAT_NUMBER')"
+                />
+                <span>Gat no.</span>
+              </label>
+            </div>
+
+            <div class="grid">
+              <label class="span-2">
+                {{ searchFieldLabel() }} *
+                <input type="text" formControlName="searchValue" [placeholder]="searchPlaceholder()" />
+              </label>
+            </div>
+
+            <div class="row-actions">
+              <button type="button" class="btn btn-primary" (click)="performSearch()" [disabled]="loadingSearch()">
+                {{ loadingSearch() ? 'Searching…' : 'Search' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-head">
+              <strong>Lower court order</strong>
+            </div>
+
+            @if (lowerCourtOrder(); as order) {
+              <div class="grid">
+                <div class="kv">
+                  <span class="k">Order no.</span>
+                  <span class="v">{{ order.orderNo }}</span>
+                </div>
+                <div class="kv">
+                  <span class="k">Order date</span>
+                  <span class="v">{{ order.orderDate }}</span>
+                </div>
+                <div class="kv span-2">
+                  <span class="k">Office</span>
+                  <span class="v">{{ order.office }}</span>
+                </div>
+                <div class="kv span-2">
+                  <span class="k">Summary</span>
+                  <span class="v">{{ order.summary }}</span>
+                </div>
+              </div>
+
+              @if (order.orderPdfs.length > 0) {
+                <div class="pdf-doc-links" aria-label="Open PDF attachments in a new tab">
+                  @for (p of order.orderPdfs; track $index) {
+                    <a class="btn btn-secondary btn-compact" [href]="p.url" target="_blank" rel="noopener noreferrer">Open: {{ p.label }}</a>
+                  }
+                </div>
+              }
+
+              @if (safePdfSrc(); as pdfSrc) {
+                <div class="pdf-panel">
+                  <div class="pdf-toolbar">
+                    <span class="title">PDF preview</span>
+                    @if (activePdfUrl(); as openUrl) {
+                      <a class="btn btn-secondary btn-compact" [href]="openUrl" target="_blank" rel="noopener noreferrer">Open selected</a>
+                    }
+                  </div>
+                  @if (order.orderPdfs.length > 1) {
+                    <div class="pdf-tabs" role="tablist" aria-label="Select PDF to preview">
+                      @for (p of order.orderPdfs; track $index; let i = $index) {
+                        <button
+                          type="button"
+                          role="tab"
+                          class="pdf-tab"
+                          [class.active]="i === selectedPdfIndex()"
+                          [attr.aria-selected]="i === selectedPdfIndex()"
+                          (click)="selectPdf(i)"
+                        >
+                          {{ p.label }}
+                        </button>
+                      }
+                    </div>
+                  }
+                  <iframe class="pdf-frame" title="Selected order PDF" [src]="pdfSrc"></iframe>
+                  <p class="pdf-hint">If the preview does not load (browser or server restrictions), use Open or Open selected.</p>
+                </div>
+              }
+            } @else {
+              <p class="sub sub-tight-top">Run a search to load order details and any linked PDFs from the server.</p>
+            }
+          </div>
+        </section>
+      }
+
+      @case ('ACT_SECTION') {
+        <section class="section">
+          <div class="mini-card" [formGroup]="form">
+            <div class="mini-head">
+              <strong>Case Act & Section</strong>
+            </div>
+
+            <div class="grid">
+              <label>
+                Higher court level *
+                <select formControlName="higherCourtLevel" [disabled]="true">
+                  @for (c of courtLevels; track c.id) {
+                    <option [ngValue]="c.id">{{ c.label }}</option>
+                  }
+                </select>
+              </label>
+
+              <label>
+                Higher court name *
+                <input type="text" formControlName="higherCourtName" [disabled]="true" placeholder="e.g. Bombay High Court" />
+              </label>
+
+              <label class="span-2">
+                Act *
+                <select formControlName="actId">
+                  <option [ngValue]="0">Select act</option>
+                  @for (a of acts(); track a.id) {
+                    <option [ngValue]="a.id">{{ a.name }}</option>
+                  }
+                </select>
+              </label>
+
+              <label class="span-2">
+                Section *
+                <select formControlName="sectionId" [disabled]="form.controls.actId.value < 1">
+                  <option [ngValue]="0">Select section</option>
+                  @for (s of sectionsForSelectedAct(); track s.id) {
+                    <option [ngValue]="s.id">{{ s.name }}</option>
+                  }
+                </select>
+              </label>
+
+              @if (showCustomSection()) {
+                <label class="span-2">
+                  Add section (if not in list) *
+                  <input type="text" formControlName="customSectionName" placeholder="e.g. Section 259 or 259A" />
+                </label>
+              }
+            </div>
+
+            @if (showCustomSection()) {
+              <div class="row-actions">
+                <button type="button" class="btn btn-primary" (click)="addCustomSection()">Add section</button>
+              </div>
+            }
+          </div>
+        </section>
+      }
+
+      @case ('PARTIES') {
+        <section class="section">
+          <div class="mini-card" [formGroup]="form">
+            <div class="mini-head">
+              <strong>Applicant details</strong>
+              <button type="button" class="btn btn-secondary btn-compact" (click)="addApplicant()">Add applicant</button>
+            </div>
+
+            <div class="repeat-list" formArrayName="applicants">
+              @for (_ of applicants.controls; track $index; let i = $index) {
+                <div class="repeat-card" [formGroupName]="i">
+                  <div class="mini-head">
+                    <strong>Applicant {{ i + 1 }}</strong>
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-compact"
+                      (click)="removeApplicant(i)"
+                      [disabled]="applicants.controls.length <= 1"
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  <div class="grid">
+                    <label class="span-2">
+                      Name
+                      <input type="text" formControlName="name" placeholder="Applicant name" />
+                    </label>
+
+                    <label>
+                      Mobile number
+                      <input type="text" formControlName="mobile" placeholder="10-digit mobile" />
+                    </label>
+
+                    <label>
+                      Address
+                      <input type="text" formControlName="address" placeholder="Village / Taluka / District" />
+                    </label>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+
+          <div class="mini-card" [formGroup]="form" style="margin-top: 12px">
+            <div class="mini-head">
+              <strong>Respondent details</strong>
+              <button type="button" class="btn btn-secondary btn-compact" (click)="addRespondent()">Add respondent</button>
+            </div>
+
+            <div class="repeat-list" formArrayName="respondents">
+              @for (_ of respondents.controls; track $index; let i = $index) {
+                <div class="repeat-card" [formGroupName]="i">
+                  <div class="mini-head">
+                    <strong>Respondent {{ i + 1 }}</strong>
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-compact"
+                      (click)="removeRespondent(i)"
+                      [disabled]="respondents.controls.length <= 1"
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  <div class="grid">
+                    <label class="span-2">
+                      Name
+                      <input type="text" formControlName="name" placeholder="Respondent name" />
+                    </label>
+
+                    <label>
+                      Mobile number
+                      <input type="text" formControlName="mobile" placeholder="10-digit mobile" />
+                    </label>
+
+                    <label>
+                      Address
+                      <input type="text" formControlName="address" placeholder="Village / Taluka / District" />
+                    </label>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        </section>
+      }
+    }
+
+    <footer class="footer-actions">
+      <button type="button" class="btn btn-secondary" (click)="back()" [disabled]="stepIndex() === 0">Back</button>
+      <button type="button" class="btn btn-primary" (click)="next()" [disabled]="stepIndex() === steps.length - 1">
+        Next
+      </button>
+    </footer>
+  </article>
+</div>

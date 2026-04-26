@@ -216,15 +216,60 @@ export interface EmployeePostingRecord {
   id: number;
   employeeId: number;
   officeId: number;
+  officeName: string;
+  officeBranchId: number | null;
+  officeBranchName: string | null;
   designationId: number;
+  designationName: string;
   fromDate: string; // yyyy-MM-dd
   toDate: string | null; // yyyy-MM-dd
 }
 
 export interface CreateEmployeePostingRequest {
   officeId: number;
+  officeBranchId?: number;
   designationId: number;
   fromDate: string; // yyyy-MM-dd
+}
+
+export interface OfficeBranchRecord {
+  id: number;
+  officeId: number;
+  name: string;
+  localName: string | null;
+  shortName: string | null;
+  shortNameLocal: string | null;
+}
+
+export interface DocumentTypeRecord {
+  id: number;
+  code: string;
+  name: string;
+  localName: string | null;
+  validForPhotoId: boolean;
+  validForAddress: boolean;
+  sourceUrl: string | null;
+}
+
+export interface DocumentTypeMappingItemRecord {
+  documentTypeId: number;
+  required: boolean;
+  displayOrder: number;
+  documentType: DocumentTypeRecord;
+}
+
+export interface ReplaceDocumentTypeMappingsRequest {
+  caseCategoryId: number;
+  subjectId: number;
+  items: Array<{
+    documentTypeId: number;
+    required: boolean;
+    displayOrder: number;
+  }>;
+}
+
+export interface MessageResponse {
+  message: string;
 }
 
 export interface ClosePostingRequest {
@@ -422,6 +467,36 @@ export class AdminMastersService {
       `${this.apiBaseUrl}/api/admin/employees/postings/${postingId}/close`,
       payload
     );
+  }
+
+  getOfficeBranches(officeId: number): Observable<OfficeBranchRecord[]> {
+    return this.http.get<OfficeBranchRecord[]>(`${this.apiBaseUrl}/api/admin/offices/${officeId}/branches`);
+  }
+
+  getOfficeBranch(branchId: number): Observable<OfficeBranchRecord> {
+    return this.http.get<OfficeBranchRecord>(`${this.apiBaseUrl}/api/admin/branches/${branchId}`);
+  }
+
+  getDocumentTypeMappings(
+    caseCategoryId: number,
+    subjectId: number
+  ): Observable<DocumentTypeMappingItemRecord[]> {
+    return this.http.get<DocumentTypeMappingItemRecord[]>(`${this.apiBaseUrl}/api/admin/document-type-mappings`, {
+      params: { caseCategoryId, subjectId }
+    });
+  }
+
+  replaceDocumentTypeMappings(payload: ReplaceDocumentTypeMappingsRequest): Observable<MessageResponse> {
+    return this.http.put<MessageResponse>(`${this.apiBaseUrl}/api/admin/document-type-mappings`, payload);
+  }
+
+  getDocumentTypesForCaseCategorySubject(
+    caseCategoryId: number,
+    subjectId: number
+  ): Observable<DocumentTypeRecord[]> {
+    return this.http.get<DocumentTypeRecord[]>(`${this.apiBaseUrl}/api/document-types/by-case-category-subject`, {
+      params: { caseCategoryId, subjectId }
+    });
   }
 
   getStates(): Observable<MasterRecord[]> {

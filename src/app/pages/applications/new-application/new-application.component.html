@@ -7,18 +7,44 @@
     <a routerLink="/portal-home" class="btn btn-secondary">Back</a>
   </header>
 
-  @if (!selectedType()) {
+  @if (error()) {
+    <p class="api-message error">{{ error() }}</p>
+  }
+
+  @if (loading()) {
     <article class="card">
-      <h3>Choose application type</h3>
-      <div class="type-grid">
-        <button type="button" class="type-tile" (click)="selectedType.set('ORIGINAL_FILE_MUTATION')">
-          <strong>Original File</strong>
-          <span>Mutation case</span>
-        </button>
-      </div>
+      <p class="sub">Loading case category...</p>
     </article>
-  } @else if (selectedType() === 'ORIGINAL_FILE_MUTATION') {
-    <app-original-file-mutation />
+  } @else if (selectedCaseCategory()) {
+    <article class="card">
+      <header class="card-head">
+        <div>
+          <h3>{{ selectedCaseCategory()!.name }}</h3>
+          <p class="sub">{{ selectedCaseCategory()!.code }} @if (selectedCaseCategory()!.localName) { — {{ selectedCaseCategory()!.localName }} }</p>
+        </div>
+        <button type="button" class="btn btn-secondary" (click)="backToCategorySelect()">
+          Change
+        </button>
+      </header>
+    </article>
+
+    @if (selectedCaseCategory()!.id === 2) {
+      <app-category1-objection />
+    } @else if (selectedType() === 'ORIGINAL_FILE_MUTATION') {
+      <app-original-file-mutation />
+    } @else {
+      <article class="card">
+        <h3>Form not available</h3>
+        <p class="sub">This case category form is not implemented in frontend yet.</p>
+        <button type="button" class="btn btn-primary" (click)="backToCategorySelect()">Choose another category</button>
+      </article>
+    }
+  } @else {
+    <article class="card">
+      <h3>Start filing</h3>
+      <p class="sub">Select a case category first.</p>
+      <a class="btn btn-primary" routerLink="/cases/new">Choose case category</a>
+    </article>
   }
 </section>
 

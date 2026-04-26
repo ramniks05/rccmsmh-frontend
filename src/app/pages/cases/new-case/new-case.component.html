@@ -1,0 +1,44 @@
+<section class="page">
+  <header class="page-head">
+    <div>
+      <h2>File New Case</h2>
+      <p class="sub">Choose a case category</p>
+    </div>
+    <a routerLink="/portal-home" class="btn btn-secondary">Back</a>
+  </header>
+
+  @if (error()) {
+    <p class="api-message error">{{ error() }}</p>
+  }
+
+  <article class="card">
+    @if (loading()) {
+      <p class="muted">Loading case categories...</p>
+    } @else if (categories().length === 0) {
+      <p class="muted">No case categories available.</p>
+    } @else {
+      <div class="grid">
+        @for (c of categories(); track c.id) {
+          <button type="button" class="tile" (click)="selectCategory(c.id)">
+            <div class="tile-head">
+              <strong>{{ c.name }}</strong>
+              <span class="code">{{ c.code }}</span>
+            </div>
+            @if (c.localName) {
+              <div class="local">{{ c.localName }}</div>
+            }
+            <div class="meta">
+              @if (c.hearingOfficeTypeName) {
+                <span>Hearing: {{ c.hearingOfficeTypeName }}</span>
+              }
+              @if (c.nextCaseCategoryName) {
+                <span>Next: {{ c.nextCaseCategoryName }}</span>
+              }
+            </div>
+          </button>
+        }
+      </div>
+    }
+  </article>
+</section>
+
