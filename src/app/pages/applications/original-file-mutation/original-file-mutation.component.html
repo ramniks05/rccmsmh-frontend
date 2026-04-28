@@ -98,36 +98,12 @@
       </section>
     }
 
-    @case ('ADVOCATES') {
+    @case ('VAKALTNAMA') {
       <section class="section">
-        <div class="row-actions">
-          <button type="button" class="btn btn-secondary" (click)="addAdvocate()">Add advocate</button>
-        </div>
-
-        @for (g of advocates.controls; track g; let i = $index) {
-          <div class="mini-card" [formGroup]="$any(g)">
-            <div class="mini-head">
-              <strong>Advocate {{ i + 1 }}</strong>
-              <button type="button" class="btn btn-secondary danger" (click)="removeAdvocate(i)" [disabled]="advocates.length <= 1">
-                Remove
-              </button>
-            </div>
-            <div class="grid">
-              <label>
-                Advocate name *
-                <input type="text" formControlName="advocateName" />
-              </label>
-              <label>
-                Bar council no.
-                <input type="text" formControlName="barCouncilNumber" />
-              </label>
-              <label>
-                Mobile
-                <input type="text" formControlName="mobile" />
-              </label>
-            </div>
-          </div>
-        }
+        <app-vakaltnama-panel
+          [coAdvocates]="vakaltnamaCoAdvocates()"
+          (coAdvocatesChange)="vakaltnamaCoAdvocates.set($event)"
+        />
       </section>
     }
 

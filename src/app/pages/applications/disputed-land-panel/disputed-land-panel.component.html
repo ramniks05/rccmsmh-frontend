@@ -1,0 +1,222 @@
+<div class="mini-card">
+  <div class="mini-head">
+    <strong>Disputed land type</strong>
+  </div>
+
+  <div class="radio-row">
+    <label class="role-option">
+      <input type="radio" name="landMode" [checked]="mode() === 'RURAL_7_12'" (change)="setMode('RURAL_7_12')" />
+      <span>Rural RoR (7/12)</span>
+    </label>
+    <label class="role-option">
+      <input
+        type="radio"
+        name="landMode"
+        [checked]="mode() === 'URBAN_PROPERTY_CARD'"
+        (change)="setMode('URBAN_PROPERTY_CARD')"
+      />
+      <span>Urban Property Card</span>
+    </label>
+  </div>
+</div>
+
+@if (error()) {
+  <p class="api-message error">{{ error() }}</p>
+}
+
+@if (mode() === 'RURAL_7_12') {
+  <div class="mini-card">
+    <div class="mini-head">
+      <strong>Search rural plot (7/12)</strong>
+    </div>
+    <div class="grid">
+      <label>
+        District *
+        <select [value]="ruralDistrictCode()" (change)="onRuralDistrictChange($any($event.target).value)">
+          <option value="">Select</option>
+          @for (d of ruralDistricts(); track d.district_code) {
+            <option [value]="d.district_code.trim()">{{ d.district_name }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Taluka *
+        <select [value]="ruralTalukaCode()" (change)="onRuralTalukaChange($any($event.target).value)" [disabled]="!ruralDistrictCode()">
+          <option value="">Select</option>
+          @for (t of ruralTalukas(); track t.taluka_code) {
+            <option [value]="t.taluka_code.trim()">{{ t.taluka_name }}</option>
+          }
+        </select>
+      </label>
+      <label class="span-2">
+        Village (LGD) *
+        <select
+          [value]="ruralVillageLgdCode()"
+          (change)="onRuralVillageChange($any($event.target).value)"
+          [disabled]="!ruralTalukaCode()"
+        >
+          <option value="">Select</option>
+          @for (v of ruralVillages(); track v.lgd_village_code) {
+            <option [value]="v.lgd_village_code.trim()">{{ v.village_name }}</option>
+          }
+        </select>
+      </label>
+
+      <label class="span-2">
+        Survey number (pin) *
+        <input type="text" [value]="ruralPin()" (input)="setRuralPin($any($event.target).value)" placeholder="e.g. 201" />
+      </label>
+    </div>
+
+    <div class="row-actions">
+      <button type="button" class="btn btn-primary" (click)="searchRural()" [disabled]="loading() || !canSearchRural()">
+        {{ loading() ? 'Searching…' : 'Search' }}
+      </button>
+    </div>
+
+    @if (ruralSubSurveyRows().length > 0) {
+      <div class="table-wrap">
+        <table class="simple-table">
+          <thead>
+            <tr>
+              <th>Pin</th>
+              <th>Sub</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of ruralSubSurveyRows(); track r.pin + '-' + r.pin1; let i = $index) {
+              <tr>
+                <td>{{ r.pin }}</td>
+                <td>{{ r.pin1 }} {{ r.pin2 }} {{ r.pin3 }} {{ r.pin4 }} {{ r.pin5 }} {{ r.pin6 }} {{ r.pin7 }} {{ r.pin8 }}</td>
+                <td>
+                  <button type="button" class="btn btn-secondary btn-compact" (click)="addRuralRow(r)">Add</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="sub sub-tight-top">Search results will appear here.</p>
+    }
+  </div>
+} @else {
+  <div class="mini-card">
+    <div class="mini-head">
+      <strong>Search urban property card</strong>
+    </div>
+    <div class="grid">
+      <label>
+        District *
+        <select [value]="urbanDistrictCode()" (change)="onUrbanDistrictChange($any($event.target).value)">
+          <option value="">Select</option>
+          @for (d of urbanDistricts(); track d.district_code) {
+            <option [value]="d.district_code.trim()">{{ d.district_name }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Office *
+        <select [value]="urbanOfficeCode()" (change)="onUrbanOfficeChange($any($event.target).value)" [disabled]="!urbanDistrictCode()">
+          <option value="">Select</option>
+          @for (o of urbanOffices(); track o.office_code) {
+            <option [value]="o.office_code.trim()">{{ o.office_english_name || o.office_name }}</option>
+          }
+        </select>
+      </label>
+      <label class="span-2">
+        Village *
+        <select [value]="urbanVillageCode()" (change)="onUrbanVillageChange($any($event.target).value)" [disabled]="!urbanOfficeCode()">
+          <option value="">Select</option>
+          @for (v of urbanVillages(); track v.village_code) {
+            <option [value]="v.village_code.trim()">{{ v.village_english_name || v.village_name }}</option>
+          }
+        </select>
+      </label>
+      <label class="span-2">
+        CTS filter (optional)
+        <input type="text" [value]="urbanCtsFilter()" (input)="setUrbanCtsFilter($any($event.target).value)" placeholder="e.g. 101/1" />
+      </label>
+    </div>
+
+    <div class="row-actions">
+      <button type="button" class="btn btn-primary" (click)="searchUrban()" [disabled]="loading() || !canSearchUrban()">
+        {{ loading() ? 'Searching…' : 'Search CTS' }}
+      </button>
+    </div>
+
+    @if (urbanCtsRows().length > 0) {
+      <div class="table-wrap">
+        <table class="simple-table">
+          <thead>
+            <tr>
+              <th>CTS no.</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of urbanCtsRows(); track r.cts_no; let i = $index) {
+              <tr>
+                <td>{{ r.cts_no }}</td>
+                <td><button type="button" class="btn btn-secondary btn-compact" (click)="addUrbanRow(r)">Add</button></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="sub sub-tight-top">CTS results will appear here.</p>
+    }
+  </div>
+}
+
+<div class="mini-card">
+  <div class="mini-head">
+    <strong>Added disputed lands</strong>
+  </div>
+
+  @if (disputedLands().length === 0) {
+    <p class="sub sub-tight-top">No disputed land added yet. Search above and click Add.</p>
+  } @else {
+    <div class="table-wrap">
+      <table class="simple-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Type</th>
+            <th>Location</th>
+            <th>Identifier</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (x of disputedLands(); track keyOf(x); let i = $index) {
+            <tr>
+              <td>{{ i + 1 }}</td>
+              <td>{{ x.type === 'RURAL_7_12' ? '7/12' : 'Property card' }}</td>
+              <td>
+                @if (x.type === 'RURAL_7_12') {
+                  {{ x.districtName }} / {{ x.talukaName }} / {{ x.villageName }}
+                } @else {
+                  {{ x.districtName }} / {{ x.officeName }} / {{ x.villageName }}
+                }
+              </td>
+              <td>
+                @if (x.type === 'RURAL_7_12') {
+                  Pin {{ x.pin }} ({{ x.pinParts.pin1 }}{{ x.pinParts.pin2 }}{{ x.pinParts.pin3 }}{{ x.pinParts.pin4 }}{{ x.pinParts.pin5 }}{{ x.pinParts.pin6 }}{{ x.pinParts.pin7 }}{{ x.pinParts.pin8 }})
+                } @else {
+                  CTS {{ x.ctsNo }}
+                }
+              </td>
+              <td>
+                <button type="button" class="btn btn-secondary danger btn-compact" (click)="remove(i)">Remove</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+

@@ -1,10 +1,14 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
+import { TokenStorageService } from '../../../services/token-storage.service';
+import { AdvocateLookupResponse } from '../../../services/advocate-by-bar-council.service';
+import { VakaltnamaPanelComponent } from '../vakaltnama-panel/vakaltnama-panel.component';
+
 type StepKey =
   | 'APPLICANTS'
   | 'RESPONDENTS'
-  | 'ADVOCATES'
+  | 'VAKALTNAMA'
   | 'LAND_DETAILS'
   | 'PO_COURT'
   | 'PREVIEW'
@@ -18,17 +22,22 @@ interface Step {
 
 @Component({
   selector: 'app-original-file-mutation',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, VakaltnamaPanelComponent],
   templateUrl: './original-file-mutation.component.html',
   styleUrl: './original-file-mutation.component.css'
 })
 export class OriginalFileMutationComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly tokenStorage = inject(TokenStorageService);
 
   protected readonly steps: Step[] = [
     { key: 'APPLICANTS', title: 'Applicants', hint: 'Add one or more applicants' },
     { key: 'RESPONDENTS', title: 'Respondents', hint: 'Add one or more respondents' },
-    { key: 'ADVOCATES', title: 'Advocates', hint: 'Add additional advocates (optional)' },
+    {
+      key: 'VAKALTNAMA',
+      title: 'Vakaltnama',
+      hint: 'Filing advocate and co-advocates (search by bar council number)'
+    },
     { key: 'LAND_DETAILS', title: 'Land details', hint: 'Basic land/case details' },
     { key: 'PO_COURT', title: 'PO Court', hint: 'Select court / officer' },
     { key: 'PREVIEW', title: 'Preview', hint: 'Review before saving' },
@@ -39,10 +48,11 @@ export class OriginalFileMutationComponent {
   protected readonly apiMessage = signal<string | null>(null);
   protected readonly apiError = signal<string | null>(null);
 
+  protected readonly vakaltnamaCoAdvocates = signal<AdvocateLookupResponse[]>([]);
+
   protected readonly form = this.fb.nonNullable.group({
     applicants: this.fb.array([this.personGroup()]),
     respondents: this.fb.array([this.personGroup()]),
-    advocates: this.fb.array([this.advocateGroup()]),
     land: this.fb.nonNullable.group({
       district: ['Pune', [Validators.required]],
       taluka: ['Haveli', [Validators.required]],
@@ -65,9 +75,6 @@ export class OriginalFileMutationComponent {
   protected get respondents(): FormArray {
     return this.form.controls.respondents;
   }
-  protected get advocates(): FormArray {
-    return this.form.controls.advocates;
-  }
 
   protected addApplicant(): void {
     this.applicants.push(this.personGroup());
@@ -83,14 +90,6 @@ export class OriginalFileMutationComponent {
   protected removeRespondent(index: number): void {
     if (this.respondents.length <= 1) return;
     this.respondents.removeAt(index);
-  }
-
-  protected addAdvocate(): void {
-    this.advocates.push(this.advocateGroup());
-  }
-  protected removeAdvocate(index: number): void {
-    if (this.advocates.length <= 1) return;
-    this.advocates.removeAt(index);
   }
 
   protected back(): void {
@@ -117,7 +116,7 @@ export class OriginalFileMutationComponent {
       this.apiError.set('Please fix validation errors before saving.');
       return;
     }
-    const payload = this.form.getRawValue();
+    const payload = this.buildPersistPayload();
     this.persist('DRAFT', payload);
     this.apiMessage.set('Draft saved locally.');
   }
@@ -127,13 +126,13 @@ export class OriginalFileMutationComponent {
       this.apiError.set('Please fix validation errors before final submit.');
       return;
     }
-    const payload = this.form.getRawValue();
+    const payload = this.buildPersistPayload();
     this.persist('FINAL', payload);
     this.apiMessage.set('Final submitted locally (dummy).');
   }
 
   protected previewJson(): string {
-    return JSON.stringify(this.form.getRawValue(), null, 2);
+    return JSON.stringify(this.buildPersistPayload(), null, 2);
   }
 
   private personGroup() {
@@ -145,18 +144,10 @@ export class OriginalFileMutationComponent {
     });
   }
 
-  private advocateGroup() {
-    return this.fb.nonNullable.group({
-      advocateName: ['', [Validators.required, Validators.minLength(2)]],
-      barCouncilNumber: [''],
-      mobile: ['']
-    });
-  }
-
   private validateStep(step: StepKey): boolean {
     if (step === 'APPLICANTS') return this.markArrayTouched(this.applicants);
     if (step === 'RESPONDENTS') return this.markArrayTouched(this.respondents);
-    if (step === 'ADVOCATES') return this.markArrayTouched(this.advocates);
+    if (step === 'VAKALTNAMA') return true;
     if (step === 'LAND_DETAILS') return this.markGroupTouched(this.form.controls.land);
     if (step === 'PO_COURT') return this.markGroupTouched(this.form.controls.poCourt);
     return true;
@@ -165,10 +156,9 @@ export class OriginalFileMutationComponent {
   private validateAll(): boolean {
     const a = this.markArrayTouched(this.applicants);
     const r = this.markArrayTouched(this.respondents);
-    const adv = this.markArrayTouched(this.advocates);
     const land = this.markGroupTouched(this.form.controls.land);
     const court = this.markGroupTouched(this.form.controls.poCourt);
-    return a && r && adv && land && court;
+    return a && r && land && court;
   }
 
   private markArrayTouched(arr: FormArray): boolean {
@@ -179,6 +169,20 @@ export class OriginalFileMutationComponent {
   private markGroupTouched(group: { markAllAsTouched: () => void; valid: boolean }): boolean {
     group.markAllAsTouched();
     return group.valid;
+  }
+
+  private buildPersistPayload(): unknown {
+    const base = this.form.getRawValue();
+    return {
+      ...base,
+      vakaltnama: {
+        filingAdvocate: {
+          displayName: this.tokenStorage.getDisplayName() || '—',
+          role: this.tokenStorage.getRole() || '—'
+        },
+        coAdvocates: this.vakaltnamaCoAdvocates()
+      }
+    };
   }
 
   private persist(mode: 'DRAFT' | 'FINAL', payload: unknown): void {
@@ -192,4 +196,3 @@ export class OriginalFileMutationComponent {
     localStorage.setItem(key, JSON.stringify(record));
   }
 }
-

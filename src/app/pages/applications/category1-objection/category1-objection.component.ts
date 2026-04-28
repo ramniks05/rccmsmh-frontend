@@ -6,8 +6,13 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { SubjectRecord, SubjectService } from '../../../services/subject.service';
 import { LookupsService, BoundaryMasterResponse, OfficeResponse } from '../../../services/lookups.service';
 import { environment } from '../../../../environments/environment';
+import { AdvocateLookupResponse } from '../../../services/advocate-by-bar-council.service';
+import { VakaltnamaPanelComponent } from '../vakaltnama-panel/vakaltnama-panel.component';
+import { DisputedLandPanelComponent } from '../disputed-land-panel/disputed-land-panel.component';
+import { DisputedLandRow } from '../disputed-land-panel/disputed-land-panel.component';
+import { ApplicantOption, VakaltnamaAssignment } from '../vakaltnama-panel/vakaltnama-panel.component';
 
-type StepKey = 'DISPUTED_ORDER' | 'ACT_SECTION' | 'PARTIES';
+type StepKey = 'DISPUTED_ORDER' | 'ACT_SECTION' | 'PARTIES' | 'VAKALTNAMA' | 'DISPUTED_LAND';
 
 interface Step {
   key: StepKey;
@@ -38,7 +43,7 @@ export interface LowerCourtOrderView {
 
 @Component({
   selector: 'app-category1-objection',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, VakaltnamaPanelComponent, DisputedLandPanelComponent],
   templateUrl: './category1-objection.component.html'
 })
 export class Category1ObjectionComponent {
@@ -50,11 +55,25 @@ export class Category1ObjectionComponent {
   protected readonly steps: Step[] = [
     { key: 'DISPUTED_ORDER', title: 'Disputed document/order', hint: 'Select subject and review order details' },
     { key: 'ACT_SECTION', title: 'Case act and PO', hint: 'Select act/section and proceed' },
-    { key: 'PARTIES', title: 'Applicant/Respondent details', hint: 'Add parties with mobile number and address' }
+    { key: 'PARTIES', title: 'Applicant/Respondent details', hint: 'Add parties with mobile number and address' },
+    {
+      key: 'VAKALTNAMA',
+      title: 'Vakaltnama',
+      hint: 'Filing advocate and co-advocates (search by bar council number)'
+    },
+    {
+      key: 'DISPUTED_LAND',
+      title: 'Disputed land details',
+      hint: 'Search plots from land records API and add multiple'
+    }
   ];
 
   protected readonly stepIndex = signal(0);
   protected readonly activeStep = computed(() => this.steps[this.stepIndex()]);
+
+  protected readonly vakaltnamaCoAdvocates = signal<AdvocateLookupResponse[]>([]);
+  protected readonly vakaltnamaAssignments = signal<VakaltnamaAssignment[]>([]);
+  protected readonly disputedLands = signal<DisputedLandRow[]>([]);
 
   protected readonly subjects = signal<SubjectRecord[]>([]);
   protected readonly loadingSubjects = signal(false);
@@ -131,10 +150,26 @@ export class Category1ObjectionComponent {
 
   private createPartyGroup() {
     return this.fb.nonNullable.group({
+      tempId: [this.makeTempId()],
       name: [''],
       mobile: [''],
       address: ['']
     });
+  }
+
+  protected readonly applicantOptions = computed((): ApplicantOption[] => {
+    return this.applicants.controls.map((c) => {
+      const v = (c as any).getRawValue?.() as { tempId?: string; name?: string } | undefined;
+      const id = v?.tempId || this.makeTempId();
+      const name = (v?.name || '').trim() || 'Applicant';
+      return { id, name };
+    });
+  });
+
+  private makeTempId(): string {
+    const cryptoObj = globalThis.crypto as Crypto | undefined;
+    if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
+    return `app-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
   protected addApplicant(): void {

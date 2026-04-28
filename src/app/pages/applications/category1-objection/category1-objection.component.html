@@ -353,6 +353,25 @@
           </div>
         </section>
       }
+
+      @case ('VAKALTNAMA') {
+        <section class="section">
+          <app-vakaltnama-panel
+            [applicants]="applicantOptions()"
+            [assignments]="vakaltnamaAssignments()"
+            (assignmentsChange)="vakaltnamaAssignments.set($event)"
+          />
+        </section>
+      }
+
+      @case ('DISPUTED_LAND') {
+        <section class="section">
+          <app-disputed-land-panel
+            [disputedLands]="disputedLands()"
+            (disputedLandsChange)="disputedLands.set($event)"
+          />
+        </section>
+      }
     }
 
     <footer class="footer-actions">
