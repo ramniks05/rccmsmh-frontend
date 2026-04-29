@@ -21,13 +21,35 @@ export type OfficeLevel = 'STATE' | 'DIVISION' | 'DISTRICT' | 'SUBDISTRICT' | 'T
 export interface OfficeResponse {
   id: number;
   departmentId: number;
+  departmentName?: string | null;
+  departmentLocalName?: string | null;
   officeTypeId: number;
+  officeTypeName?: string | null;
+  officeTypeLocalName?: string | null;
   level: OfficeLevel;
   locationId: number;
   name: string;
   localName: string | null;
   shortName: string | null;
   shortNameLocal: string | null;
+}
+
+export interface ActLookupResponse {
+  id: number;
+  actCode: string;
+  actName: string;
+  actNameLocal: string | null;
+}
+
+export interface SectionLookupResponse {
+  id: number;
+  actId: number;
+  actCode: string;
+  actName: string;
+  actNameLocal: string | null;
+  sectionCode: string;
+  sectionName: string;
+  sectionNameLocal: string | null;
 }
 
 @Injectable({
@@ -58,6 +80,22 @@ export class LookupsService {
   getOffices(level: OfficeLevel, locationId: number, departmentId?: number): Observable<OfficeResponse[]> {
     return this.http.get<OfficeResponse[]>(`${this.apiBaseUrl}/api/lookups/offices`, {
       params: departmentId ? { level, locationId, departmentId } : { level, locationId }
+    });
+  }
+
+  getTalukaOffices(talukaId: number, departmentId?: number): Observable<OfficeResponse[]> {
+    return this.http.get<OfficeResponse[]>(`${this.apiBaseUrl}/api/lookups/offices/by-taluka`, {
+      params: departmentId ? { talukaId, departmentId } : { talukaId }
+    });
+  }
+
+  getActs(): Observable<ActLookupResponse[]> {
+    return this.http.get<ActLookupResponse[]>(`${this.apiBaseUrl}/api/lookups/acts`);
+  }
+
+  getSections(actId?: number): Observable<SectionLookupResponse[]> {
+    return this.http.get<SectionLookupResponse[]>(`${this.apiBaseUrl}/api/lookups/sections`, {
+      params: actId ? { actId } : {}
     });
   }
 }

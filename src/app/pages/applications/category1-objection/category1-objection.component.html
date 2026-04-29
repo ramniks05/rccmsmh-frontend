@@ -26,64 +26,7 @@
         <section class="section">
           <div class="mini-card" [formGroup]="form">
             <div class="mini-head">
-              <strong>Selection</strong>
-            </div>
-            <div class="grid">
-              <label class="span-2">
-                Subject *
-                <select formControlName="subjectId" [disabled]="loadingSubjects()">
-                  <option [ngValue]="0">{{ loadingSubjects() ? 'Loading...' : 'Select subject' }}</option>
-                  @for (s of subjects(); track s.id) {
-                    <option [ngValue]="s.id">{{ s.subjectCode }} - {{ s.subjectName }}</option>
-                  }
-                </select>
-              </label>
-
-              <label>
-                District *
-                <select formControlName="districtId" [disabled]="form.controls.subjectId.value < 1 || loadingDistricts()">
-                  <option [ngValue]="0">{{ loadingDistricts() ? 'Loading...' : 'Select district' }}</option>
-                  @for (d of districts(); track d.id) {
-                    <option [ngValue]="d.id">{{ d.name }}</option>
-                  }
-                </select>
-              </label>
-
-              <label>
-                Subdistrict
-                <select formControlName="subdistrictId" [disabled]="form.controls.districtId.value < 1 || loadingSubdistricts()">
-                  <option [ngValue]="0">{{ loadingSubdistricts() ? 'Loading...' : 'All / Select subdistrict' }}</option>
-                  @for (s of subdistricts(); track s.id) {
-                    <option [ngValue]="s.id">{{ s.name }}</option>
-                  }
-                </select>
-              </label>
-
-              <label>
-                Taluka *
-                <select formControlName="talukaId" [disabled]="form.controls.districtId.value < 1 || loadingTalukas()">
-                  <option [ngValue]="0">{{ loadingTalukas() ? 'Loading...' : 'Select taluka' }}</option>
-                  @for (t of talukas(); track t.id) {
-                    <option [ngValue]="t.id">{{ t.name }}</option>
-                  }
-                </select>
-              </label>
-
-              <label>
-                Office *
-                <select formControlName="officeId" [disabled]="form.controls.talukaId.value < 1 || loadingOffices()">
-                  <option [ngValue]="0">{{ loadingOffices() ? 'Loading...' : 'Select office' }}</option>
-                  @for (o of offices(); track o.id) {
-                    <option [ngValue]="o.id">{{ o.name }}</option>
-                  }
-                </select>
-              </label>
-            </div>
-          </div>
-
-          <div class="mini-card" [formGroup]="form">
-            <div class="mini-head">
-              <strong>Search lower court record</strong>
+              <strong>Search criteria</strong>
             </div>
 
             <div class="radio-row">
@@ -91,19 +34,10 @@
                 <input
                   type="radio"
                   name="searchMode"
-                  [checked]="form.controls.searchMode.value === 'PARTY_NAME'"
-                  (change)="form.controls.searchMode.setValue('PARTY_NAME')"
+                  [checked]="form.controls.searchMode.value === 'INWARD_NUMBER'"
+                  (change)="form.controls.searchMode.setValue('INWARD_NUMBER')"
                 />
-                <span>Party name</span>
-              </label>
-              <label class="role-option">
-                <input
-                  type="radio"
-                  name="searchMode"
-                  [checked]="form.controls.searchMode.value === 'CASE_NUMBER'"
-                  (change)="form.controls.searchMode.setValue('CASE_NUMBER')"
-                />
-                <span>Case number</span>
+                <span>Inward number</span>
               </label>
               <label class="role-option">
                 <input
@@ -118,10 +52,10 @@
                 <input
                   type="radio"
                   name="searchMode"
-                  [checked]="form.controls.searchMode.value === 'GAT_NUMBER'"
-                  (change)="form.controls.searchMode.setValue('GAT_NUMBER')"
+                  [checked]="form.controls.searchMode.value === 'MUTATION_NUMBER'"
+                  (change)="form.controls.searchMode.setValue('MUTATION_NUMBER')"
                 />
-                <span>Gat no.</span>
+                <span>Mutation number</span>
               </label>
             </div>
 
@@ -141,67 +75,115 @@
 
           <div class="mini-card">
             <div class="mini-head">
-              <strong>Lower court order</strong>
+              <strong>Mutation details</strong>
             </div>
 
-            @if (lowerCourtOrder(); as order) {
+            @if (mutationFound() && mutationDetails(); as details) {
+              <p class="api-message success">Record found from API. Fields below are view-only.</p>
               <div class="grid">
                 <div class="kv">
-                  <span class="k">Order no.</span>
-                  <span class="v">{{ order.orderNo }}</span>
+                  <span class="k">Inward number</span>
+                  <span class="v">{{ details.inwardNumber }}</span>
                 </div>
                 <div class="kv">
-                  <span class="k">Order date</span>
-                  <span class="v">{{ order.orderDate }}</span>
+                  <span class="k">Inward date</span>
+                  <span class="v">{{ details.inwardDate }}</span>
                 </div>
                 <div class="kv span-2">
-                  <span class="k">Office</span>
-                  <span class="v">{{ order.office }}</span>
+                  <span class="k">Mutation type</span>
+                  <span class="v">{{ details.mutationType }}</span>
                 </div>
                 <div class="kv span-2">
-                  <span class="k">Summary</span>
-                  <span class="v">{{ order.summary }}</span>
+                  <span class="k">Applicant name</span>
+                  <span class="v">{{ details.applicantName }}</span>
+                </div>
+                <div class="kv">
+                  <span class="k">Village</span>
+                  <span class="v">{{ details.village }}</span>
+                </div>
+                <div class="kv">
+                  <span class="k">Status</span>
+                  <span class="v">{{ details.status }}</span>
                 </div>
               </div>
 
-              @if (order.orderPdfs.length > 0) {
+              @if (details.attachFileUrl) {
                 <div class="pdf-doc-links" aria-label="Open PDF attachments in a new tab">
-                  @for (p of order.orderPdfs; track $index) {
-                    <a class="btn btn-secondary btn-compact" [href]="p.url" target="_blank" rel="noopener noreferrer">Open: {{ p.label }}</a>
-                  }
+                  <a class="btn btn-secondary btn-compact" [href]="details.attachFileUrl" target="_blank" rel="noopener noreferrer">View attachment</a>
                 </div>
               }
-
-              @if (safePdfSrc(); as pdfSrc) {
-                <div class="pdf-panel">
-                  <div class="pdf-toolbar">
-                    <span class="title">PDF preview</span>
-                    @if (activePdfUrl(); as openUrl) {
-                      <a class="btn btn-secondary btn-compact" [href]="openUrl" target="_blank" rel="noopener noreferrer">Open selected</a>
-                    }
-                  </div>
-                  @if (order.orderPdfs.length > 1) {
-                    <div class="pdf-tabs" role="tablist" aria-label="Select PDF to preview">
-                      @for (p of order.orderPdfs; track $index; let i = $index) {
-                        <button
-                          type="button"
-                          role="tab"
-                          class="pdf-tab"
-                          [class.active]="i === selectedPdfIndex()"
-                          [attr.aria-selected]="i === selectedPdfIndex()"
-                          (click)="selectPdf(i)"
-                        >
-                          {{ p.label }}
-                        </button>
-                      }
-                    </div>
+            } @else if (searchedMutation() && !loadingSearch()) {
+              <p class="api-message error">Record not found from API. Please enter details manually below.</p>
+              <div class="grid" [formGroup]="form">
+                <label>
+                  Inward number
+                  <input type="text" formControlName="manualInwardNumber" />
+                </label>
+                <label>
+                  Inward date
+                  <input type="date" formControlName="manualInwardDate" />
+                </label>
+                <label class="span-2">
+                  Mutation type
+                  <input type="text" formControlName="manualMutationType" />
+                </label>
+                <label class="span-2">
+                  Applicant name
+                  <input type="text" formControlName="manualApplicantName" />
+                </label>
+                <label>
+                  Village
+                  <input type="text" formControlName="manualVillage" />
+                </label>
+                <label>
+                  Status
+                  <input type="text" formControlName="manualStatus" />
+                </label>
+              </div>
+              <div class="grid" style="margin-top: 8px">
+                <label class="span-2">
+                  Attach file (upload)
+                  <input type="file" (change)="onManualAttachFileChange($event)" />
+                  @if (manualAttachFileName()) {
+                    <span class="sub">Selected: {{ manualAttachFileName() }}</span>
                   }
-                  <iframe class="pdf-frame" title="Selected order PDF" [src]="pdfSrc"></iframe>
-                  <p class="pdf-hint">If the preview does not load (browser or server restrictions), use Open or Open selected.</p>
+                </label>
+              </div>
+            }
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-head">
+              <strong>Notice 9 handling</strong>
+            </div>
+            @if (mutationFound() && loadingNotice9()) {
+              <p class="sub">Fetching Notice 9...</p>
+            } @else if (mutationFound() && notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
+              @if (notice9Resolved().previewKind === 'image') {
+                <div class="pdf-panel">
+                  <img [src]="noticeUrl" alt="Notice 9 preview" style="max-width: 100%; border-radius: 10px" />
                 </div>
+              }
+              <div class="row-actions">
+                <a class="btn btn-secondary btn-compact" [href]="noticeUrl" target="_blank" rel="noopener noreferrer">Open Notice 9</a>
+                @if (notice9Resolved().sourceKind === 'data') {
+                  <a class="btn btn-primary btn-compact" [href]="noticeUrl" download="notice-9">Download Notice 9</a>
+                }
+              </div>
+              @if (notice9Resolved().previewKind === 'pdf') {
+                <p class="sub">PDF notice is ready. Use Open Notice 9 to view in a new tab.</p>
+              }
+            } @else if (searchedMutation()) {
+              <p class="sub">Notice 9 not available. Please upload manually.</p>
+              <label>
+                Upload Notice 9
+                <input type="file" (change)="onManualNotice9FileChange($event)" />
+              </label>
+              @if (manualNotice9FileName()) {
+                <p class="sub">Selected: {{ manualNotice9FileName() }}</p>
               }
             } @else {
-              <p class="sub sub-tight-top">Run a search to load order details and any linked PDFs from the server.</p>
+              <p class="sub">Search mutation details first to view Notice 9 or upload it manually.</p>
             }
           </div>
         </section>
@@ -216,17 +198,48 @@
 
             <div class="grid">
               <label>
-                Higher court level *
-                <select formControlName="higherCourtLevel" [disabled]="true">
-                  @for (c of courtLevels; track c.id) {
-                    <option [ngValue]="c.id">{{ c.label }}</option>
+                District *
+                <select formControlName="districtId" [disabled]="loadingDistricts()">
+                  <option [ngValue]="0">{{ loadingDistricts() ? 'Loading...' : 'Select district' }}</option>
+                  @for (d of districts(); track d.id) {
+                    <option [ngValue]="d.id">{{ d.name }}</option>
                   }
                 </select>
               </label>
 
               <label>
-                Higher court name *
-                <input type="text" formControlName="higherCourtName" [disabled]="true" placeholder="e.g. Bombay High Court" />
+                Subdivision
+                <select formControlName="subdistrictId" [disabled]="form.controls.districtId.value < 1 || loadingSubdistricts()">
+                  <option [ngValue]="0">{{ loadingSubdistricts() ? 'Loading...' : 'All / Select subdivision' }}</option>
+                  @for (s of subdistricts(); track s.id) {
+                    <option [ngValue]="s.id">{{ s.name }}</option>
+                  }
+                </select>
+              </label>
+
+              <label>
+                Taluka *
+                <select formControlName="talukaId" [disabled]="form.controls.districtId.value < 1 || loadingTalukas()">
+                  <option [ngValue]="0">{{ loadingTalukas() ? 'Loading...' : 'Select taluka' }}</option>
+                  @for (t of talukas(); track t.id) {
+                    <option [ngValue]="t.id">{{ t.name }}</option>
+                  }
+                </select>
+              </label>
+
+              <label>
+                Office type
+                <input type="text" [value]="selectedOfficeTypeName()" readonly />
+              </label>
+
+              <label>
+                Office name
+                <input type="text" [value]="selectedOfficeName()" readonly />
+              </label>
+
+              <label>
+                Office local name
+                <input type="text" [value]="selectedOfficeLocalName()" readonly />
               </label>
 
               <label class="span-2">
@@ -234,7 +247,7 @@
                 <select formControlName="actId">
                   <option [ngValue]="0">Select act</option>
                   @for (a of acts(); track a.id) {
-                    <option [ngValue]="a.id">{{ a.name }}</option>
+                    <option [ngValue]="a.id">{{ a.actCode }} - {{ a.actName }}</option>
                   }
                 </select>
               </label>

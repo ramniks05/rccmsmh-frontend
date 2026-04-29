@@ -60,6 +60,17 @@ export interface UrbanCtsRow {
   cts_no: string;
 }
 
+export interface NoticeNineViewResponse {
+  type?: string;
+  /** URL to view/download Notice 9. */
+  notice9Url?: string;
+  url?: string;
+  fileUrl?: string;
+  dataUrl?: string;
+  mimeType?: string;
+  base64?: string;
+}
+
 /**
  * Frontend must NOT call Mahabhumi APIs directly (secrets + decryption).
  * This service targets backend-proxy endpoints under our own API.
@@ -110,6 +121,12 @@ export class LandRecordsService {
   getUrbanCtsList(villageCode: string, ctsNo?: string): Observable<UrbanCtsRow[]> {
     return this.http.get<UrbanCtsRow[]>(`${this.apiBaseUrl}/api/land-records/urban/cts-list`, {
       params: ctsNo ? { villageCode, ctsNo } : { villageCode }
+    });
+  }
+
+  getUrbanNoticeNineView(inwardNumber: string): Observable<NoticeNineViewResponse | string | Record<string, unknown>> {
+    return this.http.get<NoticeNineViewResponse | string | Record<string, unknown>>(`${this.apiBaseUrl}/api/land-records/urban/notice-nine-view`, {
+      params: { inwardNumber }
     });
   }
 }
