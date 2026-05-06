@@ -89,10 +89,28 @@ export class DisputedLandPanelComponent {
   }
 
   protected setMode(next: DisputedLandType): void {
+    const hasModeChanged = this.mode() !== next;
     this.mode.set(next);
     this.error.set(null);
     this.ruralSubSurveyRows.set([]);
     this.urbanCtsRows.set([]);
+    this.ruralDistrictCode.set('');
+    this.ruralTalukaCode.set('');
+    this.ruralVillageLgdCode.set('');
+    this.ruralPin.set('');
+    this.ruralTalukas.set([]);
+    this.ruralVillages.set([]);
+    this.urbanDistrictCode.set('');
+    this.urbanOfficeCode.set('');
+    this.urbanVillageCode.set('');
+    this.urbanCtsFilter.set('');
+    this.urbanOffices.set([]);
+    this.urbanVillages.set([]);
+
+    // If disputed land type changes, previously added rows should be cleared.
+    if (hasModeChanged && this.disputedLands().length > 0) {
+      this.disputedLandsChange.emit([]);
+    }
   }
 
   protected loadMasters(): void {

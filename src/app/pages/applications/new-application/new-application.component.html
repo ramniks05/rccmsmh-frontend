@@ -29,7 +29,7 @@
     </article>
 
     @if (selectedCaseCategory()!.id === 2) {
-      <app-category1-objection />
+      <app-category1-objection [caseCategoryId]="selectedCaseCategory()!.id" />
     } @else if (selectedType() === 'ORIGINAL_FILE_MUTATION') {
       <app-original-file-mutation />
     } @else {

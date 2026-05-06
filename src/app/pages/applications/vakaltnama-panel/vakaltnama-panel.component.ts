@@ -1,6 +1,7 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs';
+import { jsPDF } from 'jspdf';
 
 import { TokenStorageService } from '../../../services/token-storage.service';
 import {
@@ -62,6 +63,7 @@ export class VakaltnamaPanelComponent {
   protected readonly advocateLookupQuery = signal('');
   protected readonly advocateLookupLoading = signal(false);
   protected readonly advocateLookupError = signal<string | null>(null);
+  protected readonly downloadingGroupId = signal<string | null>(null);
 
   protected setBarCouncilQuery(value: string): void {
     this.barCouncilQuery.set(value);
@@ -207,6 +209,75 @@ export class VakaltnamaPanelComponent {
     const names = ids.map((id) => map.get(id) ?? id).filter(Boolean);
     if (names.length <= 2) return names.join(', ');
     return `${names.slice(0, 2).join(', ')} (+${names.length - 2} more)`;
+  }
+
+  protected downloadAssignmentPdf(group: VakaltnamaAssignment, index: number): void {
+    this.downloadingGroupId.set(group.id);
+    try {
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const margin = 40;
+      const lineHeight = 18;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const contentWidth = pageWidth - margin * 2;
+      let y = margin;
+
+      const writeLine = (text: string, options?: { bold?: boolean; indent?: number }) => {
+        const indent = options?.indent ?? 0;
+        doc.setFont('helvetica', options?.bold ? 'bold' : 'normal');
+        const lines = doc.splitTextToSize(text, contentWidth - indent);
+        for (const line of lines) {
+          if (y > doc.internal.pageSize.getHeight() - margin) {
+            doc.addPage();
+            y = margin;
+          }
+          doc.text(line, margin + indent, y);
+          y += lineHeight;
+        }
+      };
+
+      const filing = this.filingAdvocate();
+      const applicantNames = this.getApplicantNames(group.applicantIds);
+      const coAdvocates = group.coAdvocates.map((a) => `${a.fullName} (${a.barCouncilNumber})`);
+
+      writeLine('VAKALATNAMA', { bold: true });
+      y += 6;
+      writeLine(`Group: ${index + 1}`, { bold: true });
+      writeLine(`Generated on: ${new Date().toLocaleString()}`);
+      y += 6;
+      writeLine('Filing Advocate', { bold: true });
+      writeLine(`${filing.displayName} (${filing.role})`, { indent: 12 });
+      y += 6;
+      writeLine('Representing Advocate', { bold: true });
+      writeLine(`${group.advocate.fullName} (${group.advocate.barCouncilNumber})`, { indent: 12 });
+      y += 6;
+      writeLine('Applicants', { bold: true });
+      if (applicantNames.length === 0) {
+        writeLine('No applicants selected.', { indent: 12 });
+      } else {
+        applicantNames.forEach((name, i) => writeLine(`${i + 1}. ${name}`, { indent: 12 }));
+      }
+      y += 6;
+      writeLine('Co-Advocates', { bold: true });
+      if (coAdvocates.length === 0) {
+        writeLine('None', { indent: 12 });
+      } else {
+        coAdvocates.forEach((name, i) => writeLine(`${i + 1}. ${name}`, { indent: 12 }));
+      }
+
+      const fileName = this.toFileName(`vakalatnama-group-${index + 1}-${group.advocate.fullName}.pdf`);
+      doc.save(fileName);
+    } finally {
+      this.downloadingGroupId.set(null);
+    }
+  }
+
+  private getApplicantNames(ids: string[]): string[] {
+    const map = new Map((this.applicants() ?? []).map((a) => [a.id, a.name]));
+    return ids.map((id) => map.get(id) ?? `Applicant ${id}`);
+  }
+
+  private toFileName(value: string): string {
+    return value.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-');
   }
 
   private makeId(): string {
