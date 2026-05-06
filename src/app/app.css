@@ -65,8 +65,9 @@
 
 .content {
   flex: 1;
-  width: min(1140px, calc(100% - 2rem));
-  margin: 2rem auto;
+  width: 100%;
+  margin: 0;
+  padding: 12px;
 }
 
 .main-footer {
@@ -107,8 +108,9 @@
   }
 
   .content {
-    width: calc(100% - 1.2rem);
-    margin: 1rem auto;
+    width: 100%;
+    margin: 0;
+    padding: 8px;
   }
 
   .main-footer {

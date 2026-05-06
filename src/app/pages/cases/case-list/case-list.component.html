@@ -4,11 +4,489 @@
       <h2>My Cases</h2>
       <p class="sub">Role: {{ role }}</p>
     </div>
-    <a routerLink="/cases/new" class="btn btn-primary">File New Case</a>
+    @if (isAdvocate) {
+      <a routerLink="/cases/new" class="btn btn-primary">File New Case</a>
+    }
   </header>
 
-  <article class="card">
-    <p class="muted">Case listing API not wired yet. This page is ready for backend integration.</p>
-  </article>
+  @if (isOfficer) {
+    <section class="officer-layout">
+      <aside class="card sidebar">
+        <h3>Officer Menu</h3>
+        <button type="button" class="menu-btn" (click)="setOfficerMenu('ALL')">All Applications <span class="menu-count">{{ menuCount('ALL') }}</span></button>
+        <button type="button" class="menu-btn" (click)="setOfficerMenu('CLERK_DESK')">Clerk Desk <span class="menu-count">{{ menuCount('CLERK_DESK') }}</span></button>
+        <button type="button" class="menu-btn" (click)="setOfficerMenu('PO_DESK')">PO Desk <span class="menu-count">{{ menuCount('PO_DESK') }}</span></button>
+        <button type="button" class="menu-btn" (click)="setOfficerMenu('HEARING')">Hearing Pending <span class="menu-count">{{ menuCount('HEARING') }}</span></button>
+        <button type="button" class="menu-btn" (click)="setOfficerMenu('ORDERSHEET')">Order Sheet Pending <span class="menu-count">{{ menuCount('ORDERSHEET') }}</span></button>
+        <button type="button" class="menu-btn" (click)="setOfficerMenu('JUDGMENT')">Judgment Pending <span class="menu-count">{{ menuCount('JUDGMENT') }}</span></button>
+      </aside>
+      <article class="card">
+        <div class="inbox-head">
+          <h3>Applications</h3>
+          <button type="button" class="btn btn-primary" (click)="loadOfficerInbox()">Refresh</button>
+        </div>
+        <p class="muted">Showing: {{ officerMenu() }}</p>
+        @if (isCaseMenu() ? caseInboxLoading() : loadingOfficerInbox()) {
+          <p class="muted">Loading applications...</p>
+        } @else if (isCaseMenu() ? caseInboxError() : officerInboxError()) {
+          <p class="error">{{ isCaseMenu() ? caseInboxError() : officerInboxError() }}</p>
+        } @else if ((isCaseMenu() ? filteredCaseInbox().length : filteredOfficerInbox().length) === 0) {
+          <p class="muted">No applications found for selected menu.</p>
+        } @else {
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>{{ isCaseMenu() ? 'Case ID' : 'App ID' }}</th>
+                  <th>{{ isCaseMenu() ? 'Case No' : 'Application No' }}</th>
+                  <th>{{ isCaseMenu() ? 'Application ID' : 'Case' }}</th>
+                  <th>Status</th>
+                  <th>Stage</th>
+                  <th>Assignee</th>
+                  <th>Subject</th>
+                  <th>Office</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @if (!isCaseMenu()) {
+                  @for (x of filteredOfficerInbox(); track x.applicationId) {
+                    <tr>
+                      <td>{{ x.applicationId }}</td>
+                      <td>{{ x.applicationNo || '-' }}</td>
+                      <td>{{ x.caseId ? ('#' + x.caseId) : '-' }}</td>
+                      <td>{{ x.status }}</td>
+                      <td>{{ x.processingStage || '-' }}</td>
+                      <td>{{ x.currentAssigneeRole || '-' }}</td>
+                      <td>{{ x.subjectName }}</td>
+                      <td>{{ x.officeName }}</td>
+                      <td><button type="button" class="btn btn-secondary btn-xs" (click)="viewOfficerApplication(x.applicationId)">Open</button></td>
+                    </tr>
+                  }
+                } @else {
+                  @for (c of filteredCaseInbox(); track c.caseId) {
+                    <tr>
+                      <td>{{ c.caseId }}</td>
+                      <td>{{ c.caseNo }}</td>
+                      <td>{{ c.filingApplicationId }}</td>
+                      <td>{{ c.status }}</td>
+                      <td>{{ c.status }}</td>
+                      <td>PRESIDING_OFFICER</td>
+                      <td>{{ c.caseCategoryName }}</td>
+                      <td>{{ c.officeName }}</td>
+                      <td><button type="button" class="btn btn-secondary btn-xs" (click)="viewOfficerApplication(c.filingApplicationId)">Open</button></td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </article>
+    </section>
+
+    <article class="card">
+      <h3>Application Details</h3>
+      @if (!selectedApplicationId()) {
+        <p class="muted">Select an application from inbox to view full details.</p>
+      } @else if (loadingOfficerDetail()) {
+        <p class="muted">Loading application details...</p>
+      } @else if (officerDetailError()) {
+        <p class="error">{{ officerDetailError() }}</p>
+      } @else if (!officerDetail()) {
+        <p class="muted">No details available.</p>
+      } @else {
+        <div class="form-preview">
+          <div class="action-row">
+            <button type="button" class="btn btn-secondary" (click)="selectOfficerTab('summary')">Summary</button>
+            <button type="button" class="btn btn-secondary" (click)="selectOfficerTab('decision')">Decision</button>
+            <button type="button" class="btn btn-secondary" (click)="selectOfficerTab('proceedings')">Proceedings</button>
+          </div>
+
+          @if (officerTab() === 'decision') {
+            <section class="preview-section">
+              <h4>Decision Actions</h4>
+              <div class="action-row">
+                @if (canPoReviewActions()) {
+                  <button type="button" class="btn btn-primary" (click)="approveAndGenerateCase()" [disabled]="approving() || isDisposedCase()">
+                    {{ approving() ? 'Approving…' : 'Approve & Generate Case' }}
+                  </button>
+                }
+              </div>
+              <div class="form-line">
+                <label>Remarks (for forward/return/reject)</label>
+                <textarea rows="2" [value]="actionRemarksInput()" (input)="actionRemarksInput.set($any($event.target).value)"></textarea>
+              </div>
+              <div class="action-row">
+                @if (canForwardToPo()) {
+                  <button type="button" class="btn btn-secondary" (click)="forwardToPo()" [disabled]="assigning()">
+                    {{ assigning() ? 'Forwarding…' : 'Forward to PO' }}
+                  </button>
+                }
+                @if (canPoReviewActions()) {
+                  <button type="button" class="btn btn-secondary" (click)="returnToClerk()" [disabled]="assigning()">
+                    {{ assigning() ? 'Processing…' : 'Return to Clerk' }}
+                  </button>
+                  <button type="button" class="btn btn-secondary" (click)="rejectApplicationByPo()" [disabled]="assigning()">
+                    {{ assigning() ? 'Processing…' : 'Reject' }}
+                  </button>
+                }
+              </div>
+              @if (actionError()) {
+                <p class="error">{{ actionError() }}</p>
+              }
+              @if (actionMessage()) {
+                <p class="muted">{{ actionMessage() }}</p>
+              }
+              <div class="kv-grid">
+                <div class="kv"><div class="kv-label">Processing Stage</div><div class="kv-value">{{ officerDetail()!.processingStage || '-' }}</div></div>
+                <div class="kv"><div class="kv-label">Current Assignee Role</div><div class="kv-value">{{ officerDetail()!.currentAssigneeRole || '-' }}</div></div>
+              </div>
+              @if (generatedCase()) {
+                <div class="kv-grid">
+                  <div class="kv"><div class="kv-label">Application No</div><div class="kv-value">{{ generatedCase()!.applicationNo || '-' }}</div></div>
+                  <div class="kv"><div class="kv-label">Case ID</div><div class="kv-value">{{ generatedCase()!.caseId }}</div></div>
+                  <div class="kv"><div class="kv-label">Case No</div><div class="kv-value">{{ generatedCase()!.caseNo || '-' }}</div></div>
+                  <div class="kv"><div class="kv-label">Server Message</div><div class="kv-value">{{ generatedCase()!.message || '-' }}</div></div>
+                </div>
+              }
+            </section>
+          }
+
+          @if (officerTab() === 'proceedings') {
+            <section class="preview-section">
+              <h4>Case Proceedings</h4>
+              @if (!caseIdForActions()) {
+                <p class="muted">Proceedings are available after PO approval and case generation.</p>
+              } @else {
+                @if (isDisposedCase()) {
+                  <p class="muted">This case is disposed. Hearing, order sheet, and judgment actions are locked.</p>
+                }
+                <h5>Schedule Hearing</h5>
+                <div class="form-line">
+                  <label>Hearing Date</label>
+                  <input type="date" [value]="hearingDateInput()" (input)="hearingDateInput.set($any($event.target).value)" [disabled]="!canRunCaseActions()" />
+                </div>
+                <div class="form-line">
+                  <label>Remarks</label>
+                  <input type="text" [value]="hearingRemarksInput()" (input)="hearingRemarksInput.set($any($event.target).value)" [disabled]="!canRunCaseActions()" />
+                </div>
+                <div class="form-line checkbox">
+                  <label>
+                    <input type="checkbox" [checked]="hearingNoticeGenerate()" (change)="hearingNoticeGenerate.set($any($event.target).checked)" [disabled]="!canRunCaseActions()" />
+                    Generate notice
+                  </label>
+                </div>
+                <div class="action-row">
+                  <button type="button" class="btn btn-secondary" (click)="scheduleHearing()" [disabled]="hearingsLoading() || !canRunCaseActions()">Schedule</button>
+                  <button type="button" class="btn btn-secondary" (click)="loadHearings()" [disabled]="hearingsLoading()">Refresh Hearings</button>
+                  <button type="button" class="btn btn-secondary" (click)="loadTodayCauseList()" [disabled]="todayCauseListLoading()">Today Cause List</button>
+                </div>
+
+                <h5>Hearings</h5>
+                @if (hearings().length === 0) {
+                  <p class="muted">No hearings found.</p>
+                } @else {
+                  <div class="table-wrap">
+                    <table class="table">
+                      <thead><tr><th>ID</th><th>No</th><th>Date</th><th>Status</th><th>Notice</th><th>Remarks</th></tr></thead>
+                      <tbody>
+                        @for (h of hearings(); track h.hearingId) {
+                          <tr>
+                            <td>{{ h.hearingId }}</td><td>{{ h.hearingNo }}</td><td>{{ h.hearingDate }}</td><td>{{ h.status }}</td><td>{{ h.noticeGenerated ? 'Yes' : 'No' }}</td><td>{{ h.remarks || '-' }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+
+                <h5>Order Sheet</h5>
+                <div class="form-line"><label>Hearing ID (optional)</label><input type="number" [value]="orderSheetHearingIdInput()" (input)="orderSheetHearingIdInput.set($any($event.target).value)" [disabled]="!canRunCaseActions()" /></div>
+                <div class="form-line"><label>Content</label><textarea rows="4" [value]="orderSheetContentInput()" (input)="orderSheetContentInput.set($any($event.target).value)" [disabled]="!canRunCaseActions()"></textarea></div>
+                <div class="form-line"><label>Remarks</label><input type="text" [value]="orderSheetRemarksInput()" (input)="orderSheetRemarksInput.set($any($event.target).value)" [disabled]="!canRunCaseActions()" /></div>
+                <div class="action-row">
+                  <button type="button" class="btn btn-secondary" (click)="saveOrderSheet()" [disabled]="orderSheetSaving() || !canRunCaseActions()">{{ orderSheetSaving() ? 'Saving…' : 'Save Order Sheet' }}</button>
+                  <button type="button" class="btn btn-secondary" (click)="loadCurrentOrderSheet()">Refresh Current</button>
+                  <button type="button" class="btn btn-secondary" (click)="loadOrderSheetHistory()">Refresh History</button>
+                </div>
+                @if (currentOrderSheet()) {
+                  <div class="kv-grid">
+                    <div class="kv"><div class="kv-label">Case No</div><div class="kv-value">{{ currentOrderSheet()!.caseNo }}</div></div>
+                    <div class="kv"><div class="kv-label">Updated At</div><div class="kv-value">{{ toPrettyDate(currentOrderSheet()!.updatedAt) }}</div></div>
+                    <div class="kv"><div class="kv-label">Updated By</div><div class="kv-value">{{ currentOrderSheet()!.updatedByLoginId }}</div></div>
+                    <div class="kv"><div class="kv-label">Content</div><div class="kv-value">{{ currentOrderSheet()!.content }}</div></div>
+                  </div>
+                }
+                @if (orderSheetHistory().length > 0) {
+                  <div class="table-wrap">
+                    <table class="table">
+                      <thead><tr><th>History ID</th><th>Hearing</th><th>Date</th><th>Remarks</th><th>Created</th></tr></thead>
+                      <tbody>
+                        @for (h of orderSheetHistory(); track h.historyId) {
+                          <tr><td>{{ h.historyId }}</td><td>{{ h.hearingNo || '-' }}</td><td>{{ h.hearingDate || '-' }}</td><td>{{ h.remarks || '-' }}</td><td>{{ toPrettyDate(h.createdAt) }}</td></tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+
+                <h5>Final Judgment</h5>
+                <div class="form-line"><label>Judgment Summary</label><textarea rows="3" [value]="judgmentSummaryInput()" (input)="judgmentSummaryInput.set($any($event.target).value)" [disabled]="!canRunCaseActions()"></textarea></div>
+                <div class="action-row"><button type="button" class="btn btn-primary" (click)="passFinalJudgment()" [disabled]="judgmentSaving() || !canRunCaseActions()">{{ judgmentSaving() ? 'Saving…' : 'Pass Final Judgment' }}</button></div>
+                @if (lastJudgment()) {
+                  <div class="kv-grid">
+                    <div class="kv"><div class="kv-label">Case No</div><div class="kv-value">{{ lastJudgment()!.caseNo }}</div></div>
+                    <div class="kv"><div class="kv-label">Status</div><div class="kv-value">{{ lastJudgment()!.status }}</div></div>
+                    <div class="kv"><div class="kv-label">Disposed At</div><div class="kv-value">{{ toPrettyDate(lastJudgment()!.disposedAt) }}</div></div>
+                    <div class="kv"><div class="kv-label">Message</div><div class="kv-value">{{ lastJudgment()!.message }}</div></div>
+                  </div>
+                }
+              }
+            </section>
+          }
+
+          @if (officerTab() === 'summary') {
+          <section class="preview-section">
+            <h4>Application Details</h4>
+            <div class="kv-grid">
+              <div class="kv"><div class="kv-label">Application ID</div><div class="kv-value">{{ officerDetail()!.applicationId }}</div></div>
+              <div class="kv"><div class="kv-label">Status</div><div class="kv-value">{{ officerDetail()!.status }}</div></div>
+              <div class="kv"><div class="kv-label">Case Category</div><div class="kv-value">{{ officerDetail()!.caseCategoryName }}</div></div>
+              <div class="kv"><div class="kv-label">Subject</div><div class="kv-value">{{ officerDetail()!.subjectName }}</div></div>
+              <div class="kv"><div class="kv-label">Office</div><div class="kv-value">{{ officerDetail()!.officeName }}</div></div>
+              <div class="kv"><div class="kv-label">Filed By</div><div class="kv-value">{{ officerDetail()!.filedByName }} ({{ officerDetail()!.filedByRole }})</div></div>
+              <div class="kv"><div class="kv-label">Submitted At</div><div class="kv-value">{{ toPrettyDate(officerDetail()!.submittedAt) }}</div></div>
+              <div class="kv"><div class="kv-label">Created At</div><div class="kv-value">{{ toPrettyDate(officerDetail()!.createdAt) }}</div></div>
+            </div>
+            <div class="kv">
+              <div class="kv-label">Application Description</div>
+              <div class="kv-value">{{ detailDescription() }}</div>
+            </div>
+          </section>
+
+          @if (detailForm()) {
+            <section class="preview-section">
+              <h4>Case and Section Information</h4>
+              <div class="kv-grid">
+                <div class="kv"><div class="kv-label">Subject ID</div><div class="kv-value">{{ detailForm()!['subjectId'] || '-' }}</div></div>
+                <div class="kv"><div class="kv-label">District ID</div><div class="kv-value">{{ detailForm()!['districtId'] || '-' }}</div></div>
+                <div class="kv"><div class="kv-label">Subdistrict ID</div><div class="kv-value">{{ detailForm()!['subdistrictId'] || '-' }}</div></div>
+                <div class="kv"><div class="kv-label">Taluka ID</div><div class="kv-value">{{ detailForm()!['talukaId'] || '-' }}</div></div>
+                <div class="kv"><div class="kv-label">Office ID</div><div class="kv-value">{{ detailForm()!['officeId'] || '-' }}</div></div>
+                <div class="kv"><div class="kv-label">Act ID</div><div class="kv-value">{{ detailForm()!['actId'] || '-' }}</div></div>
+                <div class="kv"><div class="kv-label">Section ID</div><div class="kv-value">{{ detailForm()!['sectionId'] || '-' }}</div></div>
+                <div class="kv"><div class="kv-label">Section Custom</div><div class="kv-value">{{ detailForm()!['sectionCustomText'] || detailForm()!['customSectionName'] || '-' }}</div></div>
+                <div class="kv"><div class="kv-label">Mutation Year</div><div class="kv-value">{{ detailForm()!['mutationYear'] || '-' }}</div></div>
+                <div class="kv"><div class="kv-label">Mutation Type Filter</div><div class="kv-value">{{ detailForm()!['mutationTypeFilter'] || '-' }}</div></div>
+              </div>
+            </section>
+          }
+          }
+
+          <section class="preview-section">
+            <h4>Disputed Order</h4>
+        @if (!detailDisputedOrder()) {
+          <p class="muted">Disputed order details not available.</p>
+        } @else {
+          <div class="kv-grid">
+            <div class="kv"><div class="kv-label">Inward Number</div><div class="kv-value">{{ inwardNumberForNotice9() || '-' }}</div></div>
+            <div class="kv"><div class="kv-label">Mutation Found</div><div class="kv-value">{{ detailDisputedOrder()!['mutationFound'] ? 'Yes' : 'No' }}</div></div>
+            <div class="kv"><div class="kv-label">Mutation Searched</div><div class="kv-value">{{ detailDisputedOrder()!['mutationSearched'] ? 'Yes' : 'No' }}</div></div>
+            <div class="kv"><div class="kv-label">Manual Inward No</div><div class="kv-value">{{ detailDisputedOrder()!['manualInwardNumber'] || '-' }}</div></div>
+            <div class="kv"><div class="kv-label">Manual Inward Date</div><div class="kv-value">{{ detailDisputedOrder()!['manualInwardDate'] || '-' }}</div></div>
+            <div class="kv"><div class="kv-label">Manual Mutation Type</div><div class="kv-value">{{ detailDisputedOrder()!['manualMutationType'] || '-' }}</div></div>
+            <div class="kv"><div class="kv-label">Manual Applicant Name</div><div class="kv-value">{{ detailDisputedOrder()!['manualApplicantName'] || '-' }}</div></div>
+            <div class="kv"><div class="kv-label">Manual Village</div><div class="kv-value">{{ detailDisputedOrder()!['manualVillage'] || '-' }}</div></div>
+            <div class="kv"><div class="kv-label">Manual Status</div><div class="kv-value">{{ detailDisputedOrder()!['manualStatus'] || '-' }}</div></div>
+          </div>
+
+          <h5>Mutation Details</h5>
+          @if (!detailMutationDetails()) {
+            <p class="muted">Mutation details not available.</p>
+          } @else {
+            <div class="kv-grid">
+              <div class="kv"><div class="kv-label">Inward Number</div><div class="kv-value">{{ detailMutationDetails()!['inwardNumber'] || '-' }}</div></div>
+              <div class="kv"><div class="kv-label">Inward Date</div><div class="kv-value">{{ detailMutationDetails()!['inwardDate'] || '-' }}</div></div>
+              <div class="kv"><div class="kv-label">Mutation Type</div><div class="kv-value">{{ detailMutationDetails()!['mutationType'] || '-' }}</div></div>
+              <div class="kv"><div class="kv-label">Applicant Name</div><div class="kv-value">{{ detailMutationDetails()!['applicantName'] || '-' }}</div></div>
+              <div class="kv"><div class="kv-label">Village</div><div class="kv-value">{{ detailMutationDetails()!['village'] || '-' }}</div></div>
+              <div class="kv"><div class="kv-label">Status</div><div class="kv-value">{{ detailMutationDetails()!['status'] || '-' }}</div></div>
+            </div>
+            @if (attachFileUrl()) {
+              <div class="kv"><div class="kv-label">Attach File</div><div class="kv-value"><a [href]="attachFileUrl()!" target="_blank" rel="noreferrer">Open</a></div></div>
+            }
+          }
+
+          <h5>Notice 9</h5>
+          @if (!detailNotice9Resolved()) {
+            <p class="muted">Notice 9 metadata not available.</p>
+          } @else {
+            <div class="kv-grid">
+              <div class="kv"><div class="kv-label">Available</div><div class="kv-value">{{ detailNotice9Resolved()!['available'] ? 'Yes' : 'No' }}</div></div>
+              <div class="kv"><div class="kv-label">Source Kind</div><div class="kv-value">{{ detailNotice9Resolved()!['sourceKind'] || '-' }}</div></div>
+              <div class="kv"><div class="kv-label">Preview Kind</div><div class="kv-value">{{ detailNotice9Resolved()!['previewKind'] || '-' }}</div></div>
+            </div>
+          }
+          <div class="action-row">
+            @if (inwardNumberForNotice9()) {
+              <button type="button" class="btn btn-secondary" (click)="fetchNotice9FromApi()" [disabled]="notice9FetchLoading()">
+                {{ notice9FetchLoading() ? 'Fetching Notice 9…' : 'View Notice 9' }}
+              </button>
+            }
+            @if (notice9EffectiveUrl()) {
+              <a class="btn btn-secondary" [href]="notice9EffectiveUrl()!" target="_blank" rel="noreferrer">Open</a>
+            }
+          </div>
+          @if (notice9FetchError()) {
+            <p class="error">{{ notice9FetchError() }}</p>
+          }
+          @if (notice9EffectiveUrl()) {
+            @if (notice9EffectiveIsImage()) {
+              <img class="notice-preview" [src]="notice9EffectiveUrl()!" alt="Notice 9 preview" />
+            }
+          } @else {
+            <p class="muted">Notice 9 is not stored; use View Notice 9 to fetch from API.</p>
+          }
+        }
+          </section>
+
+          <section class="preview-section">
+            <h4>Applicants</h4>
+        @if (detailApplicants().length === 0) {
+          <p class="muted">No applicants found.</p>
+        } @else {
+          <div class="rows">
+            @for (a of detailApplicants(); track $index) {
+              <article class="mini-card">
+                <p><strong>#{{ a['lineNo'] || '-' }}</strong> {{ a['name'] || '-' }}</p>
+                <p class="muted">{{ a['mobile'] || '-' }}</p>
+                <p class="muted">{{ a['address'] || '-' }}</p>
+              </article>
+            }
+          </div>
+        }
+          </section>
+
+          <section class="preview-section">
+            <h4>Respondents</h4>
+        @if (detailRespondents().length === 0) {
+          <p class="muted">No respondents found.</p>
+        } @else {
+          <div class="rows">
+            @for (r of detailRespondents(); track $index) {
+              <article class="mini-card">
+                <p><strong>#{{ r['lineNo'] || '-' }}</strong> {{ r['name'] || '-' }}</p>
+                <p class="muted">{{ r['mobile'] || '-' }}</p>
+                <p class="muted">{{ r['address'] || '-' }}</p>
+              </article>
+            }
+          </div>
+        }
+          </section>
+
+          <section class="preview-section">
+            <h4>Vakalatnama Assignments</h4>
+        @if (detailVakalatnamaAssignments().length === 0) {
+          <p class="muted">No vakalatnama assignments found.</p>
+        } @else {
+          <div class="rows">
+            @for (v of detailVakalatnamaAssignments(); track $index) {
+              <article class="mini-card">
+                <p><strong>Group No:</strong> {{ v['groupNo'] || '-' }}</p>
+                <p><strong>Primary Advocate ID:</strong> {{ v['primaryAdvocateId'] || '-' }}</p>
+                <p><strong>Applicant IDs:</strong> {{ applicantIdsLabel(v) }}</p>
+                <p><strong>Advocate:</strong> {{ advocateName(v) }}</p>
+                <p><strong>Co-Advocates:</strong> {{ coAdvocatesCount(v) }}</p>
+              </article>
+            }
+          </div>
+        }
+          </section>
+
+          <section class="preview-section">
+            <h4>Disputed Lands</h4>
+        @if (detailDisputedLands().length === 0) {
+          <p class="muted">No disputed lands found.</p>
+        } @else {
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Land type</th>
+                  <th>District</th>
+                  <th>Taluka / Office</th>
+                  <th>Village</th>
+                  <th>Survey / CTS</th>
+                  <th>Source</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (d of detailDisputedLands(); track $index) {
+                  <tr>
+                    <td>{{ d['lineNo'] || ($index + 1) }}</td>
+                    <td>{{ d['landType'] || '-' }}</td>
+                    <td>{{ d['districtName'] || d['districtCode'] || '-' }}</td>
+                    <td>{{ d['talukaName'] || d['officeName'] || d['talukaCode'] || d['officeCode'] || '-' }}</td>
+                    <td>{{ d['villageName'] || d['villageLgdCode'] || d['villageCode'] || '-' }}</td>
+                    <td>{{ d['surveyPin'] || d['ctsNo'] || '-' }}</td>
+                    <td>{{ d['externalSource'] || '-' }}</td>
+                    <td><button type="button" class="btn btn-secondary btn-xs" (click)="viewLandDetails(d)">View details</button></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @if (landDetailLoading()) {
+            <p class="muted">Loading land details…</p>
+          } @else if (landDetailError()) {
+            <p class="error">{{ landDetailError() }}</p>
+          } @else if (landDetailPayload()) {
+            <div class="kv land-detail-box">
+              <div class="kv-label">{{ landDetailTitle() }}</div>
+              <div class="kv-grid">
+                @for (r of landDetailRows(); track $index) {
+                  <div class="kv">
+                    <div class="kv-label">{{ r.label }}</div>
+                    <div class="kv-value">{{ r.value }}</div>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        }
+          </section>
+
+          <section class="preview-section">
+            <h4>Attachments</h4>
+        @if (detailAttachments().length === 0) {
+          <p class="muted">No attachments found.</p>
+        } @else {
+          <div class="rows">
+            @for (f of detailAttachments(); track $index) {
+              <article class="mini-card">
+                <p><strong>Kind:</strong> {{ f['kind'] || '-' }}</p>
+                <p><strong>File:</strong> {{ f['fileName'] || '-' }}</p>
+                <p><strong>MIME:</strong> {{ f['mimeType'] || '-' }}</p>
+                <p><strong>Uploaded At:</strong> {{ uploadedAtLabel(f) }}</p>
+                <p><strong>Uploaded By:</strong> {{ f['uploadedByLoginId'] || '-' }}</p>
+                @if (f['storageKey']) {
+                  <p><strong>Storage Key:</strong> {{ f['storageKey'] }}</p>
+                }
+              </article>
+            }
+          </div>
+        }
+          </section>
+        </div>
+      }
+    </article>
+  } @else {
+    <article class="card">
+      <p class="muted">Case listing API not wired yet. This page is ready for backend integration.</p>
+    </article>
+  }
 </section>
 

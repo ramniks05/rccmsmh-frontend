@@ -45,6 +45,16 @@ export class TokenStorageService {
     return this.displayName;
   }
 
+  /** True when logged-in role is Advocate (case-insensitive match on stored role string). */
+  isAdvocate(): boolean {
+    return (this.role || '').trim().toUpperCase() === 'ADVOCATE';
+  }
+
+  /** True when logged-in role is Officer (case-insensitive match on stored role string). */
+  isOfficer(): boolean {
+    return (this.role || '').trim().toUpperCase() === 'OFFICER';
+  }
+
   clear(): void {
     this.accessToken = null;
     this.role = null;

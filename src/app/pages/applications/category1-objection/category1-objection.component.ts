@@ -1,6 +1,8 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
-import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { debounceTime, finalize, forkJoin, map, merge, Subject } from 'rxjs';
 
 import { SubjectRecord, SubjectService } from '../../../services/subject.service';
 import {
@@ -17,8 +19,13 @@ import { DisputedLandPanelComponent } from '../disputed-land-panel/disputed-land
 import { DisputedLandRow } from '../disputed-land-panel/disputed-land-panel.component';
 import { ApplicantOption, VakaltnamaAssignment } from '../vakaltnama-panel/vakaltnama-panel.component';
 import { LandRecordsService, NoticeNineViewResponse } from '../../../services/land-records.service';
+import {
+  FilingApplicationService,
+  FilingApplicationSaveRequest,
+  FilingSaveStatus
+} from '../../../services/filing-application.service';
 
-type StepKey = 'DISPUTED_ORDER' | 'ACT_SECTION' | 'PARTIES' | 'VAKALTNAMA' | 'DISPUTED_LAND';
+type StepKey = 'DISPUTED_ORDER' | 'ACT_SECTION' | 'PARTIES' | 'VAKALTNAMA' | 'DISPUTED_LAND' | 'APPLICATION_DESCRIPTION';
 
 interface Step {
   key: StepKey;
@@ -44,16 +51,54 @@ export interface MutationDetailsView {
   notice9Url: string | null;
 }
 
+const CATEGORY1_SESSION_VERSION = 1 as const;
+
+interface Category1FilingSession {
+  v: typeof CATEGORY1_SESSION_VERSION;
+  caseCategoryId: number;
+  clientApplicationRef: string;
+  applicationId: number | null;
+  applicantIdByClientRowKey: Record<string, number>;
+  stepIndex: number;
+  form: Record<string, unknown>;
+  disputedLands: DisputedLandRow[];
+  vakaltnamaAssignments: VakaltnamaAssignment[];
+  vakaltnamaCoAdvocates: AdvocateLookupResponse[];
+  selectedSubject: SubjectRecord | null;
+  selectedOffice: OfficeResponse | null;
+  mutationDetails: MutationDetailsView | null;
+  mutationFound: boolean;
+  searchedMutation: boolean;
+  notice9Resolved: NoticeNineResolved;
+  manualAttachFileName: string | null;
+  manualNotice9FileName: string | null;
+}
+
 @Component({
   selector: 'app-category1-objection',
   imports: [ReactiveFormsModule, VakaltnamaPanelComponent, DisputedLandPanelComponent],
   templateUrl: './category1-objection.component.html'
 })
 export class Category1ObjectionComponent {
+  /** From parent `/applications/new?caseCategoryId=…`; required for save API. */
+  caseCategoryId = input.required<number>();
+
   private readonly fb = inject(FormBuilder);
   private readonly subjectsApi = inject(SubjectService);
   private readonly lookups = inject(LookupsService);
   private readonly landRecords = inject(LandRecordsService);
+  private readonly filingApplications = inject(FilingApplicationService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  /** True while re-applying session snapshot (blocks valueChange side effects). */
+  private hydrating = false;
+  private persistenceSetupDone = false;
+  private readonly persistPulse$ = new Subject<void>();
+
+  /** Stable client ref for filing API + session; show in UI. */
+  protected readonly filingClientRef = signal('');
+  protected readonly serverApplicationId = signal<number | null>(null);
+  protected readonly applicantIdByClientRowKeySig = signal<Record<string, number>>({});
 
   protected readonly steps: Step[] = [
     { key: 'DISPUTED_ORDER', title: 'Disputed document/order', hint: 'Select subject and review order details' },
@@ -68,6 +113,11 @@ export class Category1ObjectionComponent {
       key: 'DISPUTED_LAND',
       title: 'Disputed land details',
       hint: 'Search plots from land records API and add multiple'
+    },
+    {
+      key: 'APPLICATION_DESCRIPTION',
+      title: 'Application description',
+      hint: 'Review all details, add description, save draft or submit'
     }
   ];
 
@@ -121,6 +171,8 @@ export class Category1ObjectionComponent {
   protected readonly manualNotice9FileName = signal<string | null>(null);
 
   protected readonly loadingSearch = signal(false);
+  protected readonly apiMessage = signal<string | null>(null);
+  protected readonly saveInProgress = signal(false);
 
   protected readonly form = this.fb.nonNullable.group({
     subjectId: [0, [Validators.required, Validators.min(1)]],
@@ -130,7 +182,7 @@ export class Category1ObjectionComponent {
     officeId: [0, [Validators.required, Validators.min(1)]],
     searchMode: ['INWARD_NUMBER' as 'INWARD_NUMBER' | 'SURVEY_NUMBER' | 'MUTATION_NUMBER'],
     // Search value is required only when clicking Search (not for moving next).
-    searchValue: ['', [Validators.minLength(2)]],
+    searchValue: ['', [Validators.required, Validators.minLength(2)]],
     mutationYear: [''],
     mutationTypeFilter: [''],
     manualInwardNumber: [''],
@@ -142,8 +194,9 @@ export class Category1ObjectionComponent {
 
     // Next step (case act / section)
     actId: [0, [Validators.required, Validators.min(1)]],
-    sectionId: [0, [Validators.required]],
+    sectionId: [0, [Validators.required, Validators.min(1)]],
     customSectionName: [''],
+    applicationDescription: [''],
 
     applicants: this.fb.array([] as ReturnType<Category1ObjectionComponent['createPartyGroup']>[]),
     respondents: this.fb.array([] as ReturnType<Category1ObjectionComponent['createPartyGroup']>[])
@@ -160,9 +213,9 @@ export class Category1ObjectionComponent {
   private createPartyGroup() {
     return this.fb.nonNullable.group({
       tempId: [this.makeTempId()],
-      name: [''],
+      name: ['', [Validators.required, Validators.minLength(2)]],
       mobile: [''],
-      address: ['']
+      address: ['', [Validators.required, Validators.minLength(5)]]
     });
   }
 
@@ -214,15 +267,36 @@ export class Category1ObjectionComponent {
   protected readonly showCustomSection = computed(() => this.form.controls.sectionId.getRawValue() === -1);
 
   constructor() {
-    this.loadSubjects();
-    this.loadDistricts();
+    this.loadingSubjects.set(true);
+    this.loadingDistricts.set(true);
+
+    forkJoin({
+      subjects: this.subjectsApi.listSubjects(),
+      districts: this.lookups.getDistricts(environment.defaultState?.id || 1)
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ subjects, districts }) => {
+          this.subjects.set(subjects);
+          this.districts.set(districts);
+          this.tryRestoreSession();
+        },
+        error: (err: unknown) => {
+          this.apiError.set(this.formatError(err));
+          this.loadingSubjects.set(false);
+          this.loadingDistricts.set(false);
+          this.filingClientRef.set(this.newClientRef());
+          this.addApplicant();
+          this.addRespondent();
+          this.hydrating = false;
+          this.setupPersistencePipeline();
+        }
+      });
+
     this.loadActs();
 
-    // Development defaults so the parties step is never empty.
-    this.addApplicant();
-    this.addRespondent();
-
     this.form.controls.subjectId.valueChanges.subscribe((subjectId) => {
+      if (this.hydrating) return;
       this.selectedSubject.set(this.subjects().find((s) => s.id === subjectId) ?? null);
       this.resetLocationChain();
       if (subjectId && subjectId > 0) {
@@ -231,6 +305,7 @@ export class Category1ObjectionComponent {
     });
 
     this.form.controls.districtId.valueChanges.subscribe((districtId) => {
+      if (this.hydrating) return;
       this.form.controls.subdistrictId.setValue(0);
       this.form.controls.talukaId.setValue(0);
       this.form.controls.officeId.setValue(0);
@@ -245,6 +320,7 @@ export class Category1ObjectionComponent {
     });
 
     this.form.controls.talukaId.valueChanges.subscribe((talukaId) => {
+      if (this.hydrating) return;
       this.form.controls.officeId.setValue(0);
       this.offices.set([]);
       this.selectedOffice.set(null);
@@ -254,6 +330,7 @@ export class Category1ObjectionComponent {
     });
 
     this.form.controls.subdistrictId.valueChanges.subscribe((subdistrictId) => {
+      if (this.hydrating) return;
       const districtId = this.form.controls.districtId.getRawValue();
       this.form.controls.talukaId.setValue(0);
       this.form.controls.officeId.setValue(0);
@@ -266,6 +343,7 @@ export class Category1ObjectionComponent {
     });
 
     this.form.controls.officeId.valueChanges.subscribe((officeId) => {
+      if (this.hydrating) return;
       const id = Number(officeId || 0);
       if (!id) {
         this.selectedOffice.set(null);
@@ -275,6 +353,7 @@ export class Category1ObjectionComponent {
     });
 
     this.form.controls.actId.valueChanges.subscribe((actId) => {
+      if (this.hydrating) return;
       this.form.controls.sectionId.setValue(0);
       this.form.controls.customSectionName.setValue('');
       this.sections.set([]);
@@ -282,6 +361,252 @@ export class Category1ObjectionComponent {
         this.loadSections(actId);
       }
     });
+  }
+
+  protected onVakaltnamaAssignmentsChange(rows: VakaltnamaAssignment[]): void {
+    this.vakaltnamaAssignments.set(rows);
+    this.schedulePersist();
+  }
+
+  protected onDisputedLandsChange(rows: DisputedLandRow[]): void {
+    this.disputedLands.set(rows);
+    this.schedulePersist();
+  }
+
+  protected hardResetFiling(): void {
+    if (
+      !confirm(
+        'Clear all data for this application and start fresh? Saved session on this browser will be removed.'
+      )
+    ) {
+      return;
+    }
+    try {
+      sessionStorage.removeItem(this.sessionKey());
+    } catch {
+      //
+    }
+    window.location.reload();
+  }
+
+  private sessionKey(): string {
+    return `rccms.category1.filing.v${CATEGORY1_SESSION_VERSION}.case${this.caseCategoryId()}`;
+  }
+
+  private newClientRef(): string {
+    const cryptoObj = globalThis.crypto as Crypto | undefined;
+    if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
+    return `fil-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  private readSession(): Category1FilingSession | null {
+    if (typeof sessionStorage === 'undefined') return null;
+    try {
+      const raw = sessionStorage.getItem(this.sessionKey());
+      if (!raw) return null;
+      return JSON.parse(raw) as Category1FilingSession;
+    } catch {
+      return null;
+    }
+  }
+
+  private writeSession(): void {
+    if (this.hydrating || typeof sessionStorage === 'undefined') return;
+    try {
+      const snapshot: Category1FilingSession = {
+        v: CATEGORY1_SESSION_VERSION,
+        caseCategoryId: this.caseCategoryId(),
+        clientApplicationRef: this.filingClientRef(),
+        applicationId: this.serverApplicationId(),
+        applicantIdByClientRowKey: { ...this.applicantIdByClientRowKeySig() },
+        stepIndex: this.stepIndex(),
+        form: this.form.getRawValue() as Record<string, unknown>,
+        disputedLands: this.disputedLands(),
+        vakaltnamaAssignments: this.vakaltnamaAssignments(),
+        vakaltnamaCoAdvocates: this.vakaltnamaCoAdvocates(),
+        selectedSubject: this.selectedSubject(),
+        selectedOffice: this.selectedOffice(),
+        mutationDetails: this.mutationDetails(),
+        mutationFound: this.mutationFound(),
+        searchedMutation: this.searchedMutation(),
+        notice9Resolved: this.notice9Resolved(),
+        manualAttachFileName: this.manualAttachFileName(),
+        manualNotice9FileName: this.manualNotice9FileName()
+      };
+      sessionStorage.setItem(this.sessionKey(), JSON.stringify(snapshot));
+    } catch {
+      //
+    }
+  }
+
+  protected schedulePersist(): void {
+    this.persistPulse$.next();
+  }
+
+  private setupPersistencePipeline(): void {
+    if (this.persistenceSetupDone) return;
+    this.persistenceSetupDone = true;
+    merge(
+      this.form.valueChanges.pipe(map(() => void 0)),
+      this.persistPulse$.pipe(map(() => void 0))
+    )
+      .pipe(debounceTime(400), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (!this.hydrating) this.writeSession();
+      });
+  }
+
+  private tryRestoreSession(): void {
+    this.loadingSubjects.set(false);
+    this.loadingDistricts.set(false);
+
+    const snap = this.readSession();
+    if (!snap || snap.v !== CATEGORY1_SESSION_VERSION || snap.caseCategoryId !== this.caseCategoryId()) {
+      this.filingClientRef.set(this.newClientRef());
+      this.serverApplicationId.set(null);
+      this.applicantIdByClientRowKeySig.set({});
+      this.addApplicant();
+      this.addRespondent();
+      this.hydrating = false;
+      this.setupPersistencePipeline();
+      return;
+    }
+
+    this.hydrating = true;
+    this.filingClientRef.set(snap.clientApplicationRef);
+    this.serverApplicationId.set(snap.applicationId ?? null);
+    this.applicantIdByClientRowKeySig.set({ ...(snap.applicantIdByClientRowKey ?? {}) });
+    this.stepIndex.set(snap.stepIndex ?? 0);
+
+    const f = snap.form as {
+      applicants?: Array<{ tempId?: string; name?: string; mobile?: string; address?: string }>;
+      respondents?: Array<{ tempId?: string; name?: string; mobile?: string; address?: string }>;
+      [key: string]: unknown;
+    };
+    const apps = Array.isArray(f.applicants) ? f.applicants : [];
+    const resps = Array.isArray(f.respondents) ? f.respondents : [];
+    const { applicants: _a, respondents: _r, ...scalarFields } = f;
+    this.rebuildApplicantsAndRespondents(apps, resps);
+    this.form.patchValue(scalarFields as object, { emitEvent: false });
+
+    this.disputedLands.set(snap.disputedLands ?? []);
+    this.vakaltnamaAssignments.set(snap.vakaltnamaAssignments ?? []);
+    this.vakaltnamaCoAdvocates.set(snap.vakaltnamaCoAdvocates ?? []);
+
+    const subjMatch =
+      snap.selectedSubject ??
+      this.subjects().find((s) => s.id === (scalarFields['subjectId'] as number));
+    this.selectedSubject.set(subjMatch ?? null);
+    this.selectedOffice.set(snap.selectedOffice ?? null);
+    this.mutationDetails.set(snap.mutationDetails);
+    this.mutationFound.set(!!snap.mutationFound);
+    this.searchedMutation.set(!!snap.searchedMutation);
+    this.notice9Resolved.set(
+      snap.notice9Resolved ?? {
+        available: false,
+        sourceKind: null,
+        url: null,
+        previewKind: 'none'
+      }
+    );
+    this.manualAttachFileName.set(snap.manualAttachFileName ?? null);
+    this.manualNotice9FileName.set(snap.manualNotice9FileName ?? null);
+
+    const officeFallback = snap.selectedOffice ?? null;
+    this.restoreLocationOfficeAndActChain(scalarFields, officeFallback);
+  }
+
+  private rebuildApplicantsAndRespondents(
+    applicants: Array<{ tempId?: string; name?: string; mobile?: string; address?: string }>,
+    respondents: Array<{ tempId?: string; name?: string; mobile?: string; address?: string }>
+  ): void {
+    while (this.applicants.length) this.applicants.removeAt(0);
+    const appList = applicants.length ? applicants : [{ tempId: this.makeTempId(), name: '', mobile: '', address: '' }];
+    for (const r of appList) {
+      const g = this.createPartyGroup();
+      g.patchValue({ ...r, tempId: r.tempId?.trim() || this.makeTempId() }, { emitEvent: false });
+      this.applicants.push(g);
+    }
+
+    while (this.respondents.length) this.respondents.removeAt(0);
+    const respList = respondents.length ? respondents : [{ tempId: this.makeTempId(), name: '', mobile: '', address: '' }];
+    for (const r of respList) {
+      const g = this.createPartyGroup();
+      g.patchValue({ ...r, tempId: r.tempId?.trim() || this.makeTempId() }, { emitEvent: false });
+      this.respondents.push(g);
+    }
+  }
+
+  private restoreLocationOfficeAndActChain(
+    scalarFields: Record<string, unknown>,
+    officeFallback: OfficeResponse | null
+  ): void {
+    const districtId = Number(scalarFields['districtId'] ?? 0);
+    const deptId = this.selectedSubject()?.departmentId;
+    const subPref = Number(scalarFields['subdistrictId'] ?? 0);
+
+    const finish = (): void => {
+      const officeIdSaved = Number(scalarFields['officeId'] ?? 0);
+      this.form.controls.officeId.setValue(officeIdSaved, { emitEvent: false });
+      this.selectedOffice.set(
+        officeFallback ?? this.offices().find((o) => o.id === officeIdSaved) ?? null
+      );
+      this.restoreSectionsThenHydrationDone(Number(scalarFields['actId'] ?? 0));
+    };
+
+    if (!districtId || districtId < 1) {
+      this.finalizeHydration();
+      return;
+    }
+
+    this.lookups.getSubdistricts(districtId).subscribe({
+      next: (subs) => {
+        this.subdistricts.set(subs);
+        this.lookups.getTalukas(districtId, subPref > 0 ? subPref : undefined).subscribe({
+          next: (talukaRows) => {
+            this.talukas.set(talukaRows);
+            const talukaIdNow = Number(scalarFields['talukaId'] ?? 0);
+            if (talukaIdNow > 0) {
+              this.lookups.getTalukaOffices(talukaIdNow, deptId || undefined).subscribe({
+                next: (offices) => {
+                  this.offices.set(offices);
+                  finish();
+                },
+                error: () => this.onRestoreChainFail()
+              });
+            } else {
+              this.onRestoreChainFail();
+            }
+          },
+          error: () => this.onRestoreChainFail()
+        });
+      },
+      error: () => this.onRestoreChainFail()
+    });
+  }
+
+  private restoreSectionsThenHydrationDone(actId: number): void {
+    if (actId > 0) {
+      this.lookups.getSections(actId).subscribe({
+        next: (rows) => {
+          this.sections.set(rows);
+          this.finalizeHydration();
+        },
+        error: () => this.finalizeHydration()
+      });
+    } else {
+      this.finalizeHydration();
+    }
+  }
+
+  private onRestoreChainFail(): void {
+    this.finalizeHydration();
+  }
+
+  private finalizeHydration(): void {
+    this.hydrating = false;
+    this.setupPersistencePipeline();
+    this.schedulePersist();
   }
 
   protected loadSubjects(): void {
@@ -386,6 +711,7 @@ export class Category1ObjectionComponent {
         this.mutationDetails.set(null);
       }
       this.loadingSearch.set(false);
+      this.schedulePersist();
     }, 280);
   }
 
@@ -402,6 +728,7 @@ export class Category1ObjectionComponent {
             notice9Url: resolved.url
           });
         }
+        this.schedulePersist();
       },
       error: () => {
         // Keep Notice 9 as null to allow manual upload path.
@@ -514,11 +841,13 @@ export class Category1ObjectionComponent {
   protected onManualAttachFileChange(event: Event): void {
     const input = event.target as HTMLInputElement;
     this.manualAttachFileName.set(input.files?.[0]?.name || null);
+    this.schedulePersist();
   }
 
   protected onManualNotice9FileChange(event: Event): void {
     const input = event.target as HTMLInputElement;
     this.manualNotice9FileName.set(input.files?.[0]?.name || null);
+    this.schedulePersist();
   }
 
   private resetLocationChain(): void {
@@ -532,15 +861,521 @@ export class Category1ObjectionComponent {
     this.offices.set([]);
   }
 
+  /** After successful final submit: clear session + blank form so user can file again (keeps districts master list). */
+  private resetAfterFinalSubmit(): void {
+    try {
+      sessionStorage.removeItem(this.sessionKey());
+    } catch {
+      //
+    }
+
+    this.hydrating = true;
+
+    this.filingClientRef.set(this.newClientRef());
+    this.serverApplicationId.set(null);
+    this.applicantIdByClientRowKeySig.set({});
+    this.stepIndex.set(0);
+
+    this.disputedLands.set([]);
+    this.vakaltnamaAssignments.set([]);
+    this.vakaltnamaCoAdvocates.set([]);
+
+    this.mutationDetails.set(null);
+    this.mutationFound.set(false);
+    this.searchedMutation.set(false);
+    this.loadingSearch.set(false);
+    this.loadingNotice9.set(false);
+    this.notice9Resolved.set({
+      available: false,
+      sourceKind: null,
+      url: null,
+      previewKind: 'none'
+    });
+    this.manualAttachFileName.set(null);
+    this.manualNotice9FileName.set(null);
+
+    this.selectedSubject.set(null);
+    this.selectedOffice.set(null);
+
+    while (this.applicants.length) this.applicants.removeAt(0);
+    while (this.respondents.length) this.respondents.removeAt(0);
+    this.applicants.push(this.createPartyGroup());
+    this.respondents.push(this.createPartyGroup());
+
+    this.form.patchValue(
+      {
+        subjectId: 0,
+        searchMode: 'INWARD_NUMBER' as const,
+        searchValue: '',
+        mutationYear: '',
+        mutationTypeFilter: '',
+        manualInwardNumber: '',
+        manualInwardDate: '',
+        manualMutationType: '',
+        manualApplicantName: '',
+        manualVillage: '',
+        manualStatus: '',
+        actId: 0,
+        sectionId: 0,
+        customSectionName: '',
+        applicationDescription: ''
+      },
+      { emitEvent: false }
+    );
+
+    this.form.controls.districtId.setValue(0, { emitEvent: false });
+    this.form.controls.subdistrictId.setValue(0, { emitEvent: false });
+    this.form.controls.talukaId.setValue(0, { emitEvent: false });
+    this.form.controls.officeId.setValue(0, { emitEvent: false });
+    this.subdistricts.set([]);
+    this.talukas.set([]);
+    this.offices.set([]);
+    this.sections.set([]);
+
+    this.form.markAsPristine();
+    this.form.markAsUntouched();
+
+    this.hydrating = false;
+    this.schedulePersist();
+  }
+
   protected back(): void {
+    this.apiMessage.set(null);
     this.apiError.set(null);
     this.stepIndex.set(Math.max(0, this.stepIndex() - 1));
+    this.schedulePersist();
   }
 
   protected next(): void {
-    // Development mode: do not block stepper navigation on validation.
+    this.apiMessage.set(null);
     this.apiError.set(null);
+    if (!this.validateCurrentStep(true)) {
+      return;
+    }
     this.stepIndex.set(Math.min(this.steps.length - 1, this.stepIndex() + 1));
+    this.schedulePersist();
+  }
+
+  /** Stepper header: go back freely; jump forward only if every step before the target is valid. */
+  protected selectStep(targetIndex: number): void {
+    this.apiMessage.set(null);
+    const current = this.stepIndex();
+    if (targetIndex === current) return;
+    if (targetIndex < current) {
+      this.apiError.set(null);
+      this.stepIndex.set(targetIndex);
+      this.schedulePersist();
+      return;
+    }
+    for (let s = current; s < targetIndex; s++) {
+      if (!this.validateStepByKey(this.steps[s].key, true)) {
+        return;
+      }
+    }
+    this.apiError.set(null);
+    this.stepIndex.set(targetIndex);
+    this.schedulePersist();
+  }
+
+  protected isLastStep(): boolean {
+    return this.stepIndex() >= this.steps.length - 1;
+  }
+
+  protected validateCurrentStep(markTouched: boolean): boolean {
+    return this.validateStepByKey(this.activeStep().key, markTouched);
+  }
+
+  private validateStepByKey(key: StepKey, markTouched: boolean): boolean {
+    let ok = false;
+    switch (key) {
+      case 'DISPUTED_ORDER':
+        ok = this.validateDisputedOrderStep(markTouched);
+        break;
+      case 'ACT_SECTION':
+        ok = this.validateActSectionStep(markTouched);
+        break;
+      case 'PARTIES':
+        ok = this.validatePartiesStep(markTouched);
+        break;
+      case 'VAKALTNAMA':
+        ok = this.validateVakaltnamaStep();
+        break;
+      case 'DISPUTED_LAND':
+        ok = this.validateDisputedLandStep();
+        break;
+      case 'APPLICATION_DESCRIPTION':
+        ok = true;
+        break;
+      default:
+        ok = true;
+    }
+    if (!ok && !this.apiError()) {
+      this.apiError.set('Please complete this step before continuing.');
+    }
+    return ok;
+  }
+
+  private validateDisputedOrderStep(markTouched: boolean): boolean {
+    if (markTouched) {
+      this.form.controls.subjectId.markAsTouched();
+      this.form.controls.searchValue.markAsTouched();
+    }
+    const subjectId = this.form.controls.subjectId.getRawValue();
+    if (!subjectId || subjectId < 1) {
+      this.apiError.set('Please select subject.');
+      return false;
+    }
+    const searchValue = this.form.controls.searchValue.getRawValue().trim();
+    if (searchValue.length < 2) {
+      this.apiError.set('Enter search value (at least 2 characters) and search.');
+      return false;
+    }
+    if (!this.searchedMutation()) {
+      this.apiError.set('Please run Search for mutation details before continuing.');
+      return false;
+    }
+    if (this.mutationFound()) {
+      if (this.loadingNotice9()) {
+        this.apiError.set('Please wait for Notice 9 to finish loading.');
+        return false;
+      }
+      if (!this.mutationDetails()) {
+        this.apiError.set('Mutation details are missing. Search again.');
+        return false;
+      }
+      if (!this.notice9Resolved().available && !this.manualNotice9FileName()) {
+        this.apiError.set('Notice 9 is not available from API. Please upload Notice 9.');
+        return false;
+      }
+      return true;
+    }
+    const m = this.form.controls;
+    const manualPairs: Array<{ control: AbstractControl; label: string }> = [
+      { control: m.manualInwardNumber, label: 'Inward number' },
+      { control: m.manualInwardDate, label: 'Inward date' },
+      { control: m.manualMutationType, label: 'Mutation type' },
+      { control: m.manualApplicantName, label: 'Applicant name' },
+      { control: m.manualVillage, label: 'Village' },
+      { control: m.manualStatus, label: 'Status' }
+    ];
+    for (const { control: c, label } of manualPairs) {
+      if (markTouched) c.markAsTouched();
+      if (!c.getRawValue().toString().trim()) {
+        this.apiError.set(`Please enter ${label} (record not found — manual entry).`);
+        return false;
+      }
+    }
+    if (!this.manualAttachFileName()) {
+      this.apiError.set('Please select attach file (upload) for the disputed order.');
+      return false;
+    }
+    if (!this.manualNotice9FileName()) {
+      this.apiError.set('Please upload Notice 9.');
+      return false;
+    }
+    return true;
+  }
+
+  private validateActSectionStep(markTouched: boolean): boolean {
+    const c = this.form.controls;
+    if (markTouched) {
+      c.districtId.markAsTouched();
+      c.talukaId.markAsTouched();
+      c.officeId.markAsTouched();
+      c.actId.markAsTouched();
+      c.sectionId.markAsTouched();
+    }
+    if (!c.districtId.getRawValue() || c.districtId.getRawValue() < 1) {
+      this.apiError.set('Please select district.');
+      return false;
+    }
+    if (!c.talukaId.getRawValue() || c.talukaId.getRawValue() < 1) {
+      this.apiError.set('Please select taluka.');
+      return false;
+    }
+    if (!c.officeId.getRawValue() || c.officeId.getRawValue() < 1) {
+      this.apiError.set('Please select office (wait for offices to load after taluka).');
+      return false;
+    }
+    if (!c.actId.getRawValue() || c.actId.getRawValue() < 1) {
+      this.apiError.set('Please select act.');
+      return false;
+    }
+    const sectionId = c.sectionId.getRawValue();
+    if (sectionId === -1) {
+      this.apiError.set('Choose a section from the list, or enter a custom section and click Add section.');
+      return false;
+    }
+    if (!sectionId || sectionId < 1) {
+      this.apiError.set('Please select section.');
+      return false;
+    }
+    return true;
+  }
+
+  private validatePartiesStep(markTouched: boolean): boolean {
+    if (markTouched) {
+      this.applicants.controls.forEach((g) => g.markAllAsTouched());
+      this.respondents.controls.forEach((g) => g.markAllAsTouched());
+    }
+    if (!this.applicants.valid) {
+      this.apiError.set('Please complete all applicant details (name, 10-digit mobile, address).');
+      return false;
+    }
+    if (!this.respondents.valid) {
+      this.apiError.set('Please complete all respondent details (name, 10-digit mobile, address).');
+      return false;
+    }
+    return true;
+  }
+
+  private validateVakaltnamaStep(): boolean {
+    const assignments = this.vakaltnamaAssignments();
+    if (assignments.length < 1) {
+      this.apiError.set('Create at least one vakaltnama group with advocate and applicants.');
+      return false;
+    }
+    const applicantIds = this.applicantOptions().map((a) => a.id);
+    const covered = new Set<string>();
+    for (const g of assignments) {
+      for (const id of g.applicantIds) {
+        covered.add(id);
+      }
+    }
+    for (const id of applicantIds) {
+      if (!covered.has(id)) {
+        this.apiError.set('Each applicant must be assigned to exactly one vakaltnama group.');
+        return false;
+      }
+    }
+    if (covered.size !== applicantIds.length) {
+      this.apiError.set('Vakaltnama groups must cover each applicant once (no duplicate assignments).');
+      return false;
+    }
+    return true;
+  }
+
+  private validateDisputedLandStep(): boolean {
+    if (this.disputedLands().length < 1) {
+      this.apiError.set('Add at least one disputed land record.');
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Backend validates land type with `landType`; keep existing `type` too for UI/session compatibility.
+   */
+  private buildDisputedLandsPayload(): Array<Record<string, unknown>> {
+    return this.disputedLands().map((row, index) => {
+      if (row.type === 'RURAL_7_12') {
+        return {
+          lineNo: index + 1,
+          landType: row.type,
+          externalSource: 'LAND_RECORDS_API',
+          districtCode: row.districtCode,
+          districtName: row.districtName,
+          talukaCode: row.talukaCode,
+          talukaName: row.talukaName,
+          villageLgdCode: row.villageLgdCode,
+          villageName: row.villageName,
+          surveyPin: row.pin,
+          pin1: row.pinParts.pin1,
+          pin2: row.pinParts.pin2,
+          pin3: row.pinParts.pin3,
+          pin4: row.pinParts.pin4,
+          pin5: row.pinParts.pin5,
+          pin6: row.pinParts.pin6,
+          pin7: row.pinParts.pin7,
+          pin8: row.pinParts.pin8
+        };
+      }
+      return {
+        lineNo: index + 1,
+        landType: row.type,
+        externalSource: 'LAND_RECORDS_API',
+        districtCode: row.districtCode,
+        districtName: row.districtName,
+        officeCode: row.officeCode,
+        officeName: row.officeName,
+        villageCode: row.villageCode,
+        villageName: row.villageName,
+        ctsNo: row.ctsNo
+      };
+    });
+  }
+
+  private buildFormPayload(): Record<string, unknown> {
+    const raw = this.form.getRawValue() as Record<string, unknown>;
+    const applicants = this.applicants.controls.map((ctrl, i) => {
+      const row = (ctrl as any).getRawValue?.() as {
+        tempId?: string;
+        name?: string;
+        mobile?: string;
+        address?: string;
+      };
+      const key = (row?.tempId || this.makeTempId()).trim();
+      return {
+        lineNo: i + 1,
+        tempId: key,
+        clientRowKey: key,
+        name: row?.name || '',
+        mobile: row?.mobile || '',
+        address: row?.address || ''
+      };
+    });
+    const respondents = this.respondents.controls.map((ctrl, i) => {
+      const row = (ctrl as any).getRawValue?.() as {
+        tempId?: string;
+        name?: string;
+        mobile?: string;
+        address?: string;
+      };
+      const key = (row?.tempId || this.makeTempId()).trim();
+      return {
+        lineNo: i + 1,
+        clientRowKey: key,
+        name: row?.name || '',
+        mobile: row?.mobile || '',
+        address: row?.address || ''
+      };
+    });
+    return {
+      ...raw,
+      sectionCustomText: (raw['customSectionName'] as string) || null,
+      applicants,
+      respondents,
+      vakalatnamaAssignments: this.vakaltnamaAssignments()
+    };
+  }
+
+  private buildDisputedOrderPayload(): Record<string, unknown> {
+    const n9 = this.notice9Resolved();
+    return {
+      searchMode: this.form.controls.searchMode.getRawValue(),
+      searchValue: this.form.controls.searchValue.getRawValue().trim(),
+      mutationFound: this.mutationFound(),
+      mutationSearched: this.searchedMutation(),
+      mutationDetails: this.mutationDetails(),
+      manualInwardNumber: this.form.controls.manualInwardNumber.getRawValue() || null,
+      manualInwardDate: this.form.controls.manualInwardDate.getRawValue() || null,
+      manualMutationType: this.form.controls.manualMutationType.getRawValue() || null,
+      manualApplicantName: this.form.controls.manualApplicantName.getRawValue() || null,
+      manualVillage: this.form.controls.manualVillage.getRawValue() || null,
+      manualStatus: this.form.controls.manualStatus.getRawValue() || null,
+      notice9Resolved: {
+        available: n9.available,
+        sourceKind: n9.sourceKind ? n9.sourceKind.toUpperCase() : null,
+        url: n9.url,
+        previewKind: n9.previewKind
+      }
+    };
+  }
+
+  private validateApplicationDescriptionStep(markTouched: boolean): boolean {
+    const c = this.form.controls.applicationDescription;
+    if (markTouched) c.markAsTouched();
+    const v = c.getRawValue().trim();
+    if (v.length < 10) {
+      this.apiError.set('Please enter application description (at least 10 characters).');
+      return false;
+    }
+    return true;
+  }
+
+  private validateAllStepsForSubmit(): boolean {
+    for (let i = 0; i < this.steps.length; i++) {
+      const key = this.steps[i].key;
+      const ok = key === 'APPLICATION_DESCRIPTION' ? this.validateApplicationDescriptionStep(true) : this.validateStepByKey(key, true);
+      if (!ok) {
+        this.stepIndex.set(i);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  protected selectedSubjectLabel(): string {
+    return this.selectedSubject()?.subjectName || '';
+  }
+
+  protected selectedDistrictLabel(): string {
+    const districtId = this.form.controls.districtId.getRawValue();
+    return this.districts().find((d) => d.id === districtId)?.name || '';
+  }
+
+  protected selectedTalukaLabel(): string {
+    const talukaId = this.form.controls.talukaId.getRawValue();
+    return this.talukas().find((t) => t.id === talukaId)?.name || '';
+  }
+
+  protected selectedActLabel(): string {
+    const actId = this.form.controls.actId.getRawValue();
+    return this.acts().find((a) => a.id === actId)?.actName || '';
+  }
+
+  protected selectedSectionLabel(): string {
+    const sectionId = this.form.controls.sectionId.getRawValue();
+    return this.sections().find((s) => s.id === sectionId)?.sectionName || '';
+  }
+
+  protected assignmentApplicantsLabel(ids: string[]): string {
+    const map = new Map((this.applicantOptions() ?? []).map((a) => [a.id, a.name]));
+    const names = ids.map((id) => map.get(id) ?? id).filter(Boolean);
+    return names.join(', ');
+  }
+
+  protected saveDraft(): void {
+    this.apiMessage.set(null);
+    this.postSave('DRAFT');
+  }
+
+  protected finalSubmit(): void {
+    this.apiMessage.set(null);
+    this.postSave('FINAL');
+  }
+
+  private postSave(mode: 'DRAFT' | 'FINAL'): void {
+    const status: FilingSaveStatus = mode === 'FINAL' ? 'SUBMITTED' : 'DRAFT';
+    const appId = this.serverApplicationId();
+    const body: FilingApplicationSaveRequest = {
+      status,
+      caseCategoryId: this.caseCategoryId(),
+      clientApplicationRef: this.filingClientRef(),
+      ...(appId != null && appId > 0 ? { applicationId: appId } : {}),
+      form: this.buildFormPayload(),
+      disputedOrder: this.buildDisputedOrderPayload(),
+      disputedLands: this.buildDisputedLandsPayload(),
+      attachments: []
+    };
+    this.saveInProgress.set(true);
+    this.filingApplications
+      .save(body)
+      .pipe(finalize(() => this.saveInProgress.set(false)))
+      .subscribe({
+        next: (resp) => {
+          this.apiError.set(null);
+          this.apiMessage.set(
+            status === 'DRAFT'
+              ? 'Draft saved successfully.'
+              : 'Application submitted successfully. The form has been cleared — you can start a new filing.'
+          );
+
+          if (status === 'SUBMITTED') {
+            this.resetAfterFinalSubmit();
+            return;
+          }
+
+          if (resp?.applicationId != null && resp.applicationId > 0) {
+            this.serverApplicationId.set(resp.applicationId);
+          }
+          if (resp?.applicantIdByClientRowKey && typeof resp.applicantIdByClientRowKey === 'object') {
+            this.applicantIdByClientRowKeySig.set(resp.applicantIdByClientRowKey as Record<string, number>);
+          }
+          this.schedulePersist();
+        },
+        error: (err: unknown) => this.apiError.set(this.formatError(err))
+      });
   }
 
   protected addCustomSection(): void {
@@ -578,19 +1413,32 @@ export class Category1ObjectionComponent {
       this.form.controls.sectionId.setValue(matched?.id ?? 0);
     }
     this.form.controls.customSectionName.setValue('');
+    this.schedulePersist();
   }
 
   private formatError(err: unknown): string {
     if (err instanceof HttpErrorResponse) {
-      const msg =
-        err.error && typeof err.error.error === 'string'
-          ? err.error.error
-          : err.error && typeof err.error.message === 'string'
-            ? err.error.message
-            : null;
-      return msg || `Request failed (${err.status}).`;
+      const body = err.error;
+      if (typeof body === 'string' && body.trim()) return body.trim();
+      if (body && typeof body === 'object') {
+        const o = body as Record<string, unknown>;
+        const e = o['error'];
+        const m = o['message'];
+        const detail = o['detail'];
+        if (typeof e === 'string') return e;
+        if (typeof m === 'string') return m;
+        if (typeof detail === 'string') return detail;
+        if (Array.isArray(o['errors'])) return JSON.stringify(o['errors']);
+        try {
+          return JSON.stringify(o);
+        } catch {
+          //
+        }
+      }
+      return `Request failed (${err.status}).`;
     }
     return 'Request failed.';
   }
+
 }
 

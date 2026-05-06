@@ -13,10 +13,12 @@
       <h3>My Cases</h3>
       <p>View and track case progress.</p>
     </a>
-    <a class="tile tile-link" routerLink="/cases/new">
-      <h3>File New Case</h3>
-      <p>Select case category and start filing.</p>
-    </a>
+    @if (isAdvocate) {
+      <a class="tile tile-link" routerLink="/cases/new">
+        <h3>File New Case</h3>
+        <p>Select case category and start filing.</p>
+      </a>
+    }
     <article class="tile">
       <h3>Notices</h3>
       <p>Check hearing and update notices.</p>

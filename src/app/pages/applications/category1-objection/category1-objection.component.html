@@ -10,7 +10,7 @@
 
     <nav class="stepper" aria-label="Application steps">
       @for (s of steps; track s.key; let i = $index) {
-        <button type="button" class="step" [class.active]="i === stepIndex()" (click)="stepIndex.set(i)">
+        <button type="button" class="step" [class.active]="i === stepIndex()" (click)="selectStep(i)">
           <span class="num">{{ i + 1 }}</span>
           <span class="label">{{ s.title }}</span>
         </button>
@@ -20,13 +20,32 @@
     @if (apiError()) {
       <p class="api-message error">{{ apiError() }}</p>
     }
+  @if (apiMessage()) {
+    <p class="api-message success">{{ apiMessage() }}</p>
+  }
 
     @switch (activeStep().key) {
       @case ('DISPUTED_ORDER') {
         <section class="section">
           <div class="mini-card" [formGroup]="form">
             <div class="mini-head">
-              <strong>Search criteria</strong>
+              <strong>Subject & search</strong>
+            </div>
+
+            <div class="grid">
+              <label class="span-2">
+                Subject *
+                <select formControlName="subjectId" [disabled]="loadingSubjects()">
+                  <option [ngValue]="0">{{ loadingSubjects() ? 'Loading…' : 'Select subject' }}</option>
+                  @for (sub of subjects(); track sub.id) {
+                    <option [ngValue]="sub.id">{{ sub.subjectCode }} — {{ sub.subjectName }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+
+            <div class="mini-head" style="margin-top: 8px">
+              <strong>Mutation search criteria</strong>
             </div>
 
             <div class="radio-row">
@@ -372,7 +391,7 @@
           <app-vakaltnama-panel
             [applicants]="applicantOptions()"
             [assignments]="vakaltnamaAssignments()"
-            (assignmentsChange)="vakaltnamaAssignments.set($event)"
+            (assignmentsChange)="onVakaltnamaAssignmentsChange($event)"
           />
         </section>
       }
@@ -381,17 +400,227 @@
         <section class="section">
           <app-disputed-land-panel
             [disputedLands]="disputedLands()"
-            (disputedLandsChange)="disputedLands.set($event)"
+            (disputedLandsChange)="onDisputedLandsChange($event)"
           />
+        </section>
+      }
+
+      @case ('APPLICATION_DESCRIPTION') {
+        <section class="section">
+          <div class="mini-card">
+            <div class="mini-head">
+              <strong>Filing session</strong>
+            </div>
+            <p class="sub sub-tight">
+              Data is kept in this browser tab’s session until you clear it or successfully <strong>Submit</strong> the
+              application (submit clears the form for a new filing). Use the same client ref for draft API updates.
+            </p>
+            <div class="grid">
+              <div class="kv span-2">
+                <span class="k">clientApplicationRef</span>
+                <span class="v muted">{{ filingClientRef() }}</span>
+              </div>
+              @if (serverApplicationId()) {
+                <div class="kv span-2">
+                  <span class="k">applicationId (server)</span>
+                  <span class="v">{{ serverApplicationId() }}</span>
+                </div>
+              }
+            </div>
+            <div class="row-actions" style="margin-top: 10px">
+              <button type="button" class="btn btn-secondary danger" (click)="hardResetFiling()">
+                Clear session & start over
+              </button>
+            </div>
+          </div>
+
+          <div class="mini-card" [formGroup]="form">
+            <div class="mini-head">
+              <strong>Application description</strong>
+            </div>
+            <label>
+              Description * (minimum 10 characters)
+              <textarea
+                formControlName="applicationDescription"
+                rows="5"
+                placeholder="Enter application summary/description"
+              ></textarea>
+            </label>
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-head">
+              <strong>Full form preview</strong>
+            </div>
+            <div class="grid">
+              <label class="span-2">
+                Subject
+                <input type="text" [value]="selectedSubjectLabel()" readonly />
+              </label>
+              <label>
+                Search mode
+                <input type="text" [value]="form.controls.searchMode.getRawValue() || ''" readonly />
+              </label>
+              <label>
+                Search value
+                <input type="text" [value]="form.controls.searchValue.getRawValue() || ''" readonly />
+              </label>
+              <label>
+                District
+                <input type="text" [value]="selectedDistrictLabel()" readonly />
+              </label>
+              <label>
+                Taluka
+                <input type="text" [value]="selectedTalukaLabel()" readonly />
+              </label>
+              <label>
+                Office
+                <input type="text" [value]="selectedOfficeName() || ''" readonly />
+              </label>
+              <label>
+                Act
+                <input type="text" [value]="selectedActLabel()" readonly />
+              </label>
+              <label>
+                Section
+                <input type="text" [value]="selectedSectionLabel()" readonly />
+              </label>
+              <label class="span-2">
+                Application description
+                <textarea [value]="form.controls.applicationDescription.getRawValue() || ''" rows="4" readonly></textarea>
+              </label>
+            </div>
+
+            <div class="mini-head" style="margin-top: 12px">
+              <strong>Applicant details</strong>
+            </div>
+            @for (a of applicants.controls; track a; let i = $index) {
+              <div class="repeat-card">
+                <div class="mini-head">
+                  <strong>Applicant {{ i + 1 }}</strong>
+                </div>
+                <div class="grid">
+                  <label class="span-2">
+                    Name
+                    <input type="text" [value]="$any(a).controls.name.value || ''" readonly />
+                  </label>
+                  <label>
+                    Mobile number
+                    <input type="text" [value]="$any(a).controls.mobile.value || ''" readonly />
+                  </label>
+                  <label>
+                    Address
+                    <input type="text" [value]="$any(a).controls.address.value || ''" readonly />
+                  </label>
+                </div>
+              </div>
+            }
+
+            <div class="mini-head" style="margin-top: 12px">
+              <strong>Respondent details</strong>
+            </div>
+            @for (r of respondents.controls; track r; let i = $index) {
+              <div class="repeat-card">
+                <div class="mini-head">
+                  <strong>Respondent {{ i + 1 }}</strong>
+                </div>
+                <div class="grid">
+                  <label class="span-2">
+                    Name
+                    <input type="text" [value]="$any(r).controls.name.value || ''" readonly />
+                  </label>
+                  <label>
+                    Mobile number
+                    <input type="text" [value]="$any(r).controls.mobile.value || ''" readonly />
+                  </label>
+                  <label>
+                    Address
+                    <input type="text" [value]="$any(r).controls.address.value || ''" readonly />
+                  </label>
+                </div>
+              </div>
+            }
+
+            <div class="mini-head" style="margin-top: 12px">
+              <strong>Vakaltnama groups</strong>
+            </div>
+            @if (vakaltnamaAssignments().length === 0) {
+              <p class="sub sub-tight-top">No vakaltnama groups created.</p>
+            } @else {
+              @for (g of vakaltnamaAssignments(); track g.id; let i = $index) {
+                <div class="repeat-card">
+                  <div class="mini-head">
+                    <strong>Group {{ i + 1 }}</strong>
+                  </div>
+                  <div class="grid">
+                    <label class="span-2">
+                      Advocate
+                      <input type="text" [value]="g.advocate.fullName + ' (' + g.advocate.barCouncilNumber + ')'" readonly />
+                    </label>
+                    <label>
+                      Applicants
+                      <input type="text" [value]="assignmentApplicantsLabel(g.applicantIds)" readonly />
+                    </label>
+                    <label>
+                      Co-advocates count
+                      <input type="text" [value]="g.coAdvocates.length" readonly />
+                    </label>
+                  </div>
+                </div>
+              }
+            }
+
+            <div class="mini-head" style="margin-top: 12px">
+              <strong>Disputed land details</strong>
+            </div>
+            @if (disputedLands().length === 0) {
+              <p class="sub sub-tight-top">No disputed land added.</p>
+            } @else {
+              @for (x of disputedLands(); track i; let i = $index) {
+                <div class="repeat-card">
+                  <div class="mini-head">
+                    <strong>Land {{ i + 1 }}</strong>
+                  </div>
+                  <div class="grid">
+                    <label>
+                      Type
+                      <input type="text" [value]="x.type === 'RURAL_7_12' ? '7/12' : 'Property card'" readonly />
+                    </label>
+                    <label class="span-2">
+                      Location
+                      <input
+                        type="text"
+                        [value]="x.type === 'RURAL_7_12' ? (x.districtName + ' / ' + x.talukaName + ' / ' + x.villageName) : (x.districtName + ' / ' + x.officeName + ' / ' + x.villageName)"
+                        readonly
+                      />
+                    </label>
+                    <label>
+                      Identifier
+                      <input type="text" [value]="x.type === 'RURAL_7_12' ? ('Pin ' + x.pin) : ('CTS ' + x.ctsNo)" readonly />
+                    </label>
+                  </div>
+                </div>
+              }
+            }
+          </div>
+
+          <div class="row-actions">
+            <button type="button" class="btn btn-secondary" (click)="saveDraft()" [disabled]="saveInProgress()">
+              {{ saveInProgress() ? 'Saving…' : 'Save draft' }}
+            </button>
+            <button type="button" class="btn btn-primary" (click)="finalSubmit()" [disabled]="saveInProgress()">
+              {{ saveInProgress() ? 'Submitting…' : 'Submit' }}
+            </button>
+          </div>
         </section>
       }
     }
 
     <footer class="footer-actions">
       <button type="button" class="btn btn-secondary" (click)="back()" [disabled]="stepIndex() === 0">Back</button>
-      <button type="button" class="btn btn-primary" (click)="next()" [disabled]="stepIndex() === steps.length - 1">
-        Next
-      </button>
+      @if (!isLastStep()) {
+        <button type="button" class="btn btn-primary" (click)="next()">Next</button>
+      }
     </footer>
   </article>
 </div>

@@ -10,13 +10,14 @@ import { NewCaseComponent } from './pages/cases/new-case/new-case.component';
 
 import { authGuard } from './guards/auth.guard';
 import { adminGuard } from './guards/admin.guard';
+import { advocateGuard } from './guards/advocate.guard';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
   { path: 'portal-home', component: PortalHomeComponent, canActivate: [authGuard] },
   { path: 'cases', component: CaseListComponent, canActivate: [authGuard] },
-  { path: 'cases/new', component: NewCaseComponent, canActivate: [authGuard] },
-  { path: 'applications/new', component: NewApplicationComponent, canActivate: [authGuard] },
+  { path: 'cases/new', component: NewCaseComponent, canActivate: [authGuard, advocateGuard] },
+  { path: 'applications/new', component: NewApplicationComponent, canActivate: [authGuard, advocateGuard] },
   { path: 'admin/masters', component: AdminMastersComponent, canActivate: [adminGuard] },
   { path: 'register/advocate', component: AdvocateRegistrationComponent },
   { path: 'register/party', component: PartyRegistrationComponent },

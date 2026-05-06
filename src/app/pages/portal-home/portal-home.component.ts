@@ -15,6 +15,8 @@ export class PortalHomeComponent {
 
   protected readonly displayName = this.tokenStorage.getDisplayName() || 'User';
   protected readonly role = this.tokenStorage.getRole() || '-';
+  /** File New Case is available only when logged in as Advocate. */
+  protected readonly isAdvocate = this.tokenStorage.isAdvocate();
 
   constructor() {
     if (!this.tokenStorage.getAccessToken()) {

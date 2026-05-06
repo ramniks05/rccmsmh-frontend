@@ -179,6 +179,9 @@
                   <td>{{ applicantsLabel(g.applicantIds) }}</td>
                   <td>{{ g.coAdvocates.length }}</td>
                   <td>
+                    <button type="button" class="btn btn-secondary btn-compact" (click)="downloadAssignmentPdf(g, i)">
+                      {{ downloadingGroupId() === g.id ? 'Preparing...' : 'Download PDF' }}
+                    </button>
                     <button type="button" class="btn btn-secondary danger btn-compact" (click)="removeAssignment(i)">Remove</button>
                   </td>
                 </tr>
