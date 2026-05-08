@@ -12,6 +12,7 @@ import {
   DocumentTypeMappingItemRecord,
   MasterRecord,
   DesignationRecord,
+  OccupationRecord,
   EmployeePostingRecord,
   EmployeeRecord,
   OfficeLevel,
@@ -28,7 +29,8 @@ import {
   type CreateOrUpdateOfficeRequest,
   type CreateOrUpdateOfficeTypeRequest,
   type CreateOrUpdateSubjectRequest,
-  type CreateOrUpdateDepartmentRequest
+  type CreateOrUpdateDepartmentRequest,
+  type CreateOrUpdateOccupationRequest
 } from '../../../services/admin-masters.service';
 import { environment } from '../../../../environments/environment';
 
@@ -46,6 +48,7 @@ type MasterKind =
   | 'OFFICE_TYPE'
   | 'OFFICE'
   | 'DESIGNATION'
+  | 'OCCUPATION'
   | 'EMPLOYEE'
   | 'DOCUMENT_TYPE_MAPPING';
 
@@ -82,6 +85,7 @@ export class AdminMastersComponent {
   protected readonly officeBranches = signal<OfficeBranchRecord[]>([]);
   protected readonly designations = signal<DesignationRecord[]>([]);
   protected readonly employees = signal<EmployeeRecord[]>([]);
+  protected readonly occupations = signal<OccupationRecord[]>([]);
   protected readonly employeePostings = signal<EmployeePostingRecord[]>([]);
   protected readonly documentTypeMappings = signal<DocumentTypeMappingItemRecord[]>([]);
   protected readonly mappingSubjects = signal<SubjectRecord[]>([]);
@@ -93,6 +97,7 @@ export class AdminMastersComponent {
   protected readonly editingOfficeTypeId = signal<number | null>(null);
   protected readonly editingOfficeId = signal<number | null>(null);
   protected readonly editingDesignationId = signal<number | null>(null);
+  protected readonly editingOccupationId = signal<number | null>(null);
   protected readonly editingEmployeeId = signal<number | null>(null);
   protected readonly selectedEmployeeForPostingsId = signal<number | null>(null);
 
@@ -117,6 +122,7 @@ export class AdminMastersComponent {
   protected readonly isOfficeType = computed(() => this.selected() === 'OFFICE_TYPE');
   protected readonly isOffice = computed(() => this.selected() === 'OFFICE');
   protected readonly isDesignation = computed(() => this.selected() === 'DESIGNATION');
+  protected readonly isOccupation = computed(() => this.selected() === 'OCCUPATION');
   protected readonly isEmployee = computed(() => this.selected() === 'EMPLOYEE');
   protected readonly isDocumentTypeMapping = computed(() => this.selected() === 'DOCUMENT_TYPE_MAPPING');
 
@@ -155,6 +161,8 @@ export class AdminMastersComponent {
                   ? this.offices().length
                   : this.isDesignation()
                     ? this.designations().length
+                    : this.isOccupation()
+                      ? this.occupations().length
                     : this.isEmployee()
                       ? this.employees().length
           : this.activeMasterList().length
@@ -215,6 +223,13 @@ export class AdminMastersComponent {
     const currentPage = Math.min(this.page(), this.totalPages());
     const start = (currentPage - 1) * size;
     return this.designations().slice(start, start + size);
+  });
+
+  protected readonly pagedOccupationList = computed<OccupationRecord[]>(() => {
+    const size = this.pageSize();
+    const currentPage = Math.min(this.page(), this.totalPages());
+    const start = (currentPage - 1) * size;
+    return this.occupations().slice(start, start + size);
   });
 
   protected readonly pagedEmployeeList = computed<EmployeeRecord[]>(() => {
@@ -320,6 +335,8 @@ export class AdminMastersComponent {
         return 'Create Office';
       case 'DESIGNATION':
         return 'Create Designation';
+      case 'OCCUPATION':
+        return 'Create Occupation';
       case 'EMPLOYEE':
         return 'Create Employee';
       case 'DOCUMENT_TYPE_MAPPING':
@@ -454,6 +471,13 @@ export class AdminMastersComponent {
     mobile: ['', [Validators.required, Validators.minLength(10)]],
     email: ['', [Validators.required, Validators.email]],
     isActive: [true]
+  });
+
+  protected readonly occupationForm = this.fb.nonNullable.group({
+    name: ['', [Validators.required, Validators.minLength(2)]],
+    localName: [''],
+    shortName: [''],
+    shortNameLocal: ['']
   });
 
   protected readonly employeeFilterForm = this.fb.nonNullable.group({
@@ -694,6 +718,7 @@ export class AdminMastersComponent {
     this.editingOfficeTypeId.set(null);
     this.editingOfficeId.set(null);
     this.editingDesignationId.set(null);
+    this.editingOccupationId.set(null);
     this.editingEmployeeId.set(null);
     this.selectedEmployeeForPostingsId.set(null);
 
@@ -739,6 +764,8 @@ export class AdminMastersComponent {
     } else if (kind === 'DESIGNATION') {
       this.loadDepartments();
       this.loadDesignations();
+    } else if (kind === 'OCCUPATION') {
+      this.loadOccupations();
     } else if (kind === 'EMPLOYEE') {
       this.loadOffices();
       this.loadDesignations();
@@ -781,7 +808,9 @@ export class AdminMastersComponent {
                               ? this.officeForm
                               : kind === 'DESIGNATION'
                                 ? this.designationForm
-                                : this.employeeForm;
+                                : kind === 'OCCUPATION'
+                                  ? this.occupationForm
+                                  : this.employeeForm;
 
     form.markAllAsTouched();
     if (form.invalid) {
@@ -818,6 +847,8 @@ export class AdminMastersComponent {
                               ? this.submitOffice()
                               : kind === 'DESIGNATION'
                                 ? this.submitDesignation()
+                                : kind === 'OCCUPATION'
+                                  ? this.submitOccupation()
                                 : this.submitEmployee();
 
     const reqUnknown$: Observable<unknown> = req$ as Observable<unknown>;
@@ -948,6 +979,10 @@ export class AdminMastersComponent {
               shortNameLocal: ''
             });
             this.loadDesignations();
+          } else if (kind === 'OCCUPATION') {
+            this.editingOccupationId.set(null);
+            this.occupationForm.reset({ name: '', localName: '', shortName: '', shortNameLocal: '' });
+            this.loadOccupations();
           } else if (kind === 'EMPLOYEE') {
             this.editingEmployeeId.set(null);
             this.employeeForm.reset({
@@ -1500,6 +1535,22 @@ export class AdminMastersComponent {
     return id ? this.masters.updateDesignation(id, payload) : this.masters.createDesignation(payload);
   }
 
+  private loadOccupations(): void {
+    this.masters.getOccupations().subscribe({
+      next: (rows) => {
+        this.occupations.set(rows);
+        this.page.set(1);
+      },
+      error: () => this.occupations.set([])
+    });
+  }
+
+  private submitOccupation() {
+    const payload = this.occupationPayload();
+    const id = this.editingOccupationId();
+    return id ? this.masters.updateOccupation(id, payload) : this.masters.createOccupation(payload);
+  }
+
   private loadEmployees(): void {
     const a = this.employeeFilterForm.controls.active.getRawValue();
     const active = a === '' ? undefined : a === 'true';
@@ -1801,6 +1852,49 @@ export class AdminMastersComponent {
   protected clearDesignationFilter(): void {
     this.designationFilterForm.reset({ departmentId: 0 });
     this.loadDesignations();
+  }
+
+  private occupationPayload(): CreateOrUpdateOccupationRequest {
+    const raw = this.occupationForm.getRawValue();
+    return {
+      name: raw.name,
+      localName: raw.localName || undefined,
+      shortName: raw.shortName || undefined,
+      shortNameLocal: raw.shortNameLocal || undefined
+    };
+  }
+
+  protected startEditOccupation(row: OccupationRecord): void {
+    this.apiMessage.set(null);
+    this.apiError.set(null);
+    this.editingOccupationId.set(row.id);
+    this.occupationForm.reset({
+      name: row.name,
+      localName: row.localName || '',
+      shortName: row.shortName || '',
+      shortNameLocal: row.shortNameLocal || ''
+    });
+  }
+
+  protected cancelEditOccupation(): void {
+    this.editingOccupationId.set(null);
+    this.occupationForm.reset({ name: '', localName: '', shortName: '', shortNameLocal: '' });
+  }
+
+  protected deleteOccupation(row: OccupationRecord): void {
+    if (!confirm(`Delete occupation "${row.name}"?`)) return;
+    this.apiMessage.set(null);
+    this.apiError.set(null);
+    this.busy.set(true);
+    this.masters.deleteOccupation(row.id).subscribe({
+      next: () => {
+        this.apiMessage.set('Deleted successfully.');
+        if (this.editingOccupationId() === row.id) this.cancelEditOccupation();
+        this.loadOccupations();
+      },
+      error: (err: unknown) => this.apiError.set(this.formatError(err)),
+      complete: () => this.busy.set(false)
+    });
   }
 
   private officeTypePayload(): CreateOrUpdateOfficeTypeRequest {

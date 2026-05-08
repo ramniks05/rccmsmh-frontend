@@ -73,6 +73,9 @@
     >
       Designation
     </button>
+    <button type="button" class="tab" [class.active]="selected() === 'OCCUPATION'" (click)="select('OCCUPATION')">
+      Occupation
+    </button>
     <button type="button" class="tab" [class.active]="selected() === 'EMPLOYEE'" (click)="select('EMPLOYEE')">
       Employee
     </button>
@@ -952,6 +955,42 @@
         }
       }
 
+      @case ('OCCUPATION') {
+        <form class="form-grid" [formGroup]="occupationForm" (ngSubmit)="submit()">
+          <label>
+            Name *
+            <input type="text" formControlName="name" placeholder="Farmer" />
+          </label>
+          <label>
+            Local name
+            <input type="text" formControlName="localName" placeholder="शेतकरी" />
+          </label>
+          <label>
+            Short name
+            <input type="text" formControlName="shortName" placeholder="FARM" />
+          </label>
+          <label>
+            Short name (local)
+            <input type="text" formControlName="shortNameLocal" placeholder="शेत" />
+          </label>
+
+          <div class="row-actions">
+            <button type="submit" class="btn btn-primary" [disabled]="busy()">
+              @if (editingOccupationId()) {
+                {{ busy() ? 'Saving...' : 'Update Occupation' }}
+              } @else {
+                {{ busy() ? 'Saving...' : 'Create Occupation' }}
+              }
+            </button>
+            @if (editingOccupationId()) {
+              <button type="button" class="btn btn-secondary" (click)="cancelEditOccupation()" [disabled]="busy()">
+                Cancel
+              </button>
+            }
+          </div>
+        </form>
+      }
+
       @case ('DOCUMENT_TYPE_MAPPING') {
         <section class="filter-card" aria-label="Document type mapping">
           <h4>Load Mapping</h4>
@@ -1411,6 +1450,49 @@
                       </button>
                       <button type="button" class="btn btn-secondary" (click)="openEmployeePostings(row)" [disabled]="busy()">
                         Postings
+                      </button>
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        } @else if (selected() === 'OCCUPATION') {
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Local name</th>
+                <th>Short</th>
+                <th>Short (local)</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @if (pagedOccupationList().length === 0) {
+                <tr>
+                  <td colspan="6" class="empty">No data</td>
+                </tr>
+              } @else {
+                @for (row of pagedOccupationList(); track row.id) {
+                  <tr>
+                    <td>{{ row.id }}</td>
+                    <td>{{ row.name }}</td>
+                    <td>{{ row.localName || '-' }}</td>
+                    <td>{{ row.shortName || '-' }}</td>
+                    <td>{{ row.shortNameLocal || '-' }}</td>
+                    <td class="cell-actions">
+                      <button type="button" class="btn btn-secondary" (click)="startEditOccupation(row)" [disabled]="busy()">
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-secondary danger"
+                        (click)="deleteOccupation(row)"
+                        [disabled]="busy()"
+                      >
+                        Delete
                       </button>
                     </td>
                   </tr>

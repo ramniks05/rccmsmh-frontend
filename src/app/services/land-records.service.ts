@@ -58,6 +58,7 @@ export interface UrbanVillage {
 
 export interface UrbanCtsRow {
   cts_no: string;
+  new_cts_numb_2000?: string;
 }
 
 export interface NoticeNineViewResponse {
@@ -69,6 +70,32 @@ export interface NoticeNineViewResponse {
   dataUrl?: string;
   mimeType?: string;
   base64?: string;
+}
+
+export interface UrbanMutationDetailResponse {
+  inward_number?: string;
+  inward_date?: string;
+  mutation_number?: string;
+  mutation_date?: string;
+  mutation_type_code?: string;
+  mutation_type_description?: string;
+  its_code?: string;
+  status_description?: string;
+  notice9_dispatch_date?: string;
+  notice9_dispatch_number?: string;
+  village_code?: string;
+  tenure?: string;
+  tenure_naz?: string;
+  applicant_name?: string;
+  mobile_number?: string;
+  cts_number?: string;
+}
+
+export interface UrbanMutationListRow {
+  inward_number: string;
+  mutation_number?: string;
+  mutation_date?: string;
+  applicant_name?: string;
 }
 
 /**
@@ -124,8 +151,20 @@ export class LandRecordsService {
     });
   }
 
+  getUrbanMutations(villageCode: string, ctsNo: string): Observable<UrbanMutationListRow[]> {
+    return this.http.get<UrbanMutationListRow[]>(`${this.apiBaseUrl}/api/land-records/urban/mutations`, {
+      params: { villageCode, ctsNo }
+    });
+  }
+
   getUrbanNoticeNineView(inwardNumber: string): Observable<NoticeNineViewResponse | string | Record<string, unknown>> {
     return this.http.get<NoticeNineViewResponse | string | Record<string, unknown>>(`${this.apiBaseUrl}/api/land-records/urban/notice-nine-view`, {
+      params: { inwardNumber }
+    });
+  }
+
+  getUrbanMutationDetail(inwardNumber: string): Observable<UrbanMutationDetailResponse> {
+    return this.http.get<UrbanMutationDetailResponse>(`${this.apiBaseUrl}/api/land-records/urban/mutation-detail`, {
       params: { inwardNumber }
     });
   }

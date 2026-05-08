@@ -190,6 +190,21 @@ export interface CreateOrUpdateDesignationRequest {
   shortNameLocal?: string;
 }
 
+export interface OccupationRecord {
+  id: number;
+  name: string;
+  localName: string | null;
+  shortName: string | null;
+  shortNameLocal: string | null;
+}
+
+export interface CreateOrUpdateOccupationRequest {
+  name: string;
+  localName?: string;
+  shortName?: string;
+  shortNameLocal?: string;
+}
+
 export interface EmployeeRecord {
   id: number;
   employeeCode: string;
@@ -435,6 +450,22 @@ export class AdminMastersService {
 
   deleteDesignation(id: number): Observable<DeleteResponse> {
     return this.http.delete<DeleteResponse>(`${this.apiBaseUrl}/api/admin/masters/designations/${id}`);
+  }
+
+  createOccupation(payload: CreateOrUpdateOccupationRequest): Observable<OccupationRecord> {
+    return this.http.post<OccupationRecord>(`${this.apiBaseUrl}/api/admin/masters/occupations`, payload);
+  }
+
+  getOccupations(): Observable<OccupationRecord[]> {
+    return this.http.get<OccupationRecord[]>(`${this.apiBaseUrl}/api/admin/masters/occupations`);
+  }
+
+  updateOccupation(id: number, payload: CreateOrUpdateOccupationRequest): Observable<OccupationRecord> {
+    return this.http.put<OccupationRecord>(`${this.apiBaseUrl}/api/admin/masters/occupations/${id}`, payload);
+  }
+
+  deleteOccupation(id: number): Observable<DeleteResponse> {
+    return this.http.delete<DeleteResponse>(`${this.apiBaseUrl}/api/admin/masters/occupations/${id}`);
   }
 
   createEmployee(payload: CreateEmployeeRequest): Observable<EmployeeRecord> {

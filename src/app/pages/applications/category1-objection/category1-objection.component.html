@@ -44,55 +44,138 @@
               </label>
             </div>
 
-            <div class="mini-head" style="margin-top: 8px">
-              <strong>Mutation search criteria</strong>
-            </div>
+            @if (isEpicsSubject()) {
+              <div class="mini-head" style="margin-top: 8px">
+                <strong>Mutation search criteria</strong>
+              </div>
 
-            <div class="radio-row">
-              <label class="role-option">
-                <input
-                  type="radio"
-                  name="searchMode"
-                  [checked]="form.controls.searchMode.value === 'INWARD_NUMBER'"
-                  (change)="form.controls.searchMode.setValue('INWARD_NUMBER')"
-                />
-                <span>Inward number</span>
-              </label>
-              <label class="role-option">
-                <input
-                  type="radio"
-                  name="searchMode"
-                  [checked]="form.controls.searchMode.value === 'SURVEY_NUMBER'"
-                  (change)="form.controls.searchMode.setValue('SURVEY_NUMBER')"
-                />
-                <span>Survey no.</span>
-              </label>
-              <label class="role-option">
-                <input
-                  type="radio"
-                  name="searchMode"
-                  [checked]="form.controls.searchMode.value === 'MUTATION_NUMBER'"
-                  (change)="form.controls.searchMode.setValue('MUTATION_NUMBER')"
-                />
-                <span>Mutation number</span>
-              </label>
-            </div>
+              <div class="radio-row">
+                <label class="role-option">
+                  <input
+                    type="radio"
+                    name="searchMode"
+                    [checked]="form.controls.searchMode.value === 'INWARD_NUMBER'"
+                    (change)="form.controls.searchMode.setValue('INWARD_NUMBER')"
+                  />
+                  <span>Inward number</span>
+                </label>
+                <label class="role-option">
+                  <input
+                    type="radio"
+                    name="searchMode"
+                    [checked]="form.controls.searchMode.value === 'SURVEY_NUMBER'"
+                    (change)="form.controls.searchMode.setValue('SURVEY_NUMBER')"
+                  />
+                  <span>Survey / CTS</span>
+                </label>
+                <label class="role-option">
+                  <input
+                    type="radio"
+                    name="searchMode"
+                    [checked]="form.controls.searchMode.value === 'MUTATION_NUMBER'"
+                    (change)="form.controls.searchMode.setValue('MUTATION_NUMBER')"
+                  />
+                  <span>Mutation number</span>
+                </label>
+              </div>
 
-            <div class="grid">
-              <label class="span-2">
-                {{ searchFieldLabel() }} *
-                <input type="text" formControlName="searchValue" [placeholder]="searchPlaceholder()" />
-              </label>
-            </div>
+              @if (form.controls.searchMode.value === 'INWARD_NUMBER') {
+                <div class="grid">
+                  <label class="span-2">
+                    {{ searchFieldLabel() }} *
+                    <input type="text" formControlName="searchValue" [placeholder]="searchPlaceholder()" />
+                  </label>
+                </div>
 
-            <div class="row-actions">
-              <button type="button" class="btn btn-primary" (click)="performSearch()" [disabled]="loadingSearch()">
-                {{ loadingSearch() ? 'Searching…' : 'Search' }}
-              </button>
-            </div>
+                <div class="row-actions">
+                  <button type="button" class="btn btn-primary" (click)="performSearch()" [disabled]="loadingSearch()">
+                    {{ loadingSearch() ? 'Searching…' : 'Search' }}
+                  </button>
+                </div>
+              } @else {
+                <div class="grid">
+                  <label>
+                    District *
+                    <select formControlName="urbanDistrictCode" [disabled]="loadingUrbanSearchChain()">
+                      <option [ngValue]="''">Select district</option>
+                      @for (d of urbanSearchDistricts(); track d.district_code) {
+                        <option [ngValue]="d.district_code">{{ d.district_name }}</option>
+                      }
+                    </select>
+                  </label>
+                  <label>
+                    Office *
+                    <select formControlName="urbanOfficeCode" [disabled]="!form.controls.urbanDistrictCode.value || loadingUrbanSearchChain()">
+                      <option [ngValue]="''">Select office</option>
+                      @for (o of urbanSearchOffices(); track o.office_code) {
+                        <option [ngValue]="o.office_code">{{ o.office_name }}</option>
+                      }
+                    </select>
+                  </label>
+                  <label class="span-2">
+                    Village *
+                    <select formControlName="urbanVillageCode" [disabled]="!form.controls.urbanOfficeCode.value || loadingUrbanSearchChain()">
+                      <option [ngValue]="''">Select village</option>
+                      @for (v of urbanSearchVillages(); track v.village_code) {
+                        <option [ngValue]="v.village_code">{{ v.village_name }}</option>
+                      }
+                    </select>
+                  </label>
+                  <label>
+                    CTS number (manual)
+                    <input type="text" formControlName="ctsNoInput" placeholder="e.g. 80" />
+                  </label>
+                  <div class="row-actions" style="align-items: end">
+                    <button type="button" class="btn btn-secondary btn-compact" (click)="loadUrbanSubCtsRows()" [disabled]="loadingUrbanSearchChain()">
+                      Load sub CTS
+                    </button>
+                  </div>
+                  <label class="span-2">
+                    Sub CTS number *
+                    <select formControlName="selectedSubCtsNo" [disabled]="urbanSearchSubCtsRows().length === 0 || loadingUrbanSearchChain()">
+                      <option [ngValue]="''">Select sub CTS</option>
+                      @for (r of urbanSearchSubCtsRows(); track ctsRowLabel(r)) {
+                        <option [ngValue]="ctsRowLabel(r)">{{ ctsRowLabel(r) }}</option>
+                      }
+                    </select>
+                  </label>
+                  <div class="row-actions">
+                    <button type="button" class="btn btn-secondary btn-compact" (click)="loadUrbanMutationsBySubCts()" [disabled]="loadingUrbanSearchChain() || !form.controls.selectedSubCtsNo.value">
+                      Load inward numbers
+                    </button>
+                  </div>
+                  @if (form.controls.searchMode.value === 'MUTATION_NUMBER') {
+                    <label>
+                      Mutation number
+                      <input type="text" formControlName="mutationNumberInput" placeholder="Filter mutation number" />
+                    </label>
+                  }
+                  <label class="span-2">
+                    Inward number *
+                    <select formControlName="selectedInwardNumber" [disabled]="filteredUrbanSearchMutations().length === 0 || loadingUrbanSearchChain()">
+                      <option [ngValue]="''">Select inward number</option>
+                      @for (m of filteredUrbanSearchMutations(); track m.inward_number) {
+                        <option [ngValue]="m.inward_number">
+                          {{ m.inward_number }} — {{ m.mutation_number || '-' }} — {{ m.mutation_date || '-' }}
+                        </option>
+                      }
+                    </select>
+                  </label>
+                </div>
+
+                <div class="row-actions">
+                  <button type="button" class="btn btn-primary" (click)="searchBySelectedInward()" [disabled]="loadingSearch() || !form.controls.selectedInwardNumber.value">
+                    {{ loadingSearch() ? 'Searching…' : 'Search by selected inward' }}
+                  </button>
+                </div>
+              }
+            } @else if (form.controls.subjectId.getRawValue() > 0) {
+              <p class="sub">Mutation search criteria is enabled only for subject code 002 (ePICS).</p>
+            }
           </div>
 
-          <div class="mini-card">
+          @if (isEpicsSubject()) {
+            <div class="mini-card">
             <div class="mini-head">
               <strong>Mutation details</strong>
             </div>
@@ -107,6 +190,14 @@
                 <div class="kv">
                   <span class="k">Inward date</span>
                   <span class="v">{{ details.inwardDate }}</span>
+                </div>
+                <div class="kv">
+                  <span class="k">Mutation number</span>
+                  <span class="v">{{ details.mutationNumber || '-' }}</span>
+                </div>
+                <div class="kv">
+                  <span class="k">Mutation date</span>
+                  <span class="v">{{ details.mutationDate || '-' }}</span>
                 </div>
                 <div class="kv span-2">
                   <span class="k">Mutation type</span>
@@ -124,6 +215,18 @@
                   <span class="k">Status</span>
                   <span class="v">{{ details.status }}</span>
                 </div>
+                <div class="kv">
+                  <span class="k">Notice 9 dispatch date</span>
+                  <span class="v">{{ details.notice9DispatchDate || '-' }}</span>
+                </div>
+                <div class="kv">
+                  <span class="k">Notice 9 dispatch number</span>
+                  <span class="v">{{ details.notice9DispatchNumber || '-' }}</span>
+                </div>
+                <div class="kv">
+                  <span class="k">CTS number</span>
+                  <span class="v">{{ details.ctsNumber || '-' }}</span>
+                </div>
               </div>
 
               @if (details.attachFileUrl) {
@@ -131,80 +234,37 @@
                   <a class="btn btn-secondary btn-compact" [href]="details.attachFileUrl" target="_blank" rel="noopener noreferrer">View attachment</a>
                 </div>
               }
-            } @else if (searchedMutation() && !loadingSearch()) {
-              <p class="api-message error">Record not found from API. Please enter details manually below.</p>
-              <div class="grid" [formGroup]="form">
-                <label>
-                  Inward number
-                  <input type="text" formControlName="manualInwardNumber" />
-                </label>
-                <label>
-                  Inward date
-                  <input type="date" formControlName="manualInwardDate" />
-                </label>
-                <label class="span-2">
-                  Mutation type
-                  <input type="text" formControlName="manualMutationType" />
-                </label>
-                <label class="span-2">
-                  Applicant name
-                  <input type="text" formControlName="manualApplicantName" />
-                </label>
-                <label>
-                  Village
-                  <input type="text" formControlName="manualVillage" />
-                </label>
-                <label>
-                  Status
-                  <input type="text" formControlName="manualStatus" />
-                </label>
-              </div>
-              <div class="grid" style="margin-top: 8px">
-                <label class="span-2">
-                  Attach file (upload)
-                  <input type="file" (change)="onManualAttachFileChange($event)" />
-                  @if (manualAttachFileName()) {
-                    <span class="sub">Selected: {{ manualAttachFileName() }}</span>
-                  }
-                </label>
-              </div>
-            }
-          </div>
 
-          <div class="mini-card">
-            <div class="mini-head">
-              <strong>Notice 9 handling</strong>
-            </div>
-            @if (mutationFound() && loadingNotice9()) {
-              <p class="sub">Fetching Notice 9...</p>
-            } @else if (mutationFound() && notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
-              @if (notice9Resolved().previewKind === 'image') {
-                <div class="pdf-panel">
-                  <img [src]="noticeUrl" alt="Notice 9 preview" style="max-width: 100%; border-radius: 10px" />
-                </div>
-              }
-              <div class="row-actions">
-                <a class="btn btn-secondary btn-compact" [href]="noticeUrl" target="_blank" rel="noopener noreferrer">Open Notice 9</a>
-                @if (notice9Resolved().sourceKind === 'data') {
-                  <a class="btn btn-primary btn-compact" [href]="noticeUrl" download="notice-9">Download Notice 9</a>
-                }
+              <div class="mini-head" style="margin-top: 10px">
+                <strong>Notice 9</strong>
               </div>
-              @if (notice9Resolved().previewKind === 'pdf') {
-                <p class="sub">PDF notice is ready. Use Open Notice 9 to view in a new tab.</p>
+              @if (mutationFound() && loadingNotice9()) {
+                <p class="sub">Fetching Notice 9...</p>
+              } @else if (mutationFound() && notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
+                @if (notice9Resolved().previewKind === 'image') {
+                  <div class="pdf-panel">
+                    <img [src]="noticeUrl" alt="Notice 9 preview" style="max-width: 100%; border-radius: 10px" />
+                  </div>
+                }
+                <div class="row-actions">
+                  <a class="btn btn-secondary btn-compact" [href]="noticeUrl" target="_blank" rel="noopener noreferrer">Open Notice 9</a>
+                  @if (notice9Resolved().sourceKind === 'data') {
+                    <a class="btn btn-primary btn-compact" [href]="noticeUrl" download="notice-9">Download Notice 9</a>
+                  }
+                </div>
+                @if (notice9Resolved().previewKind === 'pdf') {
+                  <p class="sub">PDF notice is ready. Use Open Notice 9 to view in a new tab.</p>
+                }
+              } @else if (searchedMutation()) {
+                <p class="sub">Data not available.</p>
+              } @else {
+                <p class="sub">Search mutation details first to view Notice 9.</p>
               }
-            } @else if (searchedMutation()) {
-              <p class="sub">Notice 9 not available. Please upload manually.</p>
-              <label>
-                Upload Notice 9
-                <input type="file" (change)="onManualNotice9FileChange($event)" />
-              </label>
-              @if (manualNotice9FileName()) {
-                <p class="sub">Selected: {{ manualNotice9FileName() }}</p>
-              }
-            } @else {
-              <p class="sub">Search mutation details first to view Notice 9 or upload it manually.</p>
+            } @else if (searchedMutation() && !loadingSearch()) {
+              <p class="api-message error">Data not available.</p>
             }
-          </div>
+            </div>
+          }
         </section>
       }
 
