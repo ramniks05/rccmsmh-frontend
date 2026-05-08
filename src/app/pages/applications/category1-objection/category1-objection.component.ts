@@ -10,7 +10,9 @@ import {
   BoundaryMasterResponse,
   OfficeResponse,
   ActLookupResponse,
-  SectionLookupResponse
+  SectionLookupResponse,
+  PincodePostOffice,
+  OccupationLookupResponse
 } from '../../../services/lookups.service';
 import { environment } from '../../../../environments/environment';
 import { AdvocateLookupResponse } from '../../../services/advocate-by-bar-council.service';
@@ -38,6 +40,15 @@ interface NoticeNineResolved {
   sourceKind: 'data' | 'external' | null;
   url: string | null;
   previewKind: 'image' | 'pdf' | 'none';
+}
+
+interface PartyAddressLookupState {
+  postOffices: PincodePostOffice[];
+  talukas: string[];
+  districts: string[];
+  states: string[];
+  loading: boolean;
+  error: string | null;
 }
 
 export interface MutationDetailsView {
@@ -173,6 +184,9 @@ export class Category1ObjectionComponent {
   protected readonly loadingSearch = signal(false);
   protected readonly apiMessage = signal<string | null>(null);
   protected readonly saveInProgress = signal(false);
+  protected readonly occupations = signal<OccupationLookupResponse[]>([]);
+  protected readonly applicantPincodeLookup = signal<Record<string, PartyAddressLookupState>>({});
+  protected readonly respondentPincodeLookup = signal<Record<string, PartyAddressLookupState>>({});
 
   protected readonly form = this.fb.nonNullable.group({
     subjectId: [0, [Validators.required, Validators.min(1)]],
@@ -211,19 +225,37 @@ export class Category1ObjectionComponent {
   }
 
   private createPartyGroup() {
-    return this.fb.nonNullable.group({
+    const group = this.fb.nonNullable.group({
       tempId: [this.makeTempId()],
-      name: ['', [Validators.required, Validators.minLength(2)]],
-      mobile: [''],
-      address: ['', [Validators.required, Validators.minLength(5)]]
+      // Backward compatibility for older session snapshots.
+      name: [''],
+      firstName: ['', [Validators.required]],
+      middleName: [''],
+      lastName: ['', [Validators.required]],
+      pincode: ['', [Validators.required, Validators.pattern(/^\d{6}$/)]],
+      district: ['', [Validators.required]],
+      taluka: ['', [Validators.required]],
+      village: ['', [Validators.required]],
+      villageValue: [''],
+      address: ['', [Validators.required, Validators.minLength(5)]],
+      email: ['', [Validators.email]],
+      mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
+      dob: [''],
+      age: [''],
+      occupation: ['']
     });
+    this.setupPartyGroupSubscriptions(group);
+    return group;
   }
 
   protected readonly applicantOptions = computed((): ApplicantOption[] => {
     return this.applicants.controls.map((c) => {
-      const v = (c as any).getRawValue?.() as { tempId?: string; name?: string } | undefined;
+      const v = (c as any).getRawValue?.() as
+        | { tempId?: string; firstName?: string; middleName?: string; lastName?: string; name?: string }
+        | undefined;
       const id = v?.tempId || this.makeTempId();
-      const name = (v?.name || '').trim() || 'Applicant';
+      const fullName = [v?.firstName || '', v?.middleName || '', v?.lastName || ''].join(' ').trim();
+      const name = fullName || (v?.name || '').trim() || 'Applicant';
       return { id, name };
     });
   });
@@ -235,7 +267,9 @@ export class Category1ObjectionComponent {
   }
 
   protected addApplicant(): void {
-    this.applicants.push(this.createPartyGroup());
+    const g = this.createPartyGroup();
+    this.applicants.push(g);
+    this.ensureLookupState('applicant', g.controls.tempId.getRawValue());
   }
 
   protected removeApplicant(index: number): void {
@@ -244,12 +278,132 @@ export class Category1ObjectionComponent {
   }
 
   protected addRespondent(): void {
-    this.respondents.push(this.createPartyGroup());
+    const g = this.createPartyGroup();
+    this.respondents.push(g);
+    this.ensureLookupState('respondent', g.controls.tempId.getRawValue());
   }
 
   protected removeRespondent(index: number): void {
     if (this.respondents.length <= 1) return;
     this.respondents.removeAt(index);
+  }
+
+  protected lookupPincode(role: 'applicant' | 'respondent', index: number): void {
+    const arr = role === 'applicant' ? this.applicants : this.respondents;
+    const group = arr.at(index) as ReturnType<Category1ObjectionComponent['createPartyGroup']> | undefined;
+    if (!group) return;
+    const pincode = (group.controls.pincode.getRawValue() || '').trim();
+    if (!/^\d{6}$/.test(pincode)) {
+      this.setLookupState(role, group.controls.tempId.getRawValue(), {
+        postOffices: [],
+        talukas: [],
+        districts: [],
+        states: [],
+        loading: false,
+        error: 'Pincode must be exactly 6 digits.'
+      });
+      return;
+    }
+    this.setLookupState(role, group.controls.tempId.getRawValue(), {
+      postOffices: [],
+      talukas: [],
+      districts: [],
+      states: [],
+      loading: true,
+      error: null
+    });
+    this.lookups.getPincodeDetails(pincode).subscribe({
+      next: (resp) => {
+        this.setLookupState(role, group.controls.tempId.getRawValue(), {
+          postOffices: resp.postOffices || [],
+          talukas: resp.talukas || [],
+          districts: resp.districts || [],
+          states: resp.states || [],
+          loading: false,
+          error: null
+        });
+      },
+      error: (err: unknown) => {
+        this.setLookupState(role, group.controls.tempId.getRawValue(), {
+          postOffices: [],
+          talukas: [],
+          districts: [],
+          states: [],
+          loading: false,
+          error: this.formatError(err)
+        });
+      }
+    });
+  }
+
+  protected partyLookupState(role: 'applicant' | 'respondent', tempId: string): PartyAddressLookupState {
+    const map = role === 'applicant' ? this.applicantPincodeLookup() : this.respondentPincodeLookup();
+    return (
+      map[tempId] || {
+        postOffices: [],
+        talukas: [],
+        districts: [],
+        states: [],
+        loading: false,
+        error: null
+      }
+    );
+  }
+
+  protected onVillageSelectionChange(role: 'applicant' | 'respondent', index: number): void {
+    const arr = role === 'applicant' ? this.applicants : this.respondents;
+    const group = arr.at(index) as ReturnType<Category1ObjectionComponent['createPartyGroup']> | undefined;
+    if (!group) return;
+    const value = (group.controls.villageValue.getRawValue() || '').trim();
+    if (!value) return;
+    const [name = '', block = '', district = '', state = ''] = value.split('#');
+    group.patchValue(
+      {
+        village: name,
+        taluka: block,
+        district
+      },
+      { emitEvent: false }
+    );
+    const lookup = this.partyLookupState(role, group.controls.tempId.getRawValue());
+    if (state && lookup.states.length === 0) {
+      this.setLookupState(role, group.controls.tempId.getRawValue(), { ...lookup, states: [state] });
+    }
+  }
+
+  protected partyStateLabel(role: 'applicant' | 'respondent', tempId: string): string {
+    return this.partyLookupState(role, tempId).states[0] || '';
+  }
+
+  private setupPartyGroupSubscriptions(group: ReturnType<Category1ObjectionComponent['createPartyGroup']>): void {
+    group.controls.dob.valueChanges.subscribe((value) => {
+      const age = this.calculateAge(value || '');
+      group.controls.age.setValue(age ? String(age) : '', { emitEvent: false });
+    });
+  }
+
+  private calculateAge(dobIso: string): number | null {
+    if (!dobIso) return null;
+    const dob = new Date(dobIso);
+    if (Number.isNaN(dob.getTime())) return null;
+    const now = new Date();
+    let age = now.getFullYear() - dob.getFullYear();
+    const monthDiff = now.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) age--;
+    return age >= 0 ? age : null;
+  }
+
+  private ensureLookupState(role: 'applicant' | 'respondent', tempId: string): void {
+    const current = this.partyLookupState(role, tempId);
+    this.setLookupState(role, tempId, current);
+  }
+
+  private setLookupState(role: 'applicant' | 'respondent', tempId: string, next: PartyAddressLookupState): void {
+    if (role === 'applicant') {
+      this.applicantPincodeLookup.update((prev) => ({ ...prev, [tempId]: next }));
+    } else {
+      this.respondentPincodeLookup.update((prev) => ({ ...prev, [tempId]: next }));
+    }
   }
 
   protected readonly acts = signal<ActLookupResponse[]>([]);
@@ -294,6 +448,7 @@ export class Category1ObjectionComponent {
       });
 
     this.loadActs();
+    this.loadOccupations();
 
     this.form.controls.subjectId.valueChanges.subscribe((subjectId) => {
       if (this.hydrating) return;
@@ -517,23 +672,31 @@ export class Category1ObjectionComponent {
   }
 
   private rebuildApplicantsAndRespondents(
-    applicants: Array<{ tempId?: string; name?: string; mobile?: string; address?: string }>,
-    respondents: Array<{ tempId?: string; name?: string; mobile?: string; address?: string }>
+    applicants: Array<Record<string, unknown>>,
+    respondents: Array<Record<string, unknown>>
   ): void {
     while (this.applicants.length) this.applicants.removeAt(0);
-    const appList = applicants.length ? applicants : [{ tempId: this.makeTempId(), name: '', mobile: '', address: '' }];
+    const appList = applicants.length
+      ? applicants
+      : [{ tempId: this.makeTempId(), firstName: '', middleName: '', lastName: '', mobile: '', address: '' }];
     for (const r of appList) {
       const g = this.createPartyGroup();
-      g.patchValue({ ...r, tempId: r.tempId?.trim() || this.makeTempId() }, { emitEvent: false });
+      const tempId = String(r['tempId'] || '').trim() || this.makeTempId();
+      g.patchValue({ ...(r as object), tempId }, { emitEvent: false });
       this.applicants.push(g);
+      this.ensureLookupState('applicant', tempId);
     }
 
     while (this.respondents.length) this.respondents.removeAt(0);
-    const respList = respondents.length ? respondents : [{ tempId: this.makeTempId(), name: '', mobile: '', address: '' }];
+    const respList = respondents.length
+      ? respondents
+      : [{ tempId: this.makeTempId(), firstName: '', middleName: '', lastName: '', mobile: '', address: '' }];
     for (const r of respList) {
       const g = this.createPartyGroup();
-      g.patchValue({ ...r, tempId: r.tempId?.trim() || this.makeTempId() }, { emitEvent: false });
+      const tempId = String(r['tempId'] || '').trim() || this.makeTempId();
+      g.patchValue({ ...(r as object), tempId }, { emitEvent: false });
       this.respondents.push(g);
+      this.ensureLookupState('respondent', tempId);
     }
   }
 
@@ -672,6 +835,13 @@ export class Category1ObjectionComponent {
   private loadSections(actId: number): void {
     this.lookups.getSections(actId).subscribe({
       next: (rows) => this.sections.set(rows),
+      error: (err: unknown) => this.apiError.set(this.formatError(err))
+    });
+  }
+
+  private loadOccupations(): void {
+    this.lookups.getOccupations().subscribe({
+      next: (rows) => this.occupations.set(rows),
       error: (err: unknown) => this.apiError.set(this.formatError(err))
     });
   }
@@ -949,9 +1119,6 @@ export class Category1ObjectionComponent {
   protected next(): void {
     this.apiMessage.set(null);
     this.apiError.set(null);
-    if (!this.validateCurrentStep(true)) {
-      return;
-    }
     this.stepIndex.set(Math.min(this.steps.length - 1, this.stepIndex() + 1));
     this.schedulePersist();
   }
@@ -961,17 +1128,6 @@ export class Category1ObjectionComponent {
     this.apiMessage.set(null);
     const current = this.stepIndex();
     if (targetIndex === current) return;
-    if (targetIndex < current) {
-      this.apiError.set(null);
-      this.stepIndex.set(targetIndex);
-      this.schedulePersist();
-      return;
-    }
-    for (let s = current; s < targetIndex; s++) {
-      if (!this.validateStepByKey(this.steps[s].key, true)) {
-        return;
-      }
-    }
     this.apiError.set(null);
     this.stepIndex.set(targetIndex);
     this.schedulePersist();
@@ -1119,11 +1275,11 @@ export class Category1ObjectionComponent {
       this.respondents.controls.forEach((g) => g.markAllAsTouched());
     }
     if (!this.applicants.valid) {
-      this.apiError.set('Please complete all applicant details (name, 10-digit mobile, address).');
+      this.apiError.set('Please complete all mandatory applicant details and valid pincode/mobile.');
       return false;
     }
     if (!this.respondents.valid) {
-      this.apiError.set('Please complete all respondent details (name, 10-digit mobile, address).');
+      this.apiError.set('Please complete all mandatory respondent details and valid pincode/mobile.');
       return false;
     }
     return true;
@@ -1210,34 +1366,90 @@ export class Category1ObjectionComponent {
     const applicants = this.applicants.controls.map((ctrl, i) => {
       const row = (ctrl as any).getRawValue?.() as {
         tempId?: string;
+        firstName?: string;
+        middleName?: string;
+        lastName?: string;
         name?: string;
+        pincode?: string;
+        district?: string;
+        taluka?: string;
+        village?: string;
+        villageValue?: string;
         mobile?: string;
         address?: string;
+        email?: string;
+        dob?: string;
+        age?: string;
+        occupation?: string;
       };
       const key = (row?.tempId || this.makeTempId()).trim();
+      const firstName = row?.firstName || '';
+      const middleName = row?.middleName || '';
+      const lastName = row?.lastName || '';
+      const fullName = [firstName, middleName, lastName].join(' ').trim() || row?.name || '';
       return {
         lineNo: i + 1,
         tempId: key,
         clientRowKey: key,
-        name: row?.name || '',
+        firstName,
+        middleName,
+        lastName,
+        name: fullName,
+        pincode: row?.pincode || '',
+        district: row?.district || '',
+        taluka: row?.taluka || '',
+        village: row?.village || '',
+        villageValue: row?.villageValue || '',
         mobile: row?.mobile || '',
-        address: row?.address || ''
+        address: row?.address || '',
+        email: row?.email || '',
+        dob: row?.dob || '',
+        age: row?.age || '',
+        occupation: row?.occupation || ''
       };
     });
     const respondents = this.respondents.controls.map((ctrl, i) => {
       const row = (ctrl as any).getRawValue?.() as {
         tempId?: string;
+        firstName?: string;
+        middleName?: string;
+        lastName?: string;
         name?: string;
+        pincode?: string;
+        district?: string;
+        taluka?: string;
+        village?: string;
+        villageValue?: string;
         mobile?: string;
         address?: string;
+        email?: string;
+        dob?: string;
+        age?: string;
+        occupation?: string;
       };
       const key = (row?.tempId || this.makeTempId()).trim();
+      const firstName = row?.firstName || '';
+      const middleName = row?.middleName || '';
+      const lastName = row?.lastName || '';
+      const fullName = [firstName, middleName, lastName].join(' ').trim() || row?.name || '';
       return {
         lineNo: i + 1,
         clientRowKey: key,
-        name: row?.name || '',
+        firstName,
+        middleName,
+        lastName,
+        name: fullName,
+        pincode: row?.pincode || '',
+        district: row?.district || '',
+        taluka: row?.taluka || '',
+        village: row?.village || '',
+        villageValue: row?.villageValue || '',
         mobile: row?.mobile || '',
-        address: row?.address || ''
+        address: row?.address || '',
+        email: row?.email || '',
+        dob: row?.dob || '',
+        age: row?.age || '',
+        occupation: row?.occupation || ''
       };
     });
     return {

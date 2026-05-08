@@ -322,19 +322,96 @@
                   </div>
 
                   <div class="grid">
-                    <label class="span-2">
-                      Name
-                      <input type="text" formControlName="name" placeholder="Applicant name" />
-                    </label>
-
                     <label>
-                      Mobile number
+                      First Name *
+                      <input type="text" formControlName="firstName" placeholder="First name" />
+                    </label>
+                    <label>
+                      Middle Name
+                      <input type="text" formControlName="middleName" placeholder="Middle name" />
+                    </label>
+                    <label>
+                      Last Name *
+                      <input type="text" formControlName="lastName" placeholder="Last name" />
+                    </label>
+                    <label>
+                      Pin Code *
+                      <input type="text" formControlName="pincode" maxlength="6" placeholder="6-digit pincode" />
+                    </label>
+                    <div class="row-actions" style="align-items: end">
+                      <button type="button" class="btn btn-secondary btn-compact" (click)="lookupPincode('applicant', i)">
+                        Lookup Pincode
+                      </button>
+                    </div>
+                    @if (partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).loading) {
+                      <p class="sub span-2">Fetching pincode details...</p>
+                    }
+                    @if (partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).error; as e) {
+                      <p class="api-message error span-2">{{ e }}</p>
+                    }
+                    <label>
+                      Village *
+                      <select formControlName="villageValue" (change)="onVillageSelectionChange('applicant', i)">
+                        <option [ngValue]="''">Select village</option>
+                        @for (po of partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).postOffices; track po.value) {
+                          <option [ngValue]="po.value">{{ po.name }}</option>
+                        }
+                      </select>
+                    </label>
+                    <label>
+                      Taluka *
+                      <select formControlName="taluka">
+                        <option [ngValue]="''">Select taluka</option>
+                        @for (t of partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).talukas; track t) {
+                          <option [ngValue]="t">{{ t }}</option>
+                        }
+                      </select>
+                    </label>
+                    <label>
+                      District *
+                      <select formControlName="district">
+                        <option [ngValue]="''">Select district</option>
+                        @for (d of partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).districts; track d) {
+                          <option [ngValue]="d">{{ d }}</option>
+                        }
+                      </select>
+                    </label>
+                    <label>
+                      State
+                      <input
+                        type="text"
+                        [value]="partyStateLabel('applicant', $any(applicants.at(i)).controls.tempId.value)"
+                        readonly
+                      />
+                    </label>
+                    <label class="span-2">
+                      Address *
+                      <input type="text" formControlName="address" placeholder="Address line" />
+                    </label>
+                    <label>
+                      Email ID
+                      <input type="email" formControlName="email" placeholder="Email" />
+                    </label>
+                    <label>
+                      Mobile Number *
                       <input type="text" formControlName="mobile" placeholder="10-digit mobile" />
                     </label>
-
                     <label>
-                      Address
-                      <input type="text" formControlName="address" placeholder="Village / Taluka / District" />
+                      Date of Birth
+                      <input type="date" formControlName="dob" />
+                    </label>
+                    <label>
+                      Calculated Age
+                      <input type="text" formControlName="age" readonly />
+                    </label>
+                    <label>
+                      Occupation
+                      <select formControlName="occupation">
+                        <option [ngValue]="''">Select occupation</option>
+                        @for (opt of occupations(); track opt.id) {
+                          <option [ngValue]="opt.name">{{ opt.name }}</option>
+                        }
+                      </select>
                     </label>
                   </div>
                 </div>
@@ -364,19 +441,96 @@
                   </div>
 
                   <div class="grid">
-                    <label class="span-2">
-                      Name
-                      <input type="text" formControlName="name" placeholder="Respondent name" />
-                    </label>
-
                     <label>
-                      Mobile number
+                      First Name *
+                      <input type="text" formControlName="firstName" placeholder="First name" />
+                    </label>
+                    <label>
+                      Middle Name
+                      <input type="text" formControlName="middleName" placeholder="Middle name" />
+                    </label>
+                    <label>
+                      Last Name *
+                      <input type="text" formControlName="lastName" placeholder="Last name" />
+                    </label>
+                    <label>
+                      Pin Code *
+                      <input type="text" formControlName="pincode" maxlength="6" placeholder="6-digit pincode" />
+                    </label>
+                    <div class="row-actions" style="align-items: end">
+                      <button type="button" class="btn btn-secondary btn-compact" (click)="lookupPincode('respondent', i)">
+                        Lookup Pincode
+                      </button>
+                    </div>
+                    @if (partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).loading) {
+                      <p class="sub span-2">Fetching pincode details...</p>
+                    }
+                    @if (partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).error; as e) {
+                      <p class="api-message error span-2">{{ e }}</p>
+                    }
+                    <label>
+                      Village *
+                      <select formControlName="villageValue" (change)="onVillageSelectionChange('respondent', i)">
+                        <option [ngValue]="''">Select village</option>
+                        @for (po of partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).postOffices; track po.value) {
+                          <option [ngValue]="po.value">{{ po.name }}</option>
+                        }
+                      </select>
+                    </label>
+                    <label>
+                      Taluka *
+                      <select formControlName="taluka">
+                        <option [ngValue]="''">Select taluka</option>
+                        @for (t of partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).talukas; track t) {
+                          <option [ngValue]="t">{{ t }}</option>
+                        }
+                      </select>
+                    </label>
+                    <label>
+                      District *
+                      <select formControlName="district">
+                        <option [ngValue]="''">Select district</option>
+                        @for (d of partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).districts; track d) {
+                          <option [ngValue]="d">{{ d }}</option>
+                        }
+                      </select>
+                    </label>
+                    <label>
+                      State
+                      <input
+                        type="text"
+                        [value]="partyStateLabel('respondent', $any(respondents.at(i)).controls.tempId.value)"
+                        readonly
+                      />
+                    </label>
+                    <label class="span-2">
+                      Address *
+                      <input type="text" formControlName="address" placeholder="Address line" />
+                    </label>
+                    <label>
+                      Email ID
+                      <input type="email" formControlName="email" placeholder="Email" />
+                    </label>
+                    <label>
+                      Mobile Number *
                       <input type="text" formControlName="mobile" placeholder="10-digit mobile" />
                     </label>
-
                     <label>
-                      Address
-                      <input type="text" formControlName="address" placeholder="Village / Taluka / District" />
+                      Date of Birth
+                      <input type="date" formControlName="dob" />
+                    </label>
+                    <label>
+                      Calculated Age
+                      <input type="text" formControlName="age" readonly />
+                    </label>
+                    <label>
+                      Occupation
+                      <select formControlName="occupation">
+                        <option [ngValue]="''">Select occupation</option>
+                        @for (opt of occupations(); track opt.id) {
+                          <option [ngValue]="opt.name">{{ opt.name }}</option>
+                        }
+                      </select>
                     </label>
                   </div>
                 </div>
@@ -501,11 +655,31 @@
                 </div>
                 <div class="grid">
                   <label class="span-2">
-                    Name
-                    <input type="text" [value]="$any(a).controls.name.value || ''" readonly />
+                    Full Name
+                    <input
+                      type="text"
+                      [value]="(($any(a).controls.firstName.value || '') + ' ' + ($any(a).controls.middleName.value || '') + ' ' + ($any(a).controls.lastName.value || '')).trim()"
+                      readonly
+                    />
                   </label>
                   <label>
-                    Mobile number
+                    Pin code
+                    <input type="text" [value]="$any(a).controls.pincode.value || ''" readonly />
+                  </label>
+                  <label>
+                    Village
+                    <input type="text" [value]="$any(a).controls.village.value || ''" readonly />
+                  </label>
+                  <label>
+                    Taluka
+                    <input type="text" [value]="$any(a).controls.taluka.value || ''" readonly />
+                  </label>
+                  <label>
+                    District
+                    <input type="text" [value]="$any(a).controls.district.value || ''" readonly />
+                  </label>
+                  <label>
+                    Mobile Number
                     <input type="text" [value]="$any(a).controls.mobile.value || ''" readonly />
                   </label>
                   <label>
@@ -526,11 +700,31 @@
                 </div>
                 <div class="grid">
                   <label class="span-2">
-                    Name
-                    <input type="text" [value]="$any(r).controls.name.value || ''" readonly />
+                    Full Name
+                    <input
+                      type="text"
+                      [value]="(($any(r).controls.firstName.value || '') + ' ' + ($any(r).controls.middleName.value || '') + ' ' + ($any(r).controls.lastName.value || '')).trim()"
+                      readonly
+                    />
                   </label>
                   <label>
-                    Mobile number
+                    Pin code
+                    <input type="text" [value]="$any(r).controls.pincode.value || ''" readonly />
+                  </label>
+                  <label>
+                    Village
+                    <input type="text" [value]="$any(r).controls.village.value || ''" readonly />
+                  </label>
+                  <label>
+                    Taluka
+                    <input type="text" [value]="$any(r).controls.taluka.value || ''" readonly />
+                  </label>
+                  <label>
+                    District
+                    <input type="text" [value]="$any(r).controls.district.value || ''" readonly />
+                  </label>
+                  <label>
+                    Mobile Number
                     <input type="text" [value]="$any(r).controls.mobile.value || ''" readonly />
                   </label>
                   <label>

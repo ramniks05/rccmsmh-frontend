@@ -52,6 +52,32 @@ export interface SectionLookupResponse {
   sectionNameLocal: string | null;
 }
 
+export interface PincodePostOffice {
+  name: string;
+  block: string;
+  district: string;
+  state: string;
+  value: string;
+}
+
+export interface PincodeLookupResponse {
+  pincode: string;
+  status: string;
+  message: string;
+  postOffices: PincodePostOffice[];
+  talukas: string[];
+  districts: string[];
+  states: string[];
+}
+
+export interface OccupationLookupResponse {
+  id: number;
+  name: string;
+  localName: string | null;
+  shortName: string | null;
+  shortNameLocal: string | null;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -97,6 +123,16 @@ export class LookupsService {
     return this.http.get<SectionLookupResponse[]>(`${this.apiBaseUrl}/api/lookups/sections`, {
       params: actId ? { actId } : {}
     });
+  }
+
+  getPincodeDetails(pincode: string): Observable<PincodeLookupResponse> {
+    return this.http.get<PincodeLookupResponse>(`${this.apiBaseUrl}/api/lookups/pincode-details`, {
+      params: { pincode }
+    });
+  }
+
+  getOccupations(): Observable<OccupationLookupResponse[]> {
+    return this.http.get<OccupationLookupResponse[]>(`${this.apiBaseUrl}/api/lookups/occupations`);
   }
 }
 
