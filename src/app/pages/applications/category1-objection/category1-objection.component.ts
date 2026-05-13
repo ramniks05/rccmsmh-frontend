@@ -72,6 +72,8 @@ export interface MutationDetailsView {
   notice9DispatchDate?: string;
   notice9DispatchNumber?: string;
   ctsNumber?: string;
+  mobileNumber?: string;
+  pinCode?: string;
   attachFileUrl: string | null;
   notice9Url: string | null;
 }
@@ -1028,7 +1030,7 @@ export class Category1ObjectionComponent {
     this.notice9Resolved.set({ available: false, sourceKind: null, url: null, previewKind: 'none' });
 
     forkJoin({
-      mutation: this.landRecords.getUrbanMutationDetail(v),
+      mutation: this.landRecords.getUrbanMutationDetail(v).pipe(catchError(() => of(null))),
       notice9: this.landRecords.getUrbanNoticeNineView(v).pipe(catchError(() => of(null)))
     })
       .pipe(
@@ -1044,15 +1046,14 @@ export class Category1ObjectionComponent {
           if (!hasDetail) {
             this.mutationFound.set(false);
             this.mutationDetails.set(null);
-            this.notice9Resolved.set({ available: false, sourceKind: null, url: null, previewKind: 'none' });
           } else {
             this.mutationDetails.set(this.toMutationDetailsView(mutation));
             this.mutationFound.set(true);
-            if (notice9) {
-              this.applyNoticeNineViewResult(notice9);
-            } else {
-              this.notice9Resolved.set({ available: false, sourceKind: null, url: null, previewKind: 'none' });
-            }
+          }
+          if (notice9) {
+            this.applyNoticeNineViewResult(notice9);
+          } else {
+            this.notice9Resolved.set({ available: false, sourceKind: null, url: null, previewKind: 'none' });
           }
           this.schedulePersist();
         },
@@ -1068,6 +1069,18 @@ export class Category1ObjectionComponent {
   }
 
   private toMutationDetailsView(detail: UrbanMutationDetailResponse): MutationDetailsView {
+    const locationLine = [detail.district_name, detail.taluka, detail.city]
+      .map((x) => String(x || '').trim())
+      .filter(Boolean)
+      .join(' — ');
+    const village =
+      String(detail.village_code || '').trim() ||
+      locationLine ||
+      String(detail.address || '').trim() ||
+      '';
+    const statusParts = [detail.status_description, detail.sts_code || detail.its_code]
+      .map((x) => String(x || '').trim())
+      .filter(Boolean);
     return {
       inwardNumber: detail.inward_number || this.form.controls.searchValue.getRawValue().trim(),
       inwardDate: detail.inward_date || '',
@@ -1075,17 +1088,21 @@ export class Category1ObjectionComponent {
       mutationDate: detail.mutation_date || '',
       mutationType: detail.mutation_type_description || detail.mutation_type_code || '',
       applicantName: detail.applicant_name || '',
-      village: detail.village_code || '',
-      status: detail.status_description || '',
+      village,
+      status: statusParts.join(' — ') || '',
       notice9DispatchDate: detail.notice9_dispatch_date || '',
       notice9DispatchNumber: detail.notice9_dispatch_number || '',
       ctsNumber: detail.cts_number || '',
+      mobileNumber: detail.mobile_number || '',
+      pinCode: detail.pin_code || '',
       attachFileUrl: null,
       notice9Url: null
     };
   }
 
-  private hasMeaningfulMutationDetail(detail: UrbanMutationDetailResponse | null | undefined): boolean {
+  private hasMeaningfulMutationDetail(
+    detail: UrbanMutationDetailResponse | null | undefined
+  ): detail is UrbanMutationDetailResponse {
     if (!detail || typeof detail !== 'object') return false;
     const hasAnyCoreField =
       !!String(detail.mutation_number || '').trim() ||
@@ -1246,14 +1263,18 @@ export class Category1ObjectionComponent {
       this.apiError.set('Please select village first.');
       return;
     }
+    const parentCts = this.form.controls.ctsNoInput.getRawValue().trim();
+    if (!parentCts) {
+      this.apiError.set('Please enter parent CTS number (required for sub CTS list).');
+      return;
+    }
     this.loadingUrbanSearchChain.set(true);
     this.apiError.set(null);
-    const ctsNo = this.form.controls.ctsNoInput.getRawValue().trim();
     this.urbanSearchMutations.set([]);
     this.form.controls.selectedSubCtsNo.setValue('', { emitEvent: false });
     this.form.controls.selectedInwardNumber.setValue('', { emitEvent: false });
     this.landRecords
-      .getUrbanCtsList(villageCode, ctsNo || undefined)
+      .getUrbanSubCtsList(villageCode, parentCts)
       .pipe(finalize(() => this.loadingUrbanSearchChain.set(false)))
       .subscribe({
         next: (rows) => this.urbanSearchSubCtsRows.set(rows || []),
@@ -1273,7 +1294,7 @@ export class Category1ObjectionComponent {
     this.form.controls.selectedInwardNumber.setValue('', { emitEvent: false });
     this.urbanSearchMutations.set([]);
     this.landRecords
-      .getUrbanMutations(villageCode, ctsNo)
+      .getUrbanMutationsApplicantByCts(villageCode, ctsNo)
       .pipe(finalize(() => this.loadingUrbanSearchChain.set(false)))
       .subscribe({
         next: (rows) => this.urbanSearchMutations.set(rows || []),

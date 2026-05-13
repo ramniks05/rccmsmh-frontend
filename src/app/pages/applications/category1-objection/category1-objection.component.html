@@ -122,7 +122,7 @@
                     </select>
                   </label>
                   <label>
-                    CTS number (manual)
+                    Parent CTS number *
                     <input type="text" formControlName="ctsNoInput" placeholder="e.g. 80" />
                   </label>
                   <div class="row-actions" style="align-items: end">
@@ -227,6 +227,14 @@
                   <span class="k">CTS number</span>
                   <span class="v">{{ details.ctsNumber || '-' }}</span>
                 </div>
+                <div class="kv">
+                  <span class="k">Mobile</span>
+                  <span class="v">{{ details.mobileNumber || '-' }}</span>
+                </div>
+                <div class="kv">
+                  <span class="k">Pin code</span>
+                  <span class="v">{{ details.pinCode || '-' }}</span>
+                </div>
               </div>
 
               @if (details.attachFileUrl) {
@@ -234,34 +242,34 @@
                   <a class="btn btn-secondary btn-compact" [href]="details.attachFileUrl" target="_blank" rel="noopener noreferrer">View attachment</a>
                 </div>
               }
+            } @else if (searchedMutation() && !loadingSearch()) {
+              <p class="api-message error">Mutation details: Data not available.</p>
+            }
 
-              <div class="mini-head" style="margin-top: 10px">
-                <strong>Notice 9</strong>
-              </div>
-              @if (mutationFound() && loadingNotice9()) {
-                <p class="sub">Fetching Notice 9...</p>
-              } @else if (mutationFound() && notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
-                @if (notice9Resolved().previewKind === 'image') {
-                  <div class="pdf-panel">
-                    <img [src]="noticeUrl" alt="Notice 9 preview" style="max-width: 100%; border-radius: 10px" />
-                  </div>
-                }
-                <div class="row-actions">
-                  <a class="btn btn-secondary btn-compact" [href]="noticeUrl" target="_blank" rel="noopener noreferrer">Open Notice 9</a>
-                  @if (notice9Resolved().sourceKind === 'data') {
-                    <a class="btn btn-primary btn-compact" [href]="noticeUrl" download="notice-9">Download Notice 9</a>
-                  }
+            <div class="mini-head" style="margin-top: 10px">
+              <strong>Notice 9</strong>
+            </div>
+            @if (searchedMutation() && loadingNotice9()) {
+              <p class="sub">Fetching Notice 9...</p>
+            } @else if (notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
+              @if (notice9Resolved().previewKind === 'image') {
+                <div class="pdf-panel">
+                  <img [src]="noticeUrl" alt="Notice 9 preview" style="max-width: 100%; border-radius: 10px" />
                 </div>
-                @if (notice9Resolved().previewKind === 'pdf') {
-                  <p class="sub">PDF notice is ready. Use Open Notice 9 to view in a new tab.</p>
+              }
+              <div class="row-actions">
+                <a class="btn btn-secondary btn-compact" [href]="noticeUrl" target="_blank" rel="noopener noreferrer">Open Notice 9</a>
+                @if (notice9Resolved().sourceKind === 'data') {
+                  <a class="btn btn-primary btn-compact" [href]="noticeUrl" download="notice-9">Download Notice 9</a>
                 }
-              } @else if (searchedMutation()) {
-                <p class="sub">Data not available.</p>
-              } @else {
-                <p class="sub">Search mutation details first to view Notice 9.</p>
+              </div>
+              @if (notice9Resolved().previewKind === 'pdf') {
+                <p class="sub">PDF notice is ready. Use Open Notice 9 to view in a new tab.</p>
               }
             } @else if (searchedMutation() && !loadingSearch()) {
-              <p class="api-message error">Data not available.</p>
+              <p class="sub">Data not available.</p>
+            } @else {
+              <p class="sub">Search mutation details first to view Notice 9.</p>
             }
             </div>
           }

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
 import { environment } from '../../environments/environment';
 
@@ -79,16 +79,34 @@ export interface UrbanMutationDetailResponse {
   mutation_date?: string;
   mutation_type_code?: string;
   mutation_type_description?: string;
+  /** Some backends use `its_code`, others `sts_code`. */
   its_code?: string;
+  sts_code?: string;
   status_description?: string;
   notice9_dispatch_date?: string;
   notice9_dispatch_number?: string;
   village_code?: string;
   tenure?: string;
   tenure_naz?: string;
+  tenure_area?: string;
   applicant_name?: string;
   mobile_number?: string;
+  email_id?: string;
   cts_number?: string;
+  state_name?: string;
+  district_name?: string;
+  taluka?: string;
+  city?: string;
+  address?: string;
+  pin_code?: string;
+}
+
+/** Wrapped mutation-detail payload from backend gateway. */
+export interface UrbanMutationDetailEnvelope {
+  status?: number;
+  httpStatus?: number;
+  data?: UrbanMutationDetailResponse[];
+  service_request_inputs?: unknown[];
 }
 
 export interface UrbanMutationListRow {
@@ -151,10 +169,22 @@ export class LandRecordsService {
     });
   }
 
-  getUrbanMutations(villageCode: string, ctsNo: string): Observable<UrbanMutationListRow[]> {
-    return this.http.get<UrbanMutationListRow[]>(`${this.apiBaseUrl}/api/land-records/urban/mutations`, {
+  /** Sub-CTS options under a parent CTS (ePICS survey / CTS hierarchy). */
+  getUrbanSubCtsList(villageCode: string, ctsNo: string): Observable<UrbanCtsRow[]> {
+    return this.http.get<UrbanCtsRow[]>(`${this.apiBaseUrl}/api/land-records/urban/sub-cts-list`, {
       params: { villageCode, ctsNo }
     });
+  }
+
+  /**
+   * Inward numbers (and related applicant/mutation fields) for a village + CTS.
+   * GET /api/land-records/urban/mutations/applicant-by-cts?villageCode=&ctsNo=
+   */
+  getUrbanMutationsApplicantByCts(villageCode: string, ctsNo: string): Observable<UrbanMutationListRow[]> {
+    return this.http.get<UrbanMutationListRow[]>(
+      `${this.apiBaseUrl}/api/land-records/urban/mutations/applicant-by-cts`,
+      { params: { villageCode, ctsNo } }
+    );
   }
 
   getUrbanNoticeNineView(inwardNumber: string): Observable<NoticeNineViewResponse | string | Record<string, unknown>> {
@@ -163,10 +193,36 @@ export class LandRecordsService {
     });
   }
 
-  getUrbanMutationDetail(inwardNumber: string): Observable<UrbanMutationDetailResponse> {
-    return this.http.get<UrbanMutationDetailResponse>(`${this.apiBaseUrl}/api/land-records/urban/mutation-detail`, {
-      params: { inwardNumber }
-    });
+  getUrbanMutationDetail(inwardNumber: string): Observable<UrbanMutationDetailResponse | null> {
+    return this.http
+      .get<UrbanMutationDetailResponse | UrbanMutationDetailEnvelope | UrbanMutationDetailResponse[]>(
+        `${this.apiBaseUrl}/api/land-records/urban/mutation-detail`,
+        { params: { inwardNumber } }
+      )
+      .pipe(map((raw) => this.unwrapUrbanMutationDetail(raw)));
+  }
+
+  private unwrapUrbanMutationDetail(
+    raw: UrbanMutationDetailResponse | UrbanMutationDetailEnvelope | UrbanMutationDetailResponse[] | null | undefined
+  ): UrbanMutationDetailResponse | null {
+    if (raw == null) return null;
+    if (Array.isArray(raw)) {
+      return raw[0] ?? null;
+    }
+    if (typeof raw !== 'object') return null;
+    const envelope = raw as UrbanMutationDetailEnvelope;
+    if (Array.isArray(envelope.data) && envelope.data.length > 0) {
+      return envelope.data[0] ?? null;
+    }
+    const direct = raw as UrbanMutationDetailResponse;
+    if (
+      direct.inward_number != null ||
+      direct.mutation_number != null ||
+      direct.mutation_type_description != null
+    ) {
+      return direct;
+    }
+    return null;
   }
 }
 
