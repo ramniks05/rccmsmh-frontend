@@ -75,7 +75,7 @@
                     [checked]="form.controls.searchMode.value === 'MUTATION_NUMBER'"
                     (change)="form.controls.searchMode.setValue('MUTATION_NUMBER')"
                   />
-                  <span>Mutation number</span>
+                  <span>Mutation type</span>
                 </label>
               </div>
 
@@ -92,7 +92,7 @@
                     {{ loadingSearch() ? 'Searching…' : 'Search' }}
                   </button>
                 </div>
-              } @else {
+              } @else if (form.controls.searchMode.value === 'SURVEY_NUMBER') {
                 <div class="grid">
                   <label>
                     District *
@@ -108,7 +108,7 @@
                     <select formControlName="urbanOfficeCode" [disabled]="!form.controls.urbanDistrictCode.value || loadingUrbanSearchChain()">
                       <option [ngValue]="''">Select office</option>
                       @for (o of urbanSearchOffices(); track o.office_code) {
-                        <option [ngValue]="o.office_code">{{ o.office_name }}</option>
+                        <option [ngValue]="o.office_code">{{ urbanOfficeOptionLabel(o) }}</option>
                       }
                     </select>
                   </label>
@@ -144,19 +144,89 @@
                       Load inward numbers
                     </button>
                   </div>
-                  @if (form.controls.searchMode.value === 'MUTATION_NUMBER') {
-                    <label>
-                      Mutation number
-                      <input type="text" formControlName="mutationNumberInput" placeholder="Filter mutation number" />
-                    </label>
-                  }
                   <label class="span-2">
                     Inward number *
                     <select formControlName="selectedInwardNumber" [disabled]="filteredUrbanSearchMutations().length === 0 || loadingUrbanSearchChain()">
                       <option [ngValue]="''">Select inward number</option>
                       @for (m of filteredUrbanSearchMutations(); track m.inward_number) {
                         <option [ngValue]="m.inward_number">
-                          {{ m.inward_number }} — {{ m.mutation_number || '-' }} — {{ m.mutation_date || '-' }}
+                          {{ urbanMutationInwardOptionLabel(m) }}
+                        </option>
+                      }
+                    </select>
+                  </label>
+                </div>
+
+                <div class="row-actions">
+                  <button type="button" class="btn btn-primary" (click)="searchBySelectedInward()" [disabled]="loadingSearch() || !form.controls.selectedInwardNumber.value">
+                    {{ loadingSearch() ? 'Searching…' : 'Search by selected inward' }}
+                  </button>
+                </div>
+              } @else if (form.controls.searchMode.value === 'MUTATION_NUMBER') {
+                <div class="grid">
+                  <label>
+                    District *
+                    <select formControlName="urbanDistrictCode" [disabled]="loadingUrbanSearchChain() || loadingUrbanMutationTypes()">
+                      <option [ngValue]="''">Select district</option>
+                      @for (d of urbanSearchDistricts(); track d.district_code) {
+                        <option [ngValue]="d.district_code">{{ d.district_name }}</option>
+                      }
+                    </select>
+                  </label>
+                  <label>
+                    Office *
+                    <select formControlName="urbanOfficeCode" [disabled]="!form.controls.urbanDistrictCode.value || loadingUrbanSearchChain() || loadingUrbanMutationTypes()">
+                      <option [ngValue]="''">Select office</option>
+                      @for (o of urbanSearchOffices(); track o.office_code) {
+                        <option [ngValue]="o.office_code">{{ urbanOfficeOptionLabel(o) }}</option>
+                      }
+                    </select>
+                  </label>
+                  <label class="span-2">
+                    Village *
+                    <select formControlName="urbanVillageCode" [disabled]="!form.controls.urbanOfficeCode.value || loadingUrbanSearchChain() || loadingUrbanMutationTypes()">
+                      <option [ngValue]="''">Select village</option>
+                      @for (v of urbanSearchVillages(); track v.village_code) {
+                        <option [ngValue]="v.village_code">{{ v.village_name }}</option>
+                      }
+                    </select>
+                  </label>
+                  <label class="span-2">
+                    Mutation type *
+                    <select
+                      formControlName="selectedUrbanMutationTypeCode"
+                      [disabled]="
+                        !form.controls.urbanVillageCode.value ||
+                        urbanMutationTypeOptions().length === 0 ||
+                        loadingUrbanMutationTypes()
+                      "
+                    >
+                      <option [ngValue]="''">{{ loadingUrbanMutationTypes() ? 'Loading mutation types…' : 'Select mutation type' }}</option>
+                      @for (t of urbanMutationTypeOptions(); track t.code) {
+                        <option [ngValue]="t.code">{{ t.name }}</option>
+                      }
+                    </select>
+                  </label>
+                  <div class="row-actions">
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-compact"
+                      (click)="loadUrbanMutationsByMutationType()"
+                      [disabled]="loadingUrbanSearchChain() || !form.controls.selectedUrbanMutationTypeCode.value"
+                    >
+                      Load inward numbers
+                    </button>
+                  </div>
+                  <label class="span-2">
+                    Inward number *
+                    <select
+                      formControlName="selectedInwardNumber"
+                      [disabled]="filteredUrbanSearchMutations().length === 0 || loadingUrbanSearchChain() || loadingUrbanMutationTypes()"
+                    >
+                      <option [ngValue]="''">Select inward number</option>
+                      @for (m of filteredUrbanSearchMutations(); track m.inward_number) {
+                        <option [ngValue]="m.inward_number">
+                          {{ urbanMutationInwardOptionLabel(m) }}
                         </option>
                       }
                     </select>
@@ -181,7 +251,6 @@
             </div>
 
             @if (mutationFound() && mutationDetails(); as details) {
-              <p class="api-message success">Record found from API. Fields below are view-only.</p>
               <div class="grid">
                 <div class="kv">
                   <span class="k">Inward number</span>
@@ -283,52 +352,16 @@
               <strong>Case Act & Section</strong>
             </div>
 
+            @if (isEpicsSubject() && form.controls.searchMode.value !== 'INWARD_NUMBER') {
+              <label class="span-2">
+                Office (from step 1)
+                <select disabled tabindex="-1" [attr.aria-label]="epicsUrbanOfficeReadonlySelectLabel()">
+                  <option>{{ epicsUrbanOfficeReadonlySelectLabel() }}</option>
+                </select>
+              </label>
+            }
+
             <div class="grid">
-              <label>
-                District *
-                <select formControlName="districtId" [disabled]="loadingDistricts()">
-                  <option [ngValue]="0">{{ loadingDistricts() ? 'Loading...' : 'Select district' }}</option>
-                  @for (d of districts(); track d.id) {
-                    <option [ngValue]="d.id">{{ d.name }}</option>
-                  }
-                </select>
-              </label>
-
-              <label>
-                Subdivision
-                <select formControlName="subdistrictId" [disabled]="form.controls.districtId.value < 1 || loadingSubdistricts()">
-                  <option [ngValue]="0">{{ loadingSubdistricts() ? 'Loading...' : 'All / Select subdivision' }}</option>
-                  @for (s of subdistricts(); track s.id) {
-                    <option [ngValue]="s.id">{{ s.name }}</option>
-                  }
-                </select>
-              </label>
-
-              <label>
-                Taluka *
-                <select formControlName="talukaId" [disabled]="form.controls.districtId.value < 1 || loadingTalukas()">
-                  <option [ngValue]="0">{{ loadingTalukas() ? 'Loading...' : 'Select taluka' }}</option>
-                  @for (t of talukas(); track t.id) {
-                    <option [ngValue]="t.id">{{ t.name }}</option>
-                  }
-                </select>
-              </label>
-
-              <label>
-                Office type
-                <input type="text" [value]="selectedOfficeTypeName()" readonly />
-              </label>
-
-              <label>
-                Office name
-                <input type="text" [value]="selectedOfficeName()" readonly />
-              </label>
-
-              <label>
-                Office local name
-                <input type="text" [value]="selectedOfficeLocalName()" readonly />
-              </label>
-
               <label class="span-2">
                 Act *
                 <select formControlName="actId">
@@ -611,6 +644,9 @@
       @case ('VAKALTNAMA') {
         <section class="section">
           <app-vakaltnama-panel
+            [applicationRef]="filingClientRef()"
+            [courtPlace]="filingDistrictForVakalatnama()"
+            [courtOfficeName]="filingOfficeNameForVakalatnama()"
             [applicants]="applicantOptions()"
             [assignments]="vakaltnamaAssignments()"
             (assignmentsChange)="onVakaltnamaAssignmentsChange($event)"
@@ -686,18 +722,6 @@
               <label>
                 Search value
                 <input type="text" [value]="form.controls.searchValue.getRawValue() || ''" readonly />
-              </label>
-              <label>
-                District
-                <input type="text" [value]="selectedDistrictLabel()" readonly />
-              </label>
-              <label>
-                Taluka
-                <input type="text" [value]="selectedTalukaLabel()" readonly />
-              </label>
-              <label>
-                Office
-                <input type="text" [value]="selectedOfficeName() || ''" readonly />
               </label>
               <label>
                 Act

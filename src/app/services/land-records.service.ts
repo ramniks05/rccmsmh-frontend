@@ -116,6 +116,12 @@ export interface UrbanMutationListRow {
   applicant_name?: string;
 }
 
+/** Mutation type master row for a village (ePICS mutation-type search path). */
+export interface UrbanMutationTypeOption {
+  code: string;
+  name: string;
+}
+
 /**
  * Frontend must NOT call Mahabhumi APIs directly (secrets + decryption).
  * This service targets backend-proxy endpoints under our own API.
@@ -181,10 +187,89 @@ export class LandRecordsService {
    * GET /api/land-records/urban/mutations/applicant-by-cts?villageCode=&ctsNo=
    */
   getUrbanMutationsApplicantByCts(villageCode: string, ctsNo: string): Observable<UrbanMutationListRow[]> {
-    return this.http.get<UrbanMutationListRow[]>(
-      `${this.apiBaseUrl}/api/land-records/urban/mutations/applicant-by-cts`,
-      { params: { villageCode, ctsNo } }
-    );
+    return this.http
+      .get<unknown>(`${this.apiBaseUrl}/api/land-records/urban/mutations/applicant-by-cts`, {
+        params: { villageCode, ctsNo }
+      })
+      .pipe(map((raw) => this.unwrapUrbanMutationListRows(raw)));
+  }
+
+  /**
+   * Mutation types for a village (ePICS “Mutation type” search).
+   *
+   * **Request:** `GET {apiBaseUrl}/api/land-records/urban/mutation-types?villageCode=…`
+   * (e.g. dev: `GET http://localhost:8080/api/land-records/urban/mutation-types?villageCode=…`).
+   * Uses the app `HttpClient`; `authInterceptor` adds `Authorization: Bearer …` when a token exists.
+   *
+   * Response may be a bare array or `{ data: [...] }`; rows are normalised to `{ code, name }`.
+   */
+  getUrbanMutationTypes(villageCode: string): Observable<UrbanMutationTypeOption[]> {
+    return this.http
+      .get<unknown>(`${this.apiBaseUrl}/api/land-records/urban/mutation-types`, { params: { villageCode } })
+      .pipe(map((raw) => this.normalizeUrbanMutationTypesList(raw)));
+  }
+
+  /**
+   * Inward list for village + mutation type (ePICS “Mutation type” path).
+   * GET /api/land-records/urban/mutations/applicant-by-type?villageCode=&mutationTypeCode=
+   */
+  getUrbanMutationsApplicantByMutationType(
+    villageCode: string,
+    mutationTypeCode: string
+  ): Observable<UrbanMutationListRow[]> {
+    return this.http
+      .get<unknown>(`${this.apiBaseUrl}/api/land-records/urban/mutations/applicant-by-type`, {
+        params: { villageCode, mutationTypeCode }
+      })
+      .pipe(map((raw) => this.unwrapUrbanMutationListRows(raw)));
+  }
+
+  private unwrapUrbanMutationListRows(raw: unknown): UrbanMutationListRow[] {
+    let list: unknown[] = [];
+    if (Array.isArray(raw)) list = raw;
+    else if (raw && typeof raw === 'object' && Array.isArray((raw as { data?: unknown[] }).data)) {
+      list = (raw as { data: unknown[] }).data;
+    }
+    return list
+      .map((item) => this.normalizeUrbanMutationListRow(item))
+      .filter((r): r is UrbanMutationListRow => r != null);
+  }
+
+  private normalizeUrbanMutationListRow(item: unknown): UrbanMutationListRow | null {
+    if (!item || typeof item !== 'object') return null;
+    const r = item as Record<string, unknown>;
+    const inward = String(r['inward_number'] ?? r['inwardNumber'] ?? '').trim();
+    if (!inward) return null;
+    const applicant_name = String(r['applicant_name'] ?? r['applicantName'] ?? r['name'] ?? '').trim() || undefined;
+    const mutation_number = String(r['mutation_number'] ?? r['mutationNumber'] ?? '').trim() || undefined;
+    const mutation_date = String(r['mutation_date'] ?? r['mutationDate'] ?? '').trim() || undefined;
+    return { inward_number: inward, applicant_name, mutation_number, mutation_date };
+  }
+
+  private normalizeUrbanMutationTypesList(raw: unknown): UrbanMutationTypeOption[] {
+    let rows: unknown[] = [];
+    if (Array.isArray(raw)) rows = raw;
+    else if (raw && typeof raw === 'object' && Array.isArray((raw as { data?: unknown[] }).data)) {
+      rows = (raw as { data: unknown[] }).data;
+    }
+    const out: UrbanMutationTypeOption[] = [];
+    for (const item of rows) {
+      if (!item || typeof item !== 'object') continue;
+      const r = item as Record<string, unknown>;
+      const code = String(
+        r['code'] ?? r['mutation_type_code'] ?? r['mutationTypeCode'] ?? r['id'] ?? ''
+      ).trim();
+      const name = String(
+        r['name'] ??
+          r['mutation_type_description'] ??
+          r['mutationTypeDescription'] ??
+          r['label'] ??
+          ''
+      ).trim();
+      if (!code) continue;
+      out.push({ code, name: name || code });
+    }
+    return out;
   }
 
   getUrbanNoticeNineView(inwardNumber: string): Observable<NoticeNineViewResponse | string | Record<string, unknown>> {

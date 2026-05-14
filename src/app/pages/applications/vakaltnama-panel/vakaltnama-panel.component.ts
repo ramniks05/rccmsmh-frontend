@@ -1,13 +1,13 @@
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs';
-import { jsPDF } from 'jspdf';
 
 import { TokenStorageService } from '../../../services/token-storage.service';
 import {
   AdvocateByBarCouncilService,
   AdvocateLookupResponse
 } from '../../../services/advocate-by-bar-council.service';
+import { buildMarathiVakalatnamaHtml, type VakalatnamaMarathiVars } from './vakalatnama-marathi-template';
 
 export interface ApplicantOption {
   id: string;
@@ -43,8 +43,17 @@ export class VakaltnamaPanelComponent {
   assignments = input<VakaltnamaAssignment[]>([]);
   assignmentsChange = output<VakaltnamaAssignment[]>();
 
-  /** Fired when user clicks Generate VAKALTNAMA (wire PDF/API later). */
+  /** Fired when user clicks Generate VAKALTNAMA (optional parent hook). */
   generateVakaltnamaRequest = output<void>();
+
+  /** Client / filing ref shown as अर्ज क्र. */
+  applicationRef = input<string>('');
+
+  /** Court / district line: e.g. first-tab ePICS district (________ येथील मे.). */
+  courtPlace = input<string>('');
+
+  /** Office name before यांचे कोर्टात (ePICS urban office or registry office). */
+  courtOfficeName = input<string>('');
 
   protected readonly filingAdvocate = computed(() => ({
     displayName: this.tokenStorage.getDisplayName() || '—',
@@ -60,36 +69,53 @@ export class VakaltnamaPanelComponent {
   protected readonly selectedAdvocate = signal<AdvocateLookupResponse | null>(null);
   protected readonly groupCoAdvocates = signal<AdvocateLookupResponse[]>([]);
 
-  protected readonly advocateLookupQuery = signal('');
   protected readonly advocateLookupLoading = signal(false);
   protected readonly advocateLookupError = signal<string | null>(null);
-  protected readonly downloadingGroupId = signal<string | null>(null);
+  protected readonly documentActionError = signal<string | null>(null);
+
+  /**
+   * Advocates the user has looked up (or loaded from saved groups) this session.
+   * Lets you pick a primary advocate from a list when building several applicant groups.
+   */
+  protected readonly advocatePickList = signal<AdvocateLookupResponse[]>([]);
+
+  constructor() {
+    effect(() => {
+      const rows = this.assignments() ?? [];
+      untracked(() => {
+        for (const g of rows) {
+          this.addToAdvocatePickList(g.advocate);
+          for (const c of g.coAdvocates) {
+            this.addToAdvocatePickList(c);
+          }
+        }
+      });
+    });
+  }
 
   protected setBarCouncilQuery(value: string): void {
     this.barCouncilQuery.set(value);
     this.barCouncilSearchError.set(null);
-  }
-
-  protected setAdvocateLookupQuery(value: string): void {
-    this.advocateLookupQuery.set(value);
     this.advocateLookupError.set(null);
   }
 
   protected lookupAdvocate(): void {
-    const raw = this.advocateLookupQuery().trim();
+    const raw = this.barCouncilQuery().trim();
     if (raw.length < 2) {
       this.advocateLookupError.set('Enter a bar council number to search.');
       return;
     }
     this.advocateLookupError.set(null);
+    this.barCouncilSearchError.set(null);
     this.advocateLookupLoading.set(true);
     this.advocateLookup
       .searchByBarCouncilNumber(raw)
       .pipe(finalize(() => this.advocateLookupLoading.set(false)))
       .subscribe({
         next: (adv) => {
+          this.addToAdvocatePickList(adv);
           this.selectedAdvocate.set(adv);
-          this.advocateLookupQuery.set(adv.barCouncilNumber);
+          this.barCouncilQuery.set(adv.barCouncilNumber?.trim() ?? '');
         },
         error: (err: unknown) => {
           this.advocateLookupError.set(this.formatHttpError(err));
@@ -104,6 +130,7 @@ export class VakaltnamaPanelComponent {
       return;
     }
     this.barCouncilSearchError.set(null);
+    this.advocateLookupError.set(null);
     this.barCouncilSearchLoading.set(true);
     this.advocateLookup
       .searchByBarCouncilNumber(raw)
@@ -117,8 +144,16 @@ export class VakaltnamaPanelComponent {
             return;
           }
           if (this.isAssignmentMode()) {
+            const primary = this.selectedAdvocate();
+            const primaryNorm = primary?.barCouncilNumber?.trim().toUpperCase() ?? '';
+            if (primaryNorm && primaryNorm === norm) {
+              this.barCouncilSearchError.set('This advocate is already the primary advocate for this group.');
+              return;
+            }
+            this.addToAdvocatePickList(adv);
             this.groupCoAdvocates.set([...list, adv]);
           } else {
+            this.addToAdvocatePickList(adv);
             this.coAdvocatesChange.emit([...list, adv]);
           }
           this.barCouncilQuery.set('');
@@ -141,9 +176,13 @@ export class VakaltnamaPanelComponent {
     this.coAdvocatesChange.emit(list);
   }
 
-  /** Placeholder: document generation / download will be implemented later. */
+  /** Opens Marathi vakalatnama (template) in a new tab for the filing advocate. */
   protected generateVakaltnama(): void {
+    this.documentActionError.set(null);
     this.generateVakaltnamaRequest.emit();
+    const filing = this.filingAdvocate();
+    const html = buildMarathiVakalatnamaHtml(this.buildVarsForFilingOnly(filing.displayName));
+    this.openVakalatnamaView(html);
   }
 
   protected isAssignmentMode(): boolean {
@@ -152,6 +191,23 @@ export class VakaltnamaPanelComponent {
 
   protected isApplicantAssigned(applicantId: string): boolean {
     return (this.assignments() ?? []).some((a) => a.applicantIds.includes(applicantId));
+  }
+
+  protected onPickPrimaryFromList(barCouncilNumber: string): void {
+    this.advocateLookupError.set(null);
+    this.barCouncilSearchError.set(null);
+    const v = (barCouncilNumber || '').trim();
+    if (!v) {
+      this.selectedAdvocate.set(null);
+      return;
+    }
+    const found = this.advocatePickList().find(
+      (a) => a.barCouncilNumber.trim().toUpperCase() === v.toUpperCase()
+    );
+    if (found) {
+      this.selectedAdvocate.set(found);
+      this.barCouncilQuery.set(found.barCouncilNumber.trim());
+    }
   }
 
   protected toggleApplicant(applicantId: string, checked: boolean): void {
@@ -193,7 +249,7 @@ export class VakaltnamaPanelComponent {
     this.selectedApplicantIds.set([]);
     this.groupCoAdvocates.set([]);
     this.selectedAdvocate.set(null);
-    this.advocateLookupQuery.set('');
+    this.barCouncilQuery.set('');
     this.advocateLookupError.set(null);
     this.barCouncilSearchError.set(null);
   }
@@ -211,64 +267,149 @@ export class VakaltnamaPanelComponent {
     return `${names.slice(0, 2).join(', ')} (+${names.length - 2} more)`;
   }
 
-  protected downloadAssignmentPdf(group: VakaltnamaAssignment, index: number): void {
-    this.downloadingGroupId.set(group.id);
-    try {
-      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-      const margin = 40;
-      const lineHeight = 18;
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const contentWidth = pageWidth - margin * 2;
-      let y = margin;
+  protected coAdvocateNames(group: VakaltnamaAssignment): string {
+    return group.coAdvocates.map((c) => c.fullName).filter(Boolean).join(', ');
+  }
 
-      const writeLine = (text: string, options?: { bold?: boolean; indent?: number }) => {
-        const indent = options?.indent ?? 0;
-        doc.setFont('helvetica', options?.bold ? 'bold' : 'normal');
-        const lines = doc.splitTextToSize(text, contentWidth - indent);
-        for (const line of lines) {
-          if (y > doc.internal.pageSize.getHeight() - margin) {
-            doc.addPage();
-            y = margin;
-          }
-          doc.text(line, margin + indent, y);
-          y += lineHeight;
-        }
-      };
+  protected viewGroupDocument(group: VakaltnamaAssignment, index: number): void {
+    this.documentActionError.set(null);
+    this.openVakalatnamaView(buildMarathiVakalatnamaHtml(this.buildVarsForGroup(group, index)));
+  }
 
-      const filing = this.filingAdvocate();
-      const applicantNames = this.getApplicantNames(group.applicantIds);
-      const coAdvocates = group.coAdvocates.map((a) => `${a.fullName} (${a.barCouncilNumber})`);
+  protected downloadGroupHtml(group: VakaltnamaAssignment, index: number): void {
+    this.documentActionError.set(null);
+    const html = buildMarathiVakalatnamaHtml(this.buildVarsForGroup(group, index));
+    const fileName = this.toFileName(`vakalatnama-group-${index + 1}-${group.advocate.fullName}.html`);
+    this.downloadHtmlFile(html, fileName);
+  }
 
-      writeLine('VAKALATNAMA', { bold: true });
-      y += 6;
-      writeLine(`Group: ${index + 1}`, { bold: true });
-      writeLine(`Generated on: ${new Date().toLocaleString()}`);
-      y += 6;
-      writeLine('Filing Advocate', { bold: true });
-      writeLine(`${filing.displayName} (${filing.role})`, { indent: 12 });
-      y += 6;
-      writeLine('Representing Advocate', { bold: true });
-      writeLine(`${group.advocate.fullName} (${group.advocate.barCouncilNumber})`, { indent: 12 });
-      y += 6;
-      writeLine('Applicants', { bold: true });
-      if (applicantNames.length === 0) {
-        writeLine('No applicants selected.', { indent: 12 });
-      } else {
-        applicantNames.forEach((name, i) => writeLine(`${i + 1}. ${name}`, { indent: 12 }));
-      }
-      y += 6;
-      writeLine('Co-Advocates', { bold: true });
-      if (coAdvocates.length === 0) {
-        writeLine('None', { indent: 12 });
-      } else {
-        coAdvocates.forEach((name, i) => writeLine(`${i + 1}. ${name}`, { indent: 12 }));
-      }
+  protected printGroupDocument(group: VakaltnamaAssignment, index: number): void {
+    this.documentActionError.set(null);
+    this.printHtmlDocument(buildMarathiVakalatnamaHtml(this.buildVarsForGroup(group, index)));
+  }
 
-      const fileName = this.toFileName(`vakalatnama-group-${index + 1}-${group.advocate.fullName}.pdf`);
-      doc.save(fileName);
-    } finally {
-      this.downloadingGroupId.set(null);
+  private buildVarsForFilingOnly(filingDisplayName: string): VakalatnamaMarathiVars {
+    const now = new Date();
+    const mah = this.maharashtraMonthName(now.getMonth());
+    const yy = String(now.getFullYear()).slice(-2);
+    const place = (this.courtPlace() || '').trim();
+    const officeName = (this.courtOfficeName() || '').trim();
+    return {
+      applicationNo: (this.applicationRef() || '').trim(),
+      courtPlace: place,
+      courtOfficeName: officeName,
+      caseNumber: '',
+      caseYearTwoDigits: yy,
+      applicantLine: filingDisplayName,
+      respondentLine1: '',
+      respondentLine2: '',
+      representativeSelfLine: filingDisplayName,
+      matterDescription: 'अर्ज दाखल केलेल्या प्रकरणाचे कामकाज',
+      advocateEmpoweredLine: filingDisplayName,
+      dateDay: String(now.getDate()),
+      monthMah: mah,
+      yearTwoDigits: yy,
+      deedLine: 'वकीलपत्र'
+    };
+  }
+
+  private buildVarsForGroup(group: VakaltnamaAssignment, index: number): VakalatnamaMarathiVars {
+    const applicantNames = this.getApplicantNames(group.applicantIds);
+    const adv = group.advocate.fullName;
+    const advBar = group.advocate.barCouncilNumber;
+    const coNames = group.coAdvocates.map((c) => `${c.fullName} (${c.barCouncilNumber})`).filter(Boolean);
+    const advocateEmpowered = [adv, ...group.coAdvocates.map((c) => c.fullName)].filter(Boolean).join(', ');
+    const now = new Date();
+    const mah = this.maharashtraMonthName(now.getMonth());
+    const yy = String(now.getFullYear()).slice(-2);
+    const appNo = (this.applicationRef() || '').trim() || `G${index + 1}`;
+    const place = (this.courtPlace() || '').trim();
+    const officeName = (this.courtOfficeName() || '').trim();
+    return {
+      applicationNo: appNo,
+      courtPlace: place,
+      courtOfficeName: officeName,
+      caseNumber: '',
+      caseYearTwoDigits: yy,
+      applicantLine: applicantNames.join(', ') || 'अर्जदार',
+      respondentLine1: 'प्रतिवादी — तपशील नमुदा करावा',
+      respondentLine2: '',
+      representativeSelfLine: applicantNames.join(', ') || 'अर्जदार',
+      matterDescription: `वरील प्रकरण (अर्ज क्र. ${appNo}) — नेमलेले वकील: ${adv} (${advBar})`,
+      advocateEmpoweredLine: advocateEmpowered || adv,
+      dateDay: String(now.getDate()),
+      monthMah: mah,
+      yearTwoDigits: yy,
+      deedLine: coNames.length ? `सहवकील: ${coNames.join('; ')}` : 'वकीलपत्र'
+    };
+  }
+
+  private maharashtraMonthName(monthIndex: number): string {
+    const names = [
+      'जानेवारी',
+      'फेब्रुवारी',
+      'मार्च',
+      'एप्रिल',
+      'मे',
+      'जून',
+      'जुलै',
+      'ऑगस्ट',
+      'सप्टेंबर',
+      'ऑक्टोबर',
+      'नोव्हेंबर',
+      'डिसेंबर'
+    ];
+    return names[monthIndex] ?? '';
+  }
+
+  private openVakalatnamaView(html: string): void {
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank');
+    if (!w) {
+      URL.revokeObjectURL(url);
+      this.documentActionError.set('Pop-up blocked. Allow pop-ups to view the vakalatnama.');
+      return;
     }
+    // Do not revoke while the tab is open — revoking can blank the document. Blob is released when the app is unloaded.
+  }
+
+  private downloadHtmlFile(html: string, fileName: string): void {
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  private printHtmlDocument(html: string): void {
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank');
+    if (!w) {
+      URL.revokeObjectURL(url);
+      this.documentActionError.set('Pop-up blocked. Allow pop-ups to print.');
+      return;
+    }
+
+    let printed = false;
+    const tryPrint = (): void => {
+      if (printed) return;
+      printed = true;
+      try {
+        w.focus();
+        w.print();
+      } catch {
+        //
+      }
+    };
+    w.addEventListener('load', () => setTimeout(tryPrint, 300));
+    setTimeout(tryPrint, 1200);
   }
 
   private getApplicantNames(ids: string[]): string[] {
@@ -284,6 +425,17 @@ export class VakaltnamaPanelComponent {
     const cryptoObj = globalThis.crypto as Crypto | undefined;
     if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
     return `vak-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  private addToAdvocatePickList(adv: AdvocateLookupResponse): void {
+    const norm = adv.barCouncilNumber?.trim().toUpperCase() ?? '';
+    if (!norm) return;
+    const list = this.advocatePickList();
+    if (list.some((a) => a.barCouncilNumber.trim().toUpperCase() === norm)) return;
+    const next = [...list, adv].sort((a, b) =>
+      (a.fullName || '').localeCompare(b.fullName || '', undefined, { sensitivity: 'base' })
+    );
+    this.advocatePickList.set(next);
   }
 
   private formatHttpError(err: unknown): string {

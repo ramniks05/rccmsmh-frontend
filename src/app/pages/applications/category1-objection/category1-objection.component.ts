@@ -28,7 +28,8 @@ import {
   UrbanOffice,
   UrbanVillage,
   UrbanCtsRow,
-  UrbanMutationListRow
+  UrbanMutationListRow,
+  UrbanMutationTypeOption
 } from '../../../services/land-records.service';
 import {
   FilingApplicationService,
@@ -63,6 +64,8 @@ interface PartyAddressLookupState {
 export interface MutationDetailsView {
   inwardNumber: string;
   inwardDate: string;
+  /** ePICS / mutation API district (shown in वकीलपत्र court line). */
+  districtName?: string;
   mutationNumber?: string;
   mutationDate?: string;
   mutationType: string;
@@ -93,6 +96,8 @@ interface Category1FilingSession {
   vakaltnamaCoAdvocates: AdvocateLookupResponse[];
   selectedSubject: SubjectRecord | null;
   selectedOffice: OfficeResponse | null;
+  /** ePICS urban office (code + name) when office list is not in memory. */
+  epicsUrbanOfficeSnapshot?: { code: string; name: string } | null;
   mutationDetails: MutationDetailsView | null;
   mutationFound: boolean;
   searchedMutation: boolean;
@@ -130,7 +135,7 @@ export class Category1ObjectionComponent {
 
   protected readonly steps: Step[] = [
     { key: 'DISPUTED_ORDER', title: 'Disputed document/order', hint: 'Select subject and review order details' },
-    { key: 'ACT_SECTION', title: 'Case act and PO', hint: 'Select act/section and proceed' },
+    { key: 'ACT_SECTION', title: 'Case act and PO', hint: 'Select act and section' },
     { key: 'PARTIES', title: 'Applicant/Respondent details', hint: 'Add parties with mobile number and address' },
     {
       key: 'VAKALTNAMA',
@@ -179,17 +184,6 @@ export class Category1ObjectionComponent {
     return code === '002' || name.includes('EPICS') || name.includes('EPCS');
   });
   protected readonly selectedOffice = signal<OfficeResponse | null>(null);
-  protected readonly selectedOfficeName = computed(() => {
-    return this.selectedOffice()?.name || '';
-  });
-  protected readonly selectedOfficeLocalName = computed(() => {
-    return this.selectedOffice()?.localName || '';
-  });
-  protected readonly selectedOfficeTypeName = computed(() => {
-    const o = this.selectedOffice();
-    if (!o) return '';
-    return o.officeTypeLocalName || o.officeTypeName || '';
-  });
 
   /** Set after a successful search (or when API returns a match). */
   protected readonly mutationDetails = signal<MutationDetailsView | null>(null);
@@ -214,23 +208,24 @@ export class Category1ObjectionComponent {
   protected readonly respondentPincodeLookup = signal<Record<string, PartyAddressLookupState>>({});
   protected readonly urbanSearchDistricts = signal<UrbanDistrict[]>([]);
   protected readonly urbanSearchOffices = signal<UrbanOffice[]>([]);
+  /** Persists ePICS urban office code + name across steps / when `urbanSearchOffices` is cleared. */
+  protected readonly epicsUrbanOfficeSnapshot = signal<{ code: string; name: string } | null>(null);
   protected readonly urbanSearchVillages = signal<UrbanVillage[]>([]);
   protected readonly urbanSearchSubCtsRows = signal<UrbanCtsRow[]>([]);
   protected readonly urbanSearchMutations = signal<UrbanMutationListRow[]>([]);
+  /** ePICS “Mutation type” path: options from `getUrbanMutationTypes(villageCode)`. */
+  protected readonly urbanMutationTypeOptions = signal<UrbanMutationTypeOption[]>([]);
+  protected readonly loadingUrbanMutationTypes = signal(false);
   protected readonly filteredUrbanSearchMutations = computed(() => {
-    const all = this.urbanSearchMutations();
-    if (this.form.controls.searchMode.getRawValue() !== 'MUTATION_NUMBER') return all;
-    const needle = this.form.controls.mutationNumberInput.getRawValue().trim();
-    if (!needle) return all;
-    return all.filter((r) => String(r.mutation_number || '').trim().includes(needle));
+    return this.urbanSearchMutations();
   });
 
   protected readonly form = this.fb.nonNullable.group({
     subjectId: [0, [Validators.required, Validators.min(1)]],
-    districtId: [0, [Validators.required, Validators.min(1)]],
+    districtId: [0],
     subdistrictId: [0],
-    talukaId: [0, [Validators.required, Validators.min(1)]],
-    officeId: [0, [Validators.required, Validators.min(1)]],
+    talukaId: [0],
+    officeId: [0],
     searchMode: ['INWARD_NUMBER' as 'INWARD_NUMBER' | 'SURVEY_NUMBER' | 'MUTATION_NUMBER'],
     // Search value is required only when clicking Search (not for moving next).
     searchValue: ['', [Validators.required, Validators.minLength(2)]],
@@ -242,6 +237,7 @@ export class Category1ObjectionComponent {
     ctsNoInput: [''],
     selectedSubCtsNo: [''],
     selectedInwardNumber: [''],
+    selectedUrbanMutationTypeCode: [''],
     mutationNumberInput: [''],
     manualInwardNumber: [''],
     manualInwardDate: [''],
@@ -303,6 +299,28 @@ export class Category1ObjectionComponent {
       return { id, name };
     });
   });
+
+  /** District for वकीलपत्र court line — step 1 ePICS district or mutation API `district_name`. */
+  protected filingDistrictForVakalatnama(): string {
+    const fromApi = this.mutationDetails()?.districtName?.trim();
+    if (fromApi) return fromApi;
+    const code = (this.form.controls.urbanDistrictCode.getRawValue() || '').trim();
+    if (!code) return '';
+    const row = this.urbanSearchDistricts().find((d) => d.district_code === code);
+    return (row?.district_name || '').trim();
+  }
+
+  /** Office name before यांचे कोर्टात — ePICS urban office (step 1) or selected registry office. */
+  protected filingOfficeNameForVakalatnama(): string {
+    const urban = this.epicsUrbanOfficeFromStep1();
+    if (urban?.office_name?.trim()) return urban.office_name.trim();
+    const code = this.form.controls.urbanOfficeCode.getRawValue().trim();
+    const snap = this.epicsUrbanOfficeSnapshot();
+    if (code && snap?.code === code && snap.name?.trim()) return snap.name.trim();
+    const off = this.selectedOffice();
+    if (off?.name?.trim()) return off.name.trim();
+    return '';
+  }
 
   private makeTempId(): string {
     const cryptoObj = globalThis.crypto as Crypto | undefined;
@@ -601,7 +619,8 @@ export class Category1ObjectionComponent {
           ctsNoInput: '',
           selectedSubCtsNo: '',
           selectedInwardNumber: '',
-          mutationNumberInput: ''
+          mutationNumberInput: '',
+          selectedUrbanMutationTypeCode: ''
         },
         { emitEvent: false }
       );
@@ -609,7 +628,9 @@ export class Category1ObjectionComponent {
       this.urbanSearchVillages.set([]);
       this.urbanSearchSubCtsRows.set([]);
       this.urbanSearchMutations.set([]);
+      this.urbanMutationTypeOptions.set([]);
       if (districtCode) this.loadUrbanSearchOffices(districtCode);
+      this.syncEpicsUrbanOfficeSnapshot();
     });
     this.form.controls.urbanOfficeCode.valueChanges.subscribe((officeCode) => {
       if (this.hydrating) return;
@@ -619,22 +640,42 @@ export class Category1ObjectionComponent {
           ctsNoInput: '',
           selectedSubCtsNo: '',
           selectedInwardNumber: '',
-          mutationNumberInput: ''
+          mutationNumberInput: '',
+          selectedUrbanMutationTypeCode: ''
         },
         { emitEvent: false }
       );
       this.urbanSearchVillages.set([]);
       this.urbanSearchSubCtsRows.set([]);
       this.urbanSearchMutations.set([]);
+      this.urbanMutationTypeOptions.set([]);
       if (officeCode) this.loadUrbanSearchVillages(officeCode);
+      this.syncEpicsUrbanOfficeSnapshot();
     });
     this.form.controls.urbanVillageCode.valueChanges.subscribe(() => {
       if (this.hydrating) return;
       this.form.patchValue(
-        { ctsNoInput: '', selectedSubCtsNo: '', selectedInwardNumber: '', mutationNumberInput: '' },
+        {
+          ctsNoInput: '',
+          selectedSubCtsNo: '',
+          selectedInwardNumber: '',
+          mutationNumberInput: '',
+          selectedUrbanMutationTypeCode: ''
+        },
         { emitEvent: false }
       );
       this.urbanSearchSubCtsRows.set([]);
+      this.urbanSearchMutations.set([]);
+      this.urbanMutationTypeOptions.set([]);
+      const villageCode = this.form.controls.urbanVillageCode.getRawValue().trim();
+      if (this.form.controls.searchMode.getRawValue() === 'MUTATION_NUMBER' && villageCode) {
+        this.loadUrbanMutationTypes();
+      }
+    });
+
+    this.form.controls.selectedUrbanMutationTypeCode.valueChanges.subscribe(() => {
+      if (this.hydrating) return;
+      this.form.patchValue({ selectedInwardNumber: '' }, { emitEvent: false });
       this.urbanSearchMutations.set([]);
     });
 
@@ -712,6 +753,7 @@ export class Category1ObjectionComponent {
         vakaltnamaCoAdvocates: this.vakaltnamaCoAdvocates(),
         selectedSubject: this.selectedSubject(),
         selectedOffice: this.selectedOffice(),
+        epicsUrbanOfficeSnapshot: this.epicsUrbanOfficeSnapshot(),
         mutationDetails: this.mutationDetails(),
         mutationFound: this.mutationFound(),
         searchedMutation: this.searchedMutation(),
@@ -797,6 +839,7 @@ export class Category1ObjectionComponent {
     );
     this.manualAttachFileName.set(snap.manualAttachFileName ?? null);
     this.manualNotice9FileName.set(snap.manualNotice9FileName ?? null);
+    this.epicsUrbanOfficeSnapshot.set(snap.epicsUrbanOfficeSnapshot ?? null);
 
     const officeFallback = snap.selectedOffice ?? null;
     this.restoreLocationOfficeAndActChain(scalarFields, officeFallback);
@@ -901,6 +944,16 @@ export class Category1ObjectionComponent {
     this.hydrating = false;
     this.setupPersistencePipeline();
     this.schedulePersist();
+    const village = this.form.controls.urbanVillageCode.getRawValue().trim();
+    if (this.isEpicsSubject() && this.form.controls.searchMode.getRawValue() === 'MUTATION_NUMBER' && village) {
+      this.loadUrbanMutationTypes();
+    }
+    const urbanDist = this.form.controls.urbanDistrictCode.getRawValue().trim();
+    if (this.isEpicsSubject() && urbanDist) {
+      this.loadUrbanSearchOffices(urbanDist);
+    } else {
+      this.syncEpicsUrbanOfficeSnapshot();
+    }
   }
 
   protected loadSubjects(): void {
@@ -946,10 +999,9 @@ export class Category1ObjectionComponent {
     this.loadingOffices.set(true);
     this.lookups.getTalukaOffices(talukaId, deptId || undefined).subscribe({
       next: (rows) => {
-        const first = rows[0] ?? null;
-        this.form.controls.officeId.setValue(first?.id ?? 0, { emitEvent: false });
         this.offices.set(rows);
-        this.selectedOffice.set(first);
+        this.form.controls.officeId.setValue(0, { emitEvent: false });
+        this.selectedOffice.set(null);
       },
       error: (err: unknown) => this.apiError.set(this.formatError(err)),
       complete: () => this.loadingOffices.set(false)
@@ -990,8 +1042,14 @@ export class Category1ObjectionComponent {
       .getUrbanOffices(districtCode)
       .pipe(finalize(() => this.loadingUrbanSearchChain.set(false)))
       .subscribe({
-        next: (rows) => this.urbanSearchOffices.set(rows || []),
-        error: (err: unknown) => this.apiError.set(this.formatError(err))
+        next: (rows) => {
+          this.urbanSearchOffices.set(rows || []);
+          this.syncEpicsUrbanOfficeSnapshot();
+        },
+        error: (err: unknown) => {
+          this.apiError.set(this.formatError(err));
+          this.syncEpicsUrbanOfficeSnapshot();
+        }
       });
   }
 
@@ -1011,8 +1069,9 @@ export class Category1ObjectionComponent {
       this.apiError.set('Mutation search is available only for 002 ePICS subject.');
       return;
     }
-    if (this.form.controls.searchMode.getRawValue() !== 'INWARD_NUMBER') {
-      this.apiError.set('For 002 ePICS, currently search supports Inward number only.');
+    const mode = this.form.controls.searchMode.getRawValue();
+    if (mode !== 'INWARD_NUMBER' && mode !== 'SURVEY_NUMBER' && mode !== 'MUTATION_NUMBER') {
+      this.apiError.set('Mutation search is not available for this search mode.');
       return;
     }
     this.form.controls.searchValue.markAsTouched();
@@ -1084,6 +1143,7 @@ export class Category1ObjectionComponent {
     return {
       inwardNumber: detail.inward_number || this.form.controls.searchValue.getRawValue().trim(),
       inwardDate: detail.inward_date || '',
+      districtName: String(detail.district_name || '').trim() || undefined,
       mutationNumber: detail.mutation_number || '',
       mutationDate: detail.mutation_date || '',
       mutationType: detail.mutation_type_description || detail.mutation_type_code || '',
@@ -1114,6 +1174,20 @@ export class Category1ObjectionComponent {
     return hasAnyCoreField;
   }
 
+  private syncEpicsUrbanOfficeSnapshot(): void {
+    const code = this.form.controls.urbanOfficeCode.getRawValue().trim();
+    if (!code) {
+      this.epicsUrbanOfficeSnapshot.set(null);
+      this.schedulePersist();
+      return;
+    }
+    const row = this.urbanSearchOffices().find((o) => o.office_code === code);
+    if (row) {
+      this.epicsUrbanOfficeSnapshot.set({ code: row.office_code, name: row.office_name });
+    }
+    this.schedulePersist();
+  }
+
   private clearSearchResultState(): void {
     this.mutationFound.set(false);
     this.mutationDetails.set(null);
@@ -1131,7 +1205,8 @@ export class Category1ObjectionComponent {
         ctsNoInput: '',
         selectedSubCtsNo: '',
         selectedInwardNumber: '',
-        mutationNumberInput: ''
+        mutationNumberInput: '',
+        selectedUrbanMutationTypeCode: ''
       },
       { emitEvent: false }
     );
@@ -1139,6 +1214,8 @@ export class Category1ObjectionComponent {
     this.urbanSearchVillages.set([]);
     this.urbanSearchSubCtsRows.set([]);
     this.urbanSearchMutations.set([]);
+    this.urbanMutationTypeOptions.set([]);
+    this.syncEpicsUrbanOfficeSnapshot();
   }
 
   private applyNoticeNineViewResult(response: NoticeNineViewResponse | string | Record<string, unknown>): void {
@@ -1243,7 +1320,7 @@ export class Category1ObjectionComponent {
     const mode = this.form.controls.searchMode.getRawValue();
     if (mode === 'INWARD_NUMBER') return 'Inward number';
     if (mode === 'SURVEY_NUMBER') return 'Survey number';
-    return 'Mutation number';
+    return 'Mutation type';
   }
 
   protected searchPlaceholder(): string {
@@ -1255,6 +1332,40 @@ export class Category1ObjectionComponent {
 
   protected ctsRowLabel(row: UrbanCtsRow): string {
     return String(row.new_cts_numb_2000 || row.cts_no || '').trim();
+  }
+
+  /** ePICS urban office row for current `urbanOfficeCode` (selected on step 1). */
+  protected epicsUrbanOfficeFromStep1(): UrbanOffice | null {
+    const code = this.form.controls.urbanOfficeCode.getRawValue().trim();
+    if (!code) return null;
+    return this.urbanSearchOffices().find((o) => o.office_code === code) ?? null;
+  }
+
+  /** Single-line label for read-only office dropdown on Case act and PO (code — name). */
+  protected epicsUrbanOfficeReadonlySelectLabel(): string {
+    const code = this.form.controls.urbanOfficeCode.getRawValue().trim();
+    const snap = this.epicsUrbanOfficeSnapshot();
+    if (code && snap && snap.code === code) {
+      return `${snap.code} — ${snap.name}`;
+    }
+    const o = this.epicsUrbanOfficeFromStep1();
+    if (o) return `${o.office_code} — ${o.office_name}`;
+    if (code) return `${code} —`;
+    return '— Select office in step 1 (District → Office) —';
+  }
+
+  /** Option text in step 1 urban office dropdowns: code — name. */
+  protected urbanOfficeOptionLabel(o: UrbanOffice): string {
+    return `${o.office_code} — ${o.office_name}`;
+  }
+
+  /** ePICS urban inward dropdown: inward - applicant - mutation no. - date (hyphen-separated). */
+  protected urbanMutationInwardOptionLabel(m: UrbanMutationListRow): string {
+    const inward = String(m.inward_number || '').trim() || '-';
+    const name = String(m.applicant_name || '').trim() || '-';
+    const mutationNo = String(m.mutation_number || '').trim() || '-';
+    const mutationDate = String(m.mutation_date || '').trim() || '-';
+    return `${inward} - ${name} - ${mutationNo} - ${mutationDate}`;
   }
 
   protected loadUrbanSubCtsRows(): void {
@@ -1302,13 +1413,54 @@ export class Category1ObjectionComponent {
       });
   }
 
+  /** Loads mutation-type options for the selected village (ePICS “Mutation type” search). */
+  protected loadUrbanMutationTypes(): void {
+    const villageCode = this.form.controls.urbanVillageCode.getRawValue().trim();
+    if (!villageCode) {
+      this.urbanMutationTypeOptions.set([]);
+      return;
+    }
+    this.loadingUrbanMutationTypes.set(true);
+    this.apiError.set(null);
+    this.landRecords
+      .getUrbanMutationTypes(villageCode)
+      .pipe(finalize(() => this.loadingUrbanMutationTypes.set(false)))
+      .subscribe({
+        next: (rows) => this.urbanMutationTypeOptions.set(rows || []),
+        error: (err: unknown) => {
+          this.apiError.set(this.formatError(err));
+          this.urbanMutationTypeOptions.set([]);
+        }
+      });
+  }
+
+  protected loadUrbanMutationsByMutationType(): void {
+    const villageCode = this.form.controls.urbanVillageCode.getRawValue().trim();
+    const mutationTypeCode = this.form.controls.selectedUrbanMutationTypeCode.getRawValue().trim();
+    if (!villageCode || !mutationTypeCode) {
+      this.apiError.set('Please select village and mutation type first.');
+      return;
+    }
+    this.loadingUrbanSearchChain.set(true);
+    this.apiError.set(null);
+    this.form.controls.selectedInwardNumber.setValue('', { emitEvent: false });
+    this.urbanSearchMutations.set([]);
+    this.landRecords
+      .getUrbanMutationsApplicantByMutationType(villageCode, mutationTypeCode)
+      .pipe(finalize(() => this.loadingUrbanSearchChain.set(false)))
+      .subscribe({
+        next: (rows) => this.urbanSearchMutations.set(rows || []),
+        error: (err: unknown) => this.apiError.set(this.formatError(err))
+      });
+  }
+
   protected searchBySelectedInward(): void {
     const inward = this.form.controls.selectedInwardNumber.getRawValue().trim();
     if (!inward) {
       this.apiError.set('Please select inward number.');
       return;
     }
-    this.form.controls.searchMode.setValue('INWARD_NUMBER');
+    // Keep Survey/CTS or Mutation type mode selected; API still uses inward in `searchValue`.
     this.form.controls.searchValue.setValue(inward, { emitEvent: false });
     this.performSearch();
   }
@@ -1371,6 +1523,7 @@ export class Category1ObjectionComponent {
 
     this.selectedSubject.set(null);
     this.selectedOffice.set(null);
+    this.epicsUrbanOfficeSnapshot.set(null);
 
     while (this.applicants.length) this.applicants.removeAt(0);
     while (this.respondents.length) this.respondents.removeAt(0);
@@ -1391,6 +1544,7 @@ export class Category1ObjectionComponent {
         selectedSubCtsNo: '',
         selectedInwardNumber: '',
         mutationNumberInput: '',
+        selectedUrbanMutationTypeCode: '',
         manualInwardNumber: '',
         manualInwardDate: '',
         manualMutationType: '',
@@ -1431,16 +1585,30 @@ export class Category1ObjectionComponent {
   protected next(): void {
     this.apiMessage.set(null);
     this.apiError.set(null);
+    if (!this.validateCurrentStep(true)) return;
     this.stepIndex.set(Math.min(this.steps.length - 1, this.stepIndex() + 1));
     this.schedulePersist();
   }
 
-  /** Stepper header: go back freely; jump forward only if every step before the target is valid. */
+  /** Stepper: back freely; forward only if each intermediate step validates. */
   protected selectStep(targetIndex: number): void {
     this.apiMessage.set(null);
     const current = this.stepIndex();
     if (targetIndex === current) return;
     this.apiError.set(null);
+    if (targetIndex < current) {
+      this.stepIndex.set(targetIndex);
+      this.schedulePersist();
+      return;
+    }
+    for (let i = current; i < targetIndex; i++) {
+      const key = this.steps[i].key;
+      if (!this.validateStepByKey(key, true)) {
+        this.stepIndex.set(i);
+        this.schedulePersist();
+        return;
+      }
+    }
     this.stepIndex.set(targetIndex);
     this.schedulePersist();
   }
@@ -1487,6 +1655,13 @@ export class Category1ObjectionComponent {
     if (markTouched) {
       this.form.controls.subjectId.markAsTouched();
       this.form.controls.searchValue.markAsTouched();
+      this.form.controls.urbanDistrictCode.markAsTouched();
+      this.form.controls.urbanOfficeCode.markAsTouched();
+      this.form.controls.urbanVillageCode.markAsTouched();
+      this.form.controls.ctsNoInput.markAsTouched();
+      this.form.controls.selectedSubCtsNo.markAsTouched();
+      this.form.controls.selectedInwardNumber.markAsTouched();
+      this.form.controls.selectedUrbanMutationTypeCode.markAsTouched();
     }
     const subjectId = this.form.controls.subjectId.getRawValue();
     if (!subjectId || subjectId < 1) {
@@ -1496,13 +1671,60 @@ export class Category1ObjectionComponent {
     if (!this.isEpicsSubject()) {
       return true;
     }
+    const mode = this.form.controls.searchMode.getRawValue();
+    if (mode === 'INWARD_NUMBER') {
+      const searchValue = this.form.controls.searchValue.getRawValue().trim();
+      if (searchValue.length < 2) {
+        this.apiError.set('Enter search value (at least 2 characters) and search.');
+        return false;
+      }
+      if (!this.searchedMutation()) {
+        this.apiError.set('Please run Search for mutation details before continuing.');
+        return false;
+      }
+      return true;
+    }
+    const urbanDistrict = this.form.controls.urbanDistrictCode.getRawValue().trim();
+    if (!urbanDistrict) {
+      this.apiError.set('Please select district (ePICS urban).');
+      return false;
+    }
+    const urbanOffice = this.form.controls.urbanOfficeCode.getRawValue().trim();
+    if (!urbanOffice) {
+      this.apiError.set('Please select office (ePICS urban).');
+      return false;
+    }
+    const urbanVillage = this.form.controls.urbanVillageCode.getRawValue().trim();
+    if (!urbanVillage) {
+      this.apiError.set('Please select village.');
+      return false;
+    }
+    if (mode === 'SURVEY_NUMBER') {
+      const subCts = this.form.controls.selectedSubCtsNo.getRawValue().trim();
+      if (!subCts) {
+        this.apiError.set('Please load sub CTS and select a sub CTS number.');
+        return false;
+      }
+    }
+    if (mode === 'MUTATION_NUMBER') {
+      const mt = this.form.controls.selectedUrbanMutationTypeCode.getRawValue().trim();
+      if (!mt) {
+        this.apiError.set('Please select mutation type.');
+        return false;
+      }
+    }
+    const inward = this.form.controls.selectedInwardNumber.getRawValue().trim();
+    if (!inward) {
+      this.apiError.set('Please load inward numbers, select an inward number, then use Search by selected inward.');
+      return false;
+    }
     const searchValue = this.form.controls.searchValue.getRawValue().trim();
     if (searchValue.length < 2) {
-      this.apiError.set('Enter search value (at least 2 characters) and search.');
+      this.apiError.set('Use “Search by selected inward” after choosing an inward number.');
       return false;
     }
     if (!this.searchedMutation()) {
-      this.apiError.set('Please run Search for mutation details before continuing.');
+      this.apiError.set('Please run search for mutation details before continuing.');
       return false;
     }
     return true;
@@ -1511,23 +1733,8 @@ export class Category1ObjectionComponent {
   private validateActSectionStep(markTouched: boolean): boolean {
     const c = this.form.controls;
     if (markTouched) {
-      c.districtId.markAsTouched();
-      c.talukaId.markAsTouched();
-      c.officeId.markAsTouched();
       c.actId.markAsTouched();
       c.sectionId.markAsTouched();
-    }
-    if (!c.districtId.getRawValue() || c.districtId.getRawValue() < 1) {
-      this.apiError.set('Please select district.');
-      return false;
-    }
-    if (!c.talukaId.getRawValue() || c.talukaId.getRawValue() < 1) {
-      this.apiError.set('Please select taluka.');
-      return false;
-    }
-    if (!c.officeId.getRawValue() || c.officeId.getRawValue() < 1) {
-      this.apiError.set('Please select office (wait for offices to load after taluka).');
-      return false;
     }
     if (!c.actId.getRawValue() || c.actId.getRawValue() < 1) {
       this.apiError.set('Please select act.');
@@ -1646,6 +1853,7 @@ export class Category1ObjectionComponent {
       ctsNoInput: _ctsNoInput,
       selectedSubCtsNo: _selectedSubCtsNo,
       selectedInwardNumber: _selectedInwardNumber,
+      selectedUrbanMutationTypeCode: _selectedUrbanMutationTypeCode,
       mutationNumberInput: _mutationNumberInput,
       ...rawForPayload
     } = raw;
@@ -1795,16 +2003,6 @@ export class Category1ObjectionComponent {
 
   protected selectedSubjectLabel(): string {
     return this.selectedSubject()?.subjectName || '';
-  }
-
-  protected selectedDistrictLabel(): string {
-    const districtId = this.form.controls.districtId.getRawValue();
-    return this.districts().find((d) => d.id === districtId)?.name || '';
-  }
-
-  protected selectedTalukaLabel(): string {
-    const talukaId = this.form.controls.talukaId.getRawValue();
-    return this.talukas().find((t) => t.id === talukaId)?.name || '';
   }
 
   protected selectedActLabel(): string {

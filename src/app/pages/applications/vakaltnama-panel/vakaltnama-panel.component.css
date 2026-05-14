@@ -1,6 +1,191 @@
 .vak-wrap {
   display: grid;
-  gap: 0;
+  gap: 12px;
+}
+
+.vak-flow {
+  display: grid;
+  gap: 16px;
+}
+
+.vak-flow-head {
+  display: grid;
+  gap: 6px;
+}
+
+.vak-flow-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.vak-flow-lead {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #4b5563;
+  line-height: 1.45;
+}
+
+.vak-block {
+  display: grid;
+  gap: 8px;
+}
+
+.vak-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+}
+
+.vak-checks {
+  margin-top: 0;
+}
+
+.vak-select-block {
+  display: grid;
+  gap: 6px;
+}
+
+.vak-select {
+  width: 100%;
+  max-width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(31, 41, 55, 0.18);
+  padding: 10px 12px;
+  background: #ffffff;
+  color: #111827;
+  font: inherit;
+  outline: none;
+}
+
+.vak-picked {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+}
+
+.vak-flow-actions {
+  padding-top: 4px;
+}
+
+.vak-groups-title {
+  margin: 0 0 10px 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.vak-group-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.vak-group-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(31, 41, 55, 0.12);
+  background: #fafafa;
+}
+
+.vak-group-main {
+  flex: 1 1 200px;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.vak-group-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.vak-group-applicants {
+  font-size: 0.9rem;
+  color: #1f2937;
+}
+
+.vak-group-co {
+  font-size: 0.82rem;
+}
+
+.vak-group-actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.vak-inline-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.82rem;
+}
+
+.vak-inline-actions .sep {
+  color: #9ca3af;
+  user-select: none;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #2563eb;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-link:hover {
+  color: #1d4ed8;
+}
+
+.btn-link.danger {
+  color: #991b1b;
+}
+
+.btn-link.danger:hover {
+  color: #7f1d1d;
+}
+
+.vak-chip-list {
+  list-style: none;
+  margin: 8px 0 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.vak-chip-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(31, 41, 55, 0.1);
+  font-size: 0.88rem;
 }
 
 .mini-card {
@@ -77,6 +262,19 @@ input {
 .search-row .grow {
   flex: 1 1 220px;
   min-width: 0;
+}
+
+.search-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+  align-self: flex-end;
+}
+
+.vak-one-search-hint {
+  margin-top: 4px;
+  font-size: 0.82rem;
 }
 
 .align-end {
