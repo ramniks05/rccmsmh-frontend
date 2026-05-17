@@ -170,16 +170,32 @@ export class LandRecordsService {
   }
 
   getUrbanCtsList(villageCode: string, ctsNo?: string): Observable<UrbanCtsRow[]> {
-    return this.http.get<UrbanCtsRow[]>(`${this.apiBaseUrl}/api/land-records/urban/cts-list`, {
-      params: ctsNo ? { villageCode, ctsNo } : { villageCode }
-    });
+    return this.http
+      .get<unknown>(`${this.apiBaseUrl}/api/land-records/urban/cts-list`, {
+        params: ctsNo ? { villageCode, ctsNo } : { villageCode }
+      })
+      .pipe(map((raw) => this.normalizeUrbanCtsRows(raw)));
   }
 
   /** Sub-CTS options under a parent CTS (ePICS survey / CTS hierarchy). */
   getUrbanSubCtsList(villageCode: string, ctsNo: string): Observable<UrbanCtsRow[]> {
-    return this.http.get<UrbanCtsRow[]>(`${this.apiBaseUrl}/api/land-records/urban/sub-cts-list`, {
-      params: { villageCode, ctsNo }
-    });
+    return this.http
+      .get<unknown>(`${this.apiBaseUrl}/api/land-records/urban/sub-cts-list`, {
+        params: { villageCode, ctsNo }
+      })
+      .pipe(map((raw) => this.normalizeUrbanCtsRows(raw)));
+  }
+
+  /**
+   * Urban property / area details for a village + CTS (or sub-CTS).
+   * GET /api/land-records/urban/property-details?village_code=&cts_no=
+   */
+  getUrbanPropertyDetails(villageCode: string, ctsNo: string): Observable<Record<string, unknown>[]> {
+    return this.http
+      .get<unknown>(`${this.apiBaseUrl}/api/land-records/urban/property-details`, {
+        params: { village_code: villageCode, cts_no: ctsNo }
+      })
+      .pipe(map((raw) => this.unwrapUrbanPropertyDetailsRows(raw)));
   }
 
   /**
@@ -222,6 +238,45 @@ export class LandRecordsService {
         params: { villageCode, mutationTypeCode }
       })
       .pipe(map((raw) => this.unwrapUrbanMutationListRows(raw)));
+  }
+
+  /** API may return `cts_no` and/or `new_cts_numb_2000` only — unify for dropdowns. */
+  private normalizeUrbanCtsRows(raw: unknown): UrbanCtsRow[] {
+    let list: unknown[] = [];
+    if (Array.isArray(raw)) {
+      list = raw;
+    } else if (raw && typeof raw === 'object' && Array.isArray((raw as { data?: unknown[] }).data)) {
+      list = (raw as { data: unknown[] }).data;
+    }
+    const out: UrbanCtsRow[] = [];
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue;
+      const r = item as Record<string, unknown>;
+      const newCts = String(r['new_cts_numb_2000'] ?? r['newCtsNumb2000'] ?? '').trim();
+      const legacy = String(r['cts_no'] ?? r['ctsNo'] ?? '').trim();
+      const value = newCts || legacy;
+      if (!value) continue;
+      out.push({
+        cts_no: value,
+        new_cts_numb_2000: newCts || legacy || undefined
+      });
+    }
+    return out;
+  }
+
+  private unwrapUrbanPropertyDetailsRows(raw: unknown): Record<string, unknown>[] {
+    let list: unknown[] = [];
+    if (Array.isArray(raw)) {
+      list = raw;
+    } else if (raw && typeof raw === 'object') {
+      const o = raw as Record<string, unknown>;
+      if (Array.isArray(o['data'])) list = o['data'] as unknown[];
+      else if (Array.isArray(o['rows'])) list = o['rows'] as unknown[];
+      else if (Array.isArray(o['propertyDetails'])) list = o['propertyDetails'] as unknown[];
+    }
+    return list
+      .filter((item): item is Record<string, unknown> => item != null && typeof item === 'object' && !Array.isArray(item))
+      .map((item) => item);
   }
 
   private unwrapUrbanMutationListRows(raw: unknown): UrbanMutationListRow[] {
@@ -279,35 +334,36 @@ export class LandRecordsService {
   }
 
   getUrbanMutationDetail(inwardNumber: string): Observable<UrbanMutationDetailResponse | null> {
+    return this.getUrbanMutationDetailList(inwardNumber).pipe(map((list) => list[0] ?? null));
+  }
+
+  /** Returns ALL applicant rows from the mutation API response (may be more than one). */
+  getUrbanMutationDetailList(inwardNumber: string): Observable<UrbanMutationDetailResponse[]> {
     return this.http
       .get<UrbanMutationDetailResponse | UrbanMutationDetailEnvelope | UrbanMutationDetailResponse[]>(
         `${this.apiBaseUrl}/api/land-records/urban/mutation-detail`,
         { params: { inwardNumber } }
       )
-      .pipe(map((raw) => this.unwrapUrbanMutationDetail(raw)));
+      .pipe(map((raw) => this.unwrapUrbanMutationDetailList(raw)));
   }
 
-  private unwrapUrbanMutationDetail(
+  private unwrapUrbanMutationDetailList(
     raw: UrbanMutationDetailResponse | UrbanMutationDetailEnvelope | UrbanMutationDetailResponse[] | null | undefined
-  ): UrbanMutationDetailResponse | null {
-    if (raw == null) return null;
-    if (Array.isArray(raw)) {
-      return raw[0] ?? null;
-    }
-    if (typeof raw !== 'object') return null;
+  ): UrbanMutationDetailResponse[] {
+    if (raw == null) return [];
+    if (Array.isArray(raw)) return raw.filter(Boolean);
+    if (typeof raw !== 'object') return [];
     const envelope = raw as UrbanMutationDetailEnvelope;
-    if (Array.isArray(envelope.data) && envelope.data.length > 0) {
-      return envelope.data[0] ?? null;
-    }
+    if (Array.isArray(envelope.data)) return envelope.data.filter(Boolean);
     const direct = raw as UrbanMutationDetailResponse;
     if (
       direct.inward_number != null ||
       direct.mutation_number != null ||
       direct.mutation_type_description != null
     ) {
-      return direct;
+      return [direct];
     }
-    return null;
+    return [];
   }
 }
 

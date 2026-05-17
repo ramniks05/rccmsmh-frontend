@@ -1,4 +1,5 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { finalize } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 
 import {
@@ -35,7 +36,10 @@ export type DisputedLandRow =
       officeName: string;
       villageCode: string;
       villageName: string;
+      parentCtsNo: string;
       ctsNo: string;
+      subCtsNo?: string;
+      propertyDetail?: Record<string, unknown>;
     };
 
 @Component({
@@ -70,18 +74,33 @@ export class DisputedLandPanelComponent {
   protected readonly urbanDistricts = signal<UrbanDistrict[]>([]);
   protected readonly urbanOffices = signal<UrbanOffice[]>([]);
   protected readonly urbanVillages = signal<UrbanVillage[]>([]);
-  protected readonly urbanCtsRows = signal<UrbanCtsRow[]>([]);
+  protected readonly urbanSubCtsRows = signal<UrbanCtsRow[]>([]);
+  protected readonly urbanPropertyDetails = signal<Record<string, unknown>[]>([]);
   protected readonly urbanDistrictCode = signal('');
   protected readonly urbanOfficeCode = signal('');
   protected readonly urbanVillageCode = signal('');
-  protected readonly urbanCtsFilter = signal('');
+  protected readonly urbanParentCts = signal('');
+  protected readonly urbanSelectedSubCts = signal('');
+  protected readonly loadingSubCts = signal(false);
+  protected readonly loadingPropertyDetails = signal(false);
 
-  protected readonly canSearchRural = computed(() => {
-    return this.ruralDistrictCode().trim() !== '' && this.ruralTalukaCode().trim() !== '' && this.ruralVillageLgdCode().trim() !== '' && this.ruralPin().trim().length > 0;
+  protected readonly canLoadUrbanSubCts = computed(() => {
+    return (
+      this.urbanDistrictCode().trim() !== '' &&
+      this.urbanOfficeCode().trim() !== '' &&
+      this.urbanVillageCode().trim() !== '' &&
+      this.urbanParentCts().trim() !== ''
+    );
   });
 
-  protected readonly canSearchUrban = computed(() => {
-    return this.urbanDistrictCode().trim() !== '' && this.urbanOfficeCode().trim() !== '' && this.urbanVillageCode().trim() !== '';
+  protected readonly urbanPropertyColumns = computed(() => {
+    const rows = this.urbanPropertyDetails();
+    if (!rows.length) return [] as string[];
+    const keys = new Set<string>();
+    for (const row of rows.slice(0, 10)) {
+      Object.keys(row).forEach((k) => keys.add(k));
+    }
+    return Array.from(keys);
   });
 
   constructor() {
@@ -93,7 +112,8 @@ export class DisputedLandPanelComponent {
     this.mode.set(next);
     this.error.set(null);
     this.ruralSubSurveyRows.set([]);
-    this.urbanCtsRows.set([]);
+    this.urbanSubCtsRows.set([]);
+    this.urbanPropertyDetails.set([]);
     this.ruralDistrictCode.set('');
     this.ruralTalukaCode.set('');
     this.ruralVillageLgdCode.set('');
@@ -103,7 +123,8 @@ export class DisputedLandPanelComponent {
     this.urbanDistrictCode.set('');
     this.urbanOfficeCode.set('');
     this.urbanVillageCode.set('');
-    this.urbanCtsFilter.set('');
+    this.urbanParentCts.set('');
+    this.urbanSelectedSubCts.set('');
     this.urbanOffices.set([]);
     this.urbanVillages.set([]);
 
@@ -168,18 +189,9 @@ export class DisputedLandPanelComponent {
     this.ruralPin.set(v);
   }
 
+  /** Rural 7/12 search API is not available yet — no action on search. */
   protected searchRural(): void {
-    if (!this.canSearchRural()) {
-      this.error.set('Select district/taluka/village and enter survey number (pin).');
-      return;
-    }
-    this.loading.set(true);
     this.error.set(null);
-    this.api.getRuralSubSurveyList(this.ruralVillageLgdCode(), this.ruralPin().trim()).subscribe({
-      next: (rows) => this.ruralSubSurveyRows.set(rows),
-      error: (e) => this.error.set(this.formatError(e)),
-      complete: () => this.loading.set(false)
-    });
   }
 
   protected addRuralRow(r: RuralSubSurveyRow): void {
@@ -224,7 +236,10 @@ export class DisputedLandPanelComponent {
     this.urbanVillageCode.set('');
     this.urbanOffices.set([]);
     this.urbanVillages.set([]);
-    this.urbanCtsRows.set([]);
+    this.urbanSubCtsRows.set([]);
+    this.urbanPropertyDetails.set([]);
+    this.urbanParentCts.set('');
+    this.urbanSelectedSubCts.set('');
     if (!code) return;
     this.loading.set(true);
     this.api.getUrbanOffices(code).subscribe({
@@ -238,7 +253,10 @@ export class DisputedLandPanelComponent {
     this.urbanOfficeCode.set(code);
     this.urbanVillageCode.set('');
     this.urbanVillages.set([]);
-    this.urbanCtsRows.set([]);
+    this.urbanSubCtsRows.set([]);
+    this.urbanPropertyDetails.set([]);
+    this.urbanParentCts.set('');
+    this.urbanSelectedSubCts.set('');
     if (!code) return;
     this.loading.set(true);
     this.api.getUrbanVillages(code).subscribe({
@@ -250,37 +268,122 @@ export class DisputedLandPanelComponent {
 
   protected onUrbanVillageChange(code: string): void {
     this.urbanVillageCode.set(code);
-    this.urbanCtsRows.set([]);
+    this.urbanSubCtsRows.set([]);
+    this.urbanPropertyDetails.set([]);
+    this.urbanParentCts.set('');
+    this.urbanSelectedSubCts.set('');
   }
 
-  protected setUrbanCtsFilter(v: string): void {
-    this.urbanCtsFilter.set(v);
+  protected setUrbanParentCts(v: string): void {
+    this.urbanParentCts.set(v);
+    this.urbanSubCtsRows.set([]);
+    this.urbanPropertyDetails.set([]);
+    this.urbanSelectedSubCts.set('');
   }
 
-  protected searchUrban(): void {
-    if (!this.canSearchUrban()) {
-      this.error.set('Select district/office/village to search CTS.');
+  protected loadUrbanSubCts(): void {
+    if (!this.canLoadUrbanSubCts()) {
+      this.error.set('Select district, office, village and enter CTS number.');
       return;
     }
-    this.loading.set(true);
+    const villageCode = this.urbanVillageCode().trim();
+    const parentCts = this.urbanParentCts().trim();
+    this.loadingSubCts.set(true);
     this.error.set(null);
-    const filter = this.urbanCtsFilter().trim();
-    this.api.getUrbanCtsList(this.urbanVillageCode(), filter || undefined).subscribe({
-      next: (rows) => this.urbanCtsRows.set(rows),
-      error: (e) => this.error.set(this.formatError(e)),
-      complete: () => this.loading.set(false)
-    });
+    this.urbanSubCtsRows.set([]);
+    this.urbanPropertyDetails.set([]);
+    this.urbanSelectedSubCts.set('');
+    this.api
+      .getUrbanSubCtsList(villageCode, parentCts)
+      .pipe(finalize(() => this.loadingSubCts.set(false)))
+      .subscribe({
+        next: (rows) => {
+          this.urbanSubCtsRows.set(rows || []);
+          if (!rows?.length) {
+            this.error.set('No sub-CTS found for this CTS number.');
+          }
+        },
+        error: (e) => this.error.set(this.formatError(e))
+      });
   }
 
-  protected addUrbanRow(r: UrbanCtsRow): void {
+  protected onUrbanSubCtsChange(subCtsNo: string): void {
+    this.urbanSelectedSubCts.set(subCtsNo);
+    this.urbanPropertyDetails.set([]);
+    if (!subCtsNo.trim()) return;
+    const villageCode = this.urbanVillageCode().trim();
+    this.loadingPropertyDetails.set(true);
+    this.error.set(null);
+    this.api
+      .getUrbanPropertyDetails(villageCode, subCtsNo.trim())
+      .pipe(finalize(() => this.loadingPropertyDetails.set(false)))
+      .subscribe({
+        next: (rows) => {
+          this.urbanPropertyDetails.set(rows || []);
+          if (!rows?.length) {
+            this.error.set('No property / area details found for selected sub-CTS.');
+          }
+        },
+        error: (e) => this.error.set(this.formatError(e))
+      });
+  }
+
+  protected ctsRowLabel(row: UrbanCtsRow): string {
+    return (row.new_cts_numb_2000 || row.cts_no || '').trim();
+  }
+
+  protected formatPropertyCell(value: unknown): string {
+    if (value == null) return '';
+    if (typeof value === 'object') {
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    }
+    return String(value);
+  }
+
+  protected addUrbanPropertyRow(row: Record<string, unknown>, index: number): void {
+    this.pushUrbanDisputedLand(row, index);
+  }
+
+  protected addUrbanSelection(): void {
+    const rows = this.urbanPropertyDetails();
+    if (rows.length === 1) {
+      this.pushUrbanDisputedLand(rows[0], 0);
+      return;
+    }
+    if (rows.length > 1) {
+      this.error.set('Select Add on the property row you want to include.');
+      return;
+    }
+    this.pushUrbanDisputedLand({}, 0);
+  }
+
+  private pushUrbanDisputedLand(row: Record<string, unknown>, index: number): void {
     const dist = this.urbanDistricts().find((d) => d.district_code.trim() === this.urbanDistrictCode().trim());
     const off = this.urbanOffices().find((o) => o.office_code.trim() === this.urbanOfficeCode().trim());
     const vil = this.urbanVillages().find((v) => v.village_code.trim() === this.urbanVillageCode().trim());
-    if (!dist || !off || !vil) return;
-    const key = `URBAN|${vil.village_code.trim()}|${r.cts_no.trim()}`;
+    const parentCts = this.urbanParentCts().trim();
+    const subCts = this.urbanSelectedSubCts().trim();
+    if (!dist || !off || !vil) {
+      this.error.set('Select district, office and village.');
+      return;
+    }
+    if (!parentCts) {
+      this.error.set('Enter CTS number.');
+      return;
+    }
+    if (!subCts) {
+      this.error.set('Select sub-CTS number.');
+      return;
+    }
+    const rowKey = this.propertyRowKey(row, index);
+    const key = `URBAN|${vil.village_code.trim()}|${parentCts}|${subCts}|${rowKey}`;
     const existing = this.disputedLands();
     if (existing.some((x) => this.keyOf(x) === key)) {
-      this.error.set('This CTS is already added.');
+      this.error.set('This property row is already added.');
       return;
     }
     this.disputedLandsChange.emit([
@@ -293,9 +396,22 @@ export class DisputedLandPanelComponent {
         officeName: off.office_english_name || off.office_name,
         villageCode: vil.village_code.trim(),
         villageName: vil.village_english_name || vil.village_name,
-        ctsNo: r.cts_no
+        parentCtsNo: parentCts,
+        ctsNo: subCts,
+        subCtsNo: subCts,
+        propertyDetail: Object.keys(row).length ? { ...row } : undefined
       }
     ]);
+    this.error.set(null);
+  }
+
+  private propertyRowKey(row: Record<string, unknown>, index: number): string {
+    const prefer = ['id', 'sr_no', 'srNo', 'flat_no', 'flatNo', 'unit_no', 'unitNo', 'area', 'plot_no', 'plotNo'];
+    for (const k of prefer) {
+      const v = row[k];
+      if (v != null && String(v).trim()) return String(v).trim();
+    }
+    return `row-${index}`;
   }
 
   protected remove(index: number): void {
@@ -309,7 +425,11 @@ export class DisputedLandPanelComponent {
       const p = row.pinParts;
       return `RURAL|${row.villageLgdCode}|${row.pin}|${p.pin1}|${p.pin2}|${p.pin3}|${p.pin4}|${p.pin5}|${p.pin6}|${p.pin7}|${p.pin8}`;
     }
-    return `URBAN|${row.villageCode}|${row.ctsNo}`;
+    const parent = row.parentCtsNo || row.ctsNo;
+    const sub = row.subCtsNo || row.ctsNo;
+    const detail = row.propertyDetail;
+    const detailKey = detail ? this.propertyRowKey(detail, 0) : '';
+    return `URBAN|${row.villageCode}|${parent}|${sub}|${detailKey}`;
   }
 
   private formatError(err: unknown): string {

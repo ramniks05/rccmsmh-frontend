@@ -321,9 +321,18 @@
             @if (searchedMutation() && loadingNotice9()) {
               <p class="sub">Fetching Notice 9...</p>
             } @else if (notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
-              @if (notice9Resolved().previewKind === 'image') {
+              @if (isNotice9ImagePreview(noticeUrl)) {
                 <div class="pdf-panel">
                   <img [src]="noticeUrl" alt="Notice 9 preview" style="max-width: 100%; border-radius: 10px" />
+                </div>
+              }
+              @if (isNotice9PdfPreview(noticeUrl)) {
+                <div class="pdf-panel">
+                  <iframe
+                    [src]="noticeUrl"
+                    title="Notice 9 PDF"
+                    style="width: 100%; min-height: 480px; border: 1px solid #ccc; border-radius: 10px"
+                  ></iframe>
                 </div>
               }
               <div class="row-actions">
@@ -332,7 +341,7 @@
                   <a class="btn btn-primary btn-compact" [href]="noticeUrl" download="notice-9">Download Notice 9</a>
                 }
               </div>
-              @if (notice9Resolved().previewKind === 'pdf') {
+              @if (isNotice9PdfPreview(noticeUrl) && !isNotice9ImagePreview(noticeUrl)) {
                 <p class="sub">PDF notice is ready. Use Open Notice 9 to view in a new tab.</p>
               }
             } @else if (searchedMutation() && !loadingSearch()) {
@@ -382,25 +391,56 @@
                 </select>
               </label>
 
-              @if (showCustomSection()) {
-                <label class="span-2">
-                  Add section (if not in list) *
-                  <input type="text" formControlName="customSectionName" placeholder="e.g. Section 259 or 259A" />
-                </label>
-              }
             </div>
-
-            @if (showCustomSection()) {
-              <div class="row-actions">
-                <button type="button" class="btn btn-primary" (click)="addCustomSection()">Add section</button>
-              </div>
-            }
           </div>
         </section>
       }
 
       @case ('PARTIES') {
         <section class="section">
+
+          @if (mutationSuggestions().length > 0) {
+            <div class="mini-card suggestion-panel">
+              <div class="suggestion-panel-head">
+                <span class="suggestion-title">&#x1F4CB; People found in mutation record</span>
+                <span class="suggestion-sub">Click a button to pre-fill a row. You can still edit or fill manually.</span>
+              </div>
+              <div class="suggestion-list">
+                @for (sug of mutationSuggestions(); track $index) {
+                  <div class="suggestion-card" [class.sug-applied]="suggestionAppliedAs(sug) !== null">
+                    <div class="sug-info">
+                      <strong class="sug-name">{{ suggestionDisplayName(sug) }}</strong>
+                      @if (sug.mobile_number) {
+                        <span class="sug-detail">&#x1F4DE;&nbsp;{{ sug.mobile_number }}</span>
+                      }
+                      @if (sug.district_name || sug.taluka) {
+                        <span class="sug-detail">&#x1F4CD;&nbsp;{{ sug.district_name }}{{ sug.taluka ? ', ' + sug.taluka : '' }}</span>
+                      }
+                      @if (sug.address) {
+                        <span class="sug-detail sug-address">{{ sug.address }}</span>
+                      }
+                    </div>
+                    <div class="sug-actions">
+                      @if (suggestionAppliedAs(sug); as appliedRole) {
+                        <span class="sug-applied-badge">
+                          &#x2713; Added as {{ appliedRole }}
+                        </span>
+                        <span class="sug-applied-hint">Remove the {{ appliedRole }} row to re-enable</span>
+                      } @else {
+                        <button type="button" class="btn btn-primary btn-compact" (click)="applySuggestion(sug, 'applicant')">
+                          + Applicant
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-compact" (click)="applySuggestion(sug, 'respondent')">
+                          + Respondent
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+
           <div class="mini-card" [formGroup]="form">
             <div class="mini-head">
               <strong>Applicant details</strong>
@@ -416,7 +456,7 @@
                       type="button"
                       class="btn btn-secondary btn-compact"
                       (click)="removeApplicant(i)"
-                      [disabled]="applicants.controls.length <= 1"
+                      [disabled]="false"
                     >
                       Remove
                     </button>
@@ -502,8 +542,8 @@
                       <input type="date" formControlName="dob" />
                     </label>
                     <label>
-                      Calculated Age
-                      <input type="text" formControlName="age" readonly />
+                      Age
+                      <input type="number" formControlName="age" placeholder="Enter age" min="0" max="150" />
                     </label>
                     <label>
                       Occupation
@@ -535,7 +575,7 @@
                       type="button"
                       class="btn btn-secondary btn-compact"
                       (click)="removeRespondent(i)"
-                      [disabled]="respondents.controls.length <= 1"
+                      [disabled]="false"
                     >
                       Remove
                     </button>
@@ -621,8 +661,8 @@
                       <input type="date" formControlName="dob" />
                     </label>
                     <label>
-                      Calculated Age
-                      <input type="text" formControlName="age" readonly />
+                      Age
+                      <input type="number" formControlName="age" placeholder="Enter age" min="0" max="150" />
                     </label>
                     <label>
                       Occupation
@@ -648,6 +688,7 @@
             [courtPlace]="filingDistrictForVakalatnama()"
             [courtOfficeName]="filingOfficeNameForVakalatnama()"
             [applicants]="applicantOptions()"
+            [respondents]="respondentOptions()"
             [assignments]="vakaltnamaAssignments()"
             (assignmentsChange)="onVakaltnamaAssignmentsChange($event)"
           />

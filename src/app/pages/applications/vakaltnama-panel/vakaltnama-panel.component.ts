@@ -40,6 +40,7 @@ export class VakaltnamaPanelComponent {
    * map applicants -> advocate, and create multiple vakaltnama groups.
    */
   applicants = input<ApplicantOption[]>([]);
+  respondents = input<ApplicantOption[]>([]);
   assignments = input<VakaltnamaAssignment[]>([]);
   assignmentsChange = output<VakaltnamaAssignment[]>();
 
@@ -59,6 +60,9 @@ export class VakaltnamaPanelComponent {
     displayName: this.tokenStorage.getDisplayName() || '—',
     role: this.tokenStorage.getRole() || '—'
   }));
+
+  /** True when the logged-in user is an advocate — they are always the primary. */
+  protected readonly isFilingAdvocate = computed(() => this.tokenStorage.isAdvocate());
 
   protected readonly barCouncilQuery = signal('');
   protected readonly barCouncilSearchLoading = signal(false);
@@ -91,6 +95,7 @@ export class VakaltnamaPanelComponent {
         }
       });
     });
+
   }
 
   protected setBarCouncilQuery(value: string): void {
@@ -230,12 +235,6 @@ export class VakaltnamaPanelComponent {
       this.advocateLookupError.set('Please select at least one applicant.');
       return;
     }
-    // Enforce: each applicant belongs to only one vakaltnama group.
-    const alreadyAssigned = applicantIds.some((id) => this.isApplicantAssigned(id));
-    if (alreadyAssigned) {
-      this.advocateLookupError.set('One or more selected applicants are already assigned to another vakaltnama.');
-      return;
-    }
 
     const next: VakaltnamaAssignment = {
       id: this.makeId(),
@@ -294,6 +293,8 @@ export class VakaltnamaPanelComponent {
     const yy = String(now.getFullYear()).slice(-2);
     const place = (this.courtPlace() || '').trim();
     const officeName = (this.courtOfficeName() || '').trim();
+    const respondentNames = this.getRespondentNames();
+    const respLines = this.splitRespondentLines(respondentNames);
     return {
       applicationNo: (this.applicationRef() || '').trim(),
       courtPlace: place,
@@ -301,15 +302,17 @@ export class VakaltnamaPanelComponent {
       caseNumber: '',
       caseYearTwoDigits: yy,
       applicantLine: filingDisplayName,
-      respondentLine1: '',
-      respondentLine2: '',
+      respondentLine1: respLines.line1,
+      respondentLine2: respLines.line2,
       representativeSelfLine: filingDisplayName,
+      representativePronoun: 'मी',
+      signatureNames: filingDisplayName ? [filingDisplayName] : [],
       matterDescription: 'अर्ज दाखल केलेल्या प्रकरणाचे कामकाज',
       advocateEmpoweredLine: filingDisplayName,
       dateDay: String(now.getDate()),
       monthMah: mah,
       yearTwoDigits: yy,
-      deedLine: 'वकीलपत्र'
+      deedLine: filingDisplayName || 'वकीलपत्र'
     };
   }
 
@@ -325,22 +328,27 @@ export class VakaltnamaPanelComponent {
     const appNo = (this.applicationRef() || '').trim() || `G${index + 1}`;
     const place = (this.courtPlace() || '').trim();
     const officeName = (this.courtOfficeName() || '').trim();
+    const respondentNames = this.getRespondentNames();
+    const respLines = this.splitRespondentLines(respondentNames);
+    const applicantLine = applicantNames.join(', ') || 'अर्जदार';
     return {
       applicationNo: appNo,
       courtPlace: place,
       courtOfficeName: officeName,
       caseNumber: '',
       caseYearTwoDigits: yy,
-      applicantLine: applicantNames.join(', ') || 'अर्जदार',
-      respondentLine1: 'प्रतिवादी — तपशील नमुदा करावा',
-      respondentLine2: '',
-      representativeSelfLine: applicantNames.join(', ') || 'अर्जदार',
+      applicantLine,
+      respondentLine1: respLines.line1,
+      respondentLine2: respLines.line2,
+      representativeSelfLine: applicantLine,
+      representativePronoun: applicantNames.length > 1 ? 'आम्ही' : 'मी',
+      signatureNames: applicantNames,
       matterDescription: `वरील प्रकरण (अर्ज क्र. ${appNo}) — नेमलेले वकील: ${adv} (${advBar})`,
       advocateEmpoweredLine: advocateEmpowered || adv,
       dateDay: String(now.getDate()),
       monthMah: mah,
       yearTwoDigits: yy,
-      deedLine: coNames.length ? `सहवकील: ${coNames.join('; ')}` : 'वकीलपत्र'
+      deedLine: applicantLine
     };
   }
 
@@ -363,15 +371,20 @@ export class VakaltnamaPanelComponent {
   }
 
   private openVakalatnamaView(html: string): void {
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const w = window.open(url, '_blank');
+    const w = this.openHtmlDocument(html);
     if (!w) {
-      URL.revokeObjectURL(url);
       this.documentActionError.set('Pop-up blocked. Allow pop-ups to view the vakalatnama.');
-      return;
     }
-    // Do not revoke while the tab is open — revoking can blank the document. Blob is released when the app is unloaded.
+  }
+
+  /** Opens HTML in a blank tab (avoids blob: URL in browser print header/footer). */
+  private openHtmlDocument(html: string): Window | null {
+    const w = window.open('', '_blank');
+    if (!w) return null;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    return w;
   }
 
   private downloadHtmlFile(html: string, fileName: string): void {
@@ -388,11 +401,8 @@ export class VakaltnamaPanelComponent {
   }
 
   private printHtmlDocument(html: string): void {
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const w = window.open(url, '_blank');
+    const w = this.openHtmlDocument(html);
     if (!w) {
-      URL.revokeObjectURL(url);
       this.documentActionError.set('Pop-up blocked. Allow pop-ups to print.');
       return;
     }
@@ -414,7 +424,22 @@ export class VakaltnamaPanelComponent {
 
   private getApplicantNames(ids: string[]): string[] {
     const map = new Map((this.applicants() ?? []).map((a) => [a.id, a.name]));
-    return ids.map((id) => map.get(id) ?? `Applicant ${id}`);
+    return ids.map((id) => map.get(id) ?? `Applicant ${id}`).filter((n) => n.trim());
+  }
+
+  private getRespondentNames(): string[] {
+    return (this.respondents() ?? []).map((r) => (r.name || '').trim()).filter(Boolean);
+  }
+
+  private splitRespondentLines(names: string[]): { line1: string; line2: string } {
+    if (!names.length) return { line1: '', line2: '' };
+    if (names.length === 1) return { line1: names[0], line2: '' };
+    if (names.length === 2) return { line1: names[0], line2: names[1] };
+    const half = Math.ceil(names.length / 2);
+    return {
+      line1: names.slice(0, half).join(', '),
+      line2: names.slice(half).join(', ')
+    };
   }
 
   private toFileName(value: string): string {

@@ -1,102 +1,134 @@
+<!-- Announcement strip -->
+<div class="announcement-bar">
+  <span class="announce-dot"></span>
+  <span>RCCMS 2.0 is now live — faster case filing, real-time tracking and Marathi vakalatnama</span>
+</div>
+
+<!-- ── HERO ─────────────────────────────────────────────────── -->
 <section class="hero">
-  <div class="hero-copy">
-    <span class="eyebrow">Government of Maharashtra</span>
-    <h2>RCCMS Digital Services Portal</h2>
-    <p>Unified platform for registration, case services, and role-based access.</p>
-    <div class="hero-actions">
-      <a class="btn btn-primary" routerLink="/register/advocate">Register Advocate</a>
-      <a class="btn btn-secondary" routerLink="/register/party">Register Party</a>
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <div class="hero-badge">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clip-rule="evenodd"/></svg>
+        Official Government of Maharashtra Portal
+      </div>
+
+      <h1 class="hero-title">
+        महाराष्ट्र महसूल <span class="hero-accent">विभाग</span>
+      </h1>
+      <h2 class="hero-subtitle">Revenue Case &amp; Citizen Management System</h2>
+      <p class="hero-desc">
+        Digitising revenue administration for transparent, fast and accessible governance across all 36 districts of Maharashtra.
+      </p>
+
+      <div class="hero-actions">
+        <a routerLink="/register/advocate" class="btn btn-hero-primary">Register as Advocate</a>
+        <a routerLink="/register/party" class="btn btn-hero-outline">Register as Party</a>
+      </div>
     </div>
-    <div class="highlight-row">
-      <article class="highlight-card">
-        <h4>24x7</h4>
-        <p>Online Access</p>
-      </article>
-      <article class="highlight-card">
-        <h4>Secure</h4>
-        <p>JWT Authentication</p>
-      </article>
-      <article class="highlight-card">
-        <h4>Fast</h4>
-        <p>Single Portal Workflow</p>
-      </article>
+
+    <div class="hero-visual">
+      <img src="mh-portal-hero.png" alt="RCCMS Maharashtra Portal" class="hero-img" />
+      <div class="hero-visual-card">
+        <div class="hvc-dot"></div>
+        <span>Portal is Live</span>
+      </div>
     </div>
   </div>
-  <aside class="auth-card">
-    <div class="login-head">
-      <h3>Login</h3>
-      <p>Access your dashboard</p>
-    </div>
-
-    <div class="radio-row">
-      <label class="role-option">
-        <input
-          type="radio"
-          name="loginRole"
-          [checked]="selectedLoginUserType === 'ADVOCATE'"
-          (change)="selectedLoginUserType = 'ADVOCATE'"
-        />
-        <span>Advocate</span>
-      </label>
-      <label class="role-option">
-        <input
-          type="radio"
-          name="loginRole"
-          [checked]="selectedLoginUserType === 'PARTY_IN_PERSON'"
-          (change)="selectedLoginUserType = 'PARTY_IN_PERSON'"
-        />
-        <span>Party In Person/Representative</span>
-      </label>
-      <label class="role-option">
-        <input
-          type="radio"
-          name="loginRole"
-          [checked]="selectedLoginUserType === 'OFFICER'"
-          (change)="selectedLoginUserType = 'OFFICER'"
-        />
-        <span>Officer</span>
-      </label>
-      <label class="role-option">
-        <input
-          type="radio"
-          name="loginRole"
-          [checked]="selectedLoginUserType === 'ADMIN'"
-          (change)="selectedLoginUserType = 'ADMIN'"
-        />
-        <span>Admin</span>
-      </label>
-    </div>
-
-    <form [formGroup]="loginForm" (ngSubmit)="loginUser()" class="form-grid">
-      <label>
-        Login ID
-        <input type="text" formControlName="loginId" placeholder="Enter login id" />
-      </label>
-
-      <label>
-        Password
-        <input type="password" formControlName="password" placeholder="Enter password" />
-      </label>
-
-      <button type="submit" class="btn btn-login" [disabled]="loginInProgress">
-        {{ loginInProgress ? 'Signing in...' : 'Login' }}
-      </button>
-    </form>
-
-    @if (loginErrorMessage) {
-      <p class="api-message error">{{ loginErrorMessage }}</p>
-    }
-  </aside>
 </section>
 
-<section class="overview">
-  <h3>Departments</h3>
-  <div class="department-grid">
-    @for (department of departments; track department) {
-      <article class="department-card">
-        <h4>{{ department }}</h4>
-        <p>Integrated service unit</p>
+<!-- ── STATS BAR ───────────────────────────────────────────── -->
+<div class="stats-bar">
+  @for (s of stats; track s.label) {
+    <div class="stat-item">
+      <strong class="stat-val">{{ s.value }}</strong>
+      <span class="stat-label">{{ s.label }}</span>
+      <span class="stat-label-mr">{{ s.labelMr }}</span>
+    </div>
+  }
+</div>
+
+<!-- ── SERVICES ───────────────────────────────────────────── -->
+<section class="section-block services-section">
+  <div class="section-header">
+    <h2>Our <span class="accent">Services</span></h2>
+    <p>End-to-end digital services for citizens, advocates and government officers</p>
+  </div>
+  <div class="services-grid">
+    @for (s of services; track s.title) {
+      <article class="service-card">
+        <div class="sc-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path [attr.d]="s.icon"/>
+          </svg>
+        </div>
+        <div class="sc-body">
+          <h3>{{ s.title }}</h3>
+          <p class="sc-mr">{{ s.titleMr }}</p>
+          <p class="sc-desc">{{ s.desc }}</p>
+        </div>
       </article>
     }
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ───────────────────────────────────────── -->
+<section class="section-block how-section">
+  <div class="section-header">
+    <h2>How It <span class="accent">Works</span></h2>
+    <p>Simple three-step process to file and track your revenue case</p>
+  </div>
+  <div class="how-grid">
+    <div class="how-step">
+      <div class="how-num">१</div>
+      <h3>Register &amp; Login</h3>
+      <p>Create your account as an advocate, party or representative and log in securely.</p>
+    </div>
+    <div class="how-arrow">→</div>
+    <div class="how-step">
+      <div class="how-num">२</div>
+      <h3>File Your Case</h3>
+      <p>Fill in case details, upload vakalatnama and attach disputed land documents.</p>
+    </div>
+    <div class="how-arrow">→</div>
+    <div class="how-step">
+      <div class="how-num">३</div>
+      <h3>Track &amp; Resolve</h3>
+      <p>Monitor status, receive hearing dates and download orders — all online.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── DEPARTMENTS ───────────────────────────────────────── -->
+<section class="section-block dept-section">
+  <div class="section-header">
+    <h2>Integrated <span class="accent">Departments</span></h2>
+    <p>Connected departments under the Maharashtra Revenue ecosystem</p>
+  </div>
+  <div class="dept-grid">
+    @for (d of departments; track d.name) {
+      <article class="dept-card">
+        <span class="dept-icon">{{ d.icon }}</span>
+        <div>
+          <h3>{{ d.name }}</h3>
+          <p class="dept-mr">{{ d.nameMr }}</p>
+          <p class="dept-desc">{{ d.desc }}</p>
+        </div>
+      </article>
+    }
+  </div>
+</section>
+
+<!-- ── CTA BANNER ─────────────────────────────────────────── -->
+<section class="cta-banner">
+  <div class="cta-inner">
+    <div>
+      <h2>Ready to get started?</h2>
+      <p>Register as an advocate or party and start filing cases on RCCMS Maharashtra today.</p>
+    </div>
+    <div class="cta-actions">
+      <a routerLink="/register/advocate" class="btn btn-cta-primary">Register as Advocate</a>
+      <a routerLink="/register/party" class="btn btn-cta-outline">Register as Party</a>
+    </div>
   </div>
 </section>

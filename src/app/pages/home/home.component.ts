@@ -1,73 +1,64 @@
-import { Component, inject } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
-import { finalize } from 'rxjs';
-
-import { AuthService, LoginResponse, LoginRole } from '../../services/auth.service';
-import { TokenStorageService } from '../../services/token-storage.service';
+import { Component } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-home',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [RouterLink],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css'
 })
 export class HomeComponent {
-  private readonly formBuilder = inject(FormBuilder);
-  private readonly authService = inject(AuthService);
-  private readonly tokenStorage = inject(TokenStorageService);
-  private readonly router = inject(Router);
+
+  protected readonly services = [
+    {
+      icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+      title: 'Case Filing',
+      titleMr: 'केस दाखल करणे',
+      desc: 'File objections, mutations and revenue cases online from anywhere.'
+    },
+    {
+      icon: 'M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3',
+      title: 'Land Records',
+      titleMr: 'जमीन नोंदी',
+      desc: 'Access 7/12 extracts, property cards and urban mutation records.'
+    },
+    {
+      icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
+      title: 'Vakalatnama',
+      titleMr: 'वकीलपत्र',
+      desc: 'Generate Marathi vakalatnama documents with digital advocate details.'
+    },
+    {
+      icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+      title: 'Case Tracking',
+      titleMr: 'केस ट्रॅकिंग',
+      desc: 'Track your case status, hearings and orders in real-time.'
+    },
+    {
+      icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
+      title: 'Advocate Services',
+      titleMr: 'वकील सेवा',
+      desc: 'Manage bar council registration, assignments and case portfolio.'
+    },
+    {
+      icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+      title: 'Secure Portal',
+      titleMr: 'सुरक्षित पोर्टल',
+      desc: 'Role-based access with JWT authentication and encrypted data storage.'
+    }
+  ];
 
   protected readonly departments = [
-    'Revenue Department',
-    'Land Records and Survey',
-    'District Administration',
-    'Citizen Service Centers'
+    { name: 'Revenue Department', nameMr: 'महसूल विभाग', icon: '🏛️', desc: 'Land revenue, mutation and cadastral records' },
+    { name: 'Land Records & Survey', nameMr: 'भूमी अभिलेख', icon: '🗺️', desc: 'Survey maps, 7/12 and property card management' },
+    { name: 'District Administration', nameMr: 'जिल्हा प्रशासन', icon: '🏢', desc: 'District-level revenue case management' },
+    { name: 'Citizen Service Centers', nameMr: 'नागरिक सेवा केंद्र', icon: '🤝', desc: 'In-person assistance at taluka and village level' }
   ];
-  protected loginInProgress = false;
-  protected loginErrorMessage = '';
-  protected selectedLoginUserType: LoginRole = 'ADVOCATE';
 
-  protected readonly loginForm = this.formBuilder.nonNullable.group({
-    loginId: ['', [Validators.required]],
-    password: ['', [Validators.required]]
-  });
-
-  protected loginUser(): void {
-    if (this.loginForm.invalid) {
-      this.loginForm.markAllAsTouched();
-      return;
-    }
-
-    this.loginInProgress = true;
-    this.loginErrorMessage = '';
-
-    const payload = {
-      role: this.selectedLoginUserType,
-      ...this.loginForm.getRawValue()
-    };
-    this.authService
-      .login(payload)
-      .pipe(finalize(() => (this.loginInProgress = false)))
-      .subscribe({
-        next: (response: LoginResponse) => {
-          this.tokenStorage.saveSession(response);
-          void this.router.navigate(['/portal-home']);
-        },
-        error: (error: unknown) => {
-          this.loginErrorMessage = this.extractApiError(error);
-        }
-      });
-  }
-
-  private extractApiError(error: unknown): string {
-    if (error instanceof HttpErrorResponse) {
-      if (typeof error.error === 'object' && error.error?.error) {
-        return String(error.error.error);
-      }
-      return error.message || 'Request failed.';
-    }
-    return 'Unexpected error occurred.';
-  }
+  protected readonly stats = [
+    { value: '24/7', label: 'Online Access', labelMr: 'ऑनलाइन सेवा' },
+    { value: '36', label: 'Districts', labelMr: 'जिल्हे' },
+    { value: '358', label: 'Talukas', labelMr: 'तालुके' },
+    { value: '100%', label: 'Secure & Encrypted', labelMr: 'सुरक्षित' }
+  ];
 }

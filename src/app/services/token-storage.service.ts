@@ -45,6 +45,25 @@ export class TokenStorageService {
     return this.displayName;
   }
 
+  /** Decodes the JWT payload (no verification — client-side display only). */
+  private decodeTokenPayload(): Record<string, unknown> | null {
+    const token = this.accessToken;
+    if (!token) return null;
+    try {
+      const base64 = token.split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/') ?? '';
+      return JSON.parse(atob(base64)) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Bar council number from the JWT payload claim (null if not present or not an advocate). */
+  getBarCouncilNumber(): string | null {
+    const p = this.decodeTokenPayload();
+    if (!p) return null;
+    return (p['barCouncilNumber'] as string | undefined) ?? null;
+  }
+
   /** True when logged-in role is Advocate (case-insensitive match on stored role string). */
   isAdvocate(): boolean {
     return (this.role || '').trim().toUpperCase() === 'ADVOCATE';

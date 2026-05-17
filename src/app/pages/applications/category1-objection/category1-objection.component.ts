@@ -81,7 +81,7 @@ export interface MutationDetailsView {
   notice9Url: string | null;
 }
 
-const CATEGORY1_SESSION_VERSION = 1 as const;
+const CATEGORY1_SESSION_VERSION = 2 as const;
 
 interface Category1FilingSession {
   v: typeof CATEGORY1_SESSION_VERSION;
@@ -102,8 +102,17 @@ interface Category1FilingSession {
   mutationFound: boolean;
   searchedMutation: boolean;
   notice9Resolved: NoticeNineResolved;
+  /** Inward used for Notice 9 — refetch after refresh if preview URL was not stored. */
+  notice9InwardRef?: string | null;
   manualAttachFileName: string | null;
   manualNotice9FileName: string | null;
+  applicantPincodeLookup?: Record<string, PartyAddressLookupState>;
+  respondentPincodeLookup?: Record<string, PartyAddressLookupState>;
+  actsSnapshot?: ActLookupResponse[];
+  sectionsSnapshot?: SectionLookupResponse[];
+  subdistrictsSnapshot?: BoundaryMasterResponse[];
+  talukasSnapshot?: BoundaryMasterResponse[];
+  officesSnapshot?: OfficeResponse[];
 }
 
 @Component({
@@ -130,6 +139,9 @@ export class Category1ObjectionComponent {
 
   /** Stable client ref for filing API + session; show in UI. */
   protected readonly filingClientRef = signal('');
+  /** Locked date + suffix for {@link buildClientApplicationRef} until form reset / new filing. */
+  private clientRefDatePart = '';
+  private clientRefUniqueSuffix = '';
   protected readonly serverApplicationId = signal<number | null>(null);
   protected readonly applicantIdByClientRowKeySig = signal<Record<string, number>>({});
 
@@ -187,6 +199,8 @@ export class Category1ObjectionComponent {
 
   /** Set after a successful search (or when API returns a match). */
   protected readonly mutationDetails = signal<MutationDetailsView | null>(null);
+  /** Full list of applicant rows returned by the mutation API — shown as quick-fill suggestions on the PARTIES step. */
+  protected readonly mutationSuggestions = signal<UrbanMutationDetailResponse[]>([]);
   protected readonly mutationFound = signal(false);
   protected readonly searchedMutation = signal(false);
   protected readonly loadingNotice9 = signal(false);
@@ -289,16 +303,24 @@ export class Category1ObjectionComponent {
   }
 
   protected readonly applicantOptions = computed((): ApplicantOption[] => {
-    return this.applicants.controls.map((c) => {
+    return this.partyOptionsFromFormArray(this.applicants, 'Applicant');
+  });
+
+  protected readonly respondentOptions = computed((): ApplicantOption[] => {
+    return this.partyOptionsFromFormArray(this.respondents, 'Respondent');
+  });
+
+  private partyOptionsFromFormArray(arr: FormArray, fallbackLabel: string): ApplicantOption[] {
+    return arr.controls.map((c) => {
       const v = (c as any).getRawValue?.() as
         | { tempId?: string; firstName?: string; middleName?: string; lastName?: string; name?: string }
         | undefined;
       const id = v?.tempId || this.makeTempId();
       const fullName = [v?.firstName || '', v?.middleName || '', v?.lastName || ''].join(' ').trim();
-      const name = fullName || (v?.name || '').trim() || 'Applicant';
+      const name = fullName || (v?.name || '').trim() || fallbackLabel;
       return { id, name };
     });
-  });
+  }
 
   /** District for वकीलपत्र court line — step 1 ePICS district or mutation API `district_name`. */
   protected filingDistrictForVakalatnama(): string {
@@ -335,7 +357,6 @@ export class Category1ObjectionComponent {
   }
 
   protected removeApplicant(index: number): void {
-    if (this.applicants.length <= 1) return;
     this.applicants.removeAt(index);
   }
 
@@ -346,8 +367,108 @@ export class Category1ObjectionComponent {
   }
 
   protected removeRespondent(index: number): void {
-    if (this.respondents.length <= 1) return;
     this.respondents.removeAt(index);
+  }
+
+  // ─── Mutation suggestion helpers ───────────────────────────────────────────
+
+  protected suggestionDisplayName(detail: UrbanMutationDetailResponse): string {
+    return String(detail.applicant_name || '').trim() || '(no name)';
+  }
+
+  private parseSuggestionName(fullName: string): { firstName: string; middleName: string; lastName: string } {
+    const parts = (fullName || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return { firstName: '', middleName: '', lastName: '' };
+    if (parts.length === 1) return { firstName: parts[0], middleName: '', lastName: '' };
+    if (parts.length === 2) return { firstName: parts[0], middleName: '', lastName: parts[1] };
+    return {
+      firstName: parts[0],
+      middleName: parts.slice(1, -1).join(' '),
+      lastName: parts[parts.length - 1]
+    };
+  }
+
+  /**
+   * Pre-fills the first empty party row (or adds a new one) with the mutation-record data.
+   * Triggers pincode lookup automatically when the pin code is a valid 6-digit number.
+   */
+  protected applySuggestion(detail: UrbanMutationDetailResponse, role: 'applicant' | 'respondent'): void {
+    const arr = role === 'applicant' ? this.applicants : this.respondents;
+
+    // Find the first row where firstName is still blank
+    let targetIndex = -1;
+    for (let i = 0; i < arr.length; i++) {
+      const g = arr.at(i) as ReturnType<Category1ObjectionComponent['createPartyGroup']>;
+      if (!g.controls.firstName.getRawValue().trim()) {
+        targetIndex = i;
+        break;
+      }
+    }
+
+    // No blank row → append a new one
+    if (targetIndex === -1) {
+      if (role === 'applicant') {
+        this.addApplicant();
+      } else {
+        this.addRespondent();
+      }
+      targetIndex = arr.length - 1;
+    }
+
+    const group = arr.at(targetIndex) as ReturnType<Category1ObjectionComponent['createPartyGroup']>;
+    const { firstName, middleName, lastName } = this.parseSuggestionName(String(detail.applicant_name || ''));
+
+    const addressParts = [detail.address, detail.city]
+      .map((x) => String(x || '').trim())
+      .filter(Boolean)
+      .join(', ');
+
+    group.patchValue({
+      firstName,
+      middleName,
+      lastName,
+      mobile: String(detail.mobile_number || '').trim(),
+      email: String(detail.email_id || '').trim(),
+      address: addressParts,
+      pincode: String(detail.pin_code || '').trim()
+    });
+
+    // Auto-run pincode lookup so district/taluka dropdowns populate
+    const pincode = String(detail.pin_code || '').trim();
+    if (/^\d{6}$/.test(pincode)) {
+      this.lookupPincode(role, targetIndex);
+    }
+  }
+
+  /**
+   * Returns whether a suggestion is already present as an applicant, a respondent, or neither.
+   * Matches on mobile number (preferred) or full name as fallback.
+   * Because it reads live form values, the button re-enables automatically when the party row is removed.
+   */
+  protected suggestionAppliedAs(detail: UrbanMutationDetailResponse): 'applicant' | 'respondent' | null {
+    const mobile = String(detail.mobile_number || '').trim();
+    const name = String(detail.applicant_name || '').trim().toLowerCase();
+
+    const matchesRow = (arr: ReturnType<Category1ObjectionComponent['createPartyGroup']>[]): boolean => {
+      return arr.some((g) => {
+        const rowMobile = (g.controls.mobile.getRawValue() || '').trim();
+        if (mobile && rowMobile && rowMobile === mobile) return true;
+        if (!mobile || !rowMobile) {
+          const rowFirst = (g.controls.firstName.getRawValue() || '').trim().toLowerCase();
+          const rowLast = (g.controls.lastName.getRawValue() || '').trim().toLowerCase();
+          const rowFull = `${rowFirst} ${rowLast}`.trim();
+          return !!name && rowFull.length > 0 && name.startsWith(rowFirst) && rowFull.length > 2;
+        }
+        return false;
+      });
+    };
+
+    const appGroups = this.applicants.controls as ReturnType<Category1ObjectionComponent['createPartyGroup']>[];
+    const respGroups = this.respondents.controls as ReturnType<Category1ObjectionComponent['createPartyGroup']>[];
+
+    if (matchesRow(appGroups)) return 'applicant';
+    if (matchesRow(respGroups)) return 'respondent';
+    return null;
   }
 
   protected lookupPincode(role: 'applicant' | 'respondent', index: number): void {
@@ -439,8 +560,12 @@ export class Category1ObjectionComponent {
 
   private setupPartyGroupSubscriptions(group: ReturnType<Category1ObjectionComponent['createPartyGroup']>): void {
     group.controls.dob.valueChanges.subscribe((value) => {
-      const age = this.calculateAge(value || '');
-      group.controls.age.setValue(age ? String(age) : '', { emitEvent: false });
+      const calculated = this.calculateAge(value || '');
+      if (calculated !== null) {
+        // DOB entered — always update age with the calculated value
+        group.controls.age.setValue(String(calculated), { emitEvent: false });
+      }
+      // DOB cleared — leave age as-is (user may have typed it manually)
     });
   }
 
@@ -472,15 +597,11 @@ export class Category1ObjectionComponent {
   protected readonly sections = signal<SectionLookupResponse[]>([]);
 
   protected readonly sectionsForSelectedAct = computed((): Array<{ id: number; name: string }> => {
-    const list = this.sections().map((row) => ({
+    return this.sections().map((row) => ({
       id: row.id,
       name: row.sectionCode ? `${row.sectionCode} - ${row.sectionName}` : row.sectionName
     }));
-    // Always allow user to add a section if not found.
-    return [...list, { id: -1, name: 'Not in list (Add section)' }];
   });
-
-  protected readonly showCustomSection = computed(() => this.form.controls.sectionId.getRawValue() === -1);
 
   constructor() {
     this.loadingSubjects.set(true);
@@ -501,7 +622,8 @@ export class Category1ObjectionComponent {
           this.apiError.set(this.formatError(err));
           this.loadingSubjects.set(false);
           this.loadingDistricts.set(false);
-          this.filingClientRef.set(this.newClientRef());
+          this.resetClientRefSeedParts();
+          this.filingClientRef.set(this.buildClientApplicationRef());
           this.addApplicant();
           this.addRespondent();
           this.hydrating = false;
@@ -516,6 +638,7 @@ export class Category1ObjectionComponent {
     this.form.controls.subjectId.valueChanges.subscribe((subjectId) => {
       if (this.hydrating) return;
       this.selectedSubject.set(this.subjects().find((s) => s.id === subjectId) ?? null);
+      this.refreshFilingClientRefIfDraft();
       if (!this.isEpicsSubject()) {
         this.resetUrbanSearchChain();
         this.form.patchValue(
@@ -599,6 +722,7 @@ export class Category1ObjectionComponent {
         return;
       }
       this.selectedOffice.set(this.offices().find((o) => o.id === id) || null);
+      this.refreshFilingClientRefIfDraft();
     });
 
     this.form.controls.searchValue.valueChanges.subscribe(() => {
@@ -612,6 +736,7 @@ export class Category1ObjectionComponent {
     });
     this.form.controls.urbanDistrictCode.valueChanges.subscribe((districtCode) => {
       if (this.hydrating) return;
+      this.clearSearchResultState();
       this.form.patchValue(
         {
           urbanOfficeCode: '',
@@ -634,6 +759,7 @@ export class Category1ObjectionComponent {
     });
     this.form.controls.urbanOfficeCode.valueChanges.subscribe((officeCode) => {
       if (this.hydrating) return;
+      this.clearSearchResultState();
       this.form.patchValue(
         {
           urbanVillageCode: '',
@@ -651,9 +777,11 @@ export class Category1ObjectionComponent {
       this.urbanMutationTypeOptions.set([]);
       if (officeCode) this.loadUrbanSearchVillages(officeCode);
       this.syncEpicsUrbanOfficeSnapshot();
+      this.refreshFilingClientRefIfDraft();
     });
     this.form.controls.urbanVillageCode.valueChanges.subscribe(() => {
       if (this.hydrating) return;
+      this.clearSearchResultState();
       this.form.patchValue(
         {
           ctsNoInput: '',
@@ -682,7 +810,6 @@ export class Category1ObjectionComponent {
     this.form.controls.actId.valueChanges.subscribe((actId) => {
       if (this.hydrating) return;
       this.form.controls.sectionId.setValue(0);
-      this.form.controls.customSectionName.setValue('');
       this.sections.set([]);
       if (actId && actId > 0) {
         this.loadSections(actId);
@@ -720,10 +847,78 @@ export class Category1ObjectionComponent {
     return `rccms.category1.filing.v${CATEGORY1_SESSION_VERSION}.case${this.caseCategoryId()}`;
   }
 
-  private newClientRef(): string {
-    const cryptoObj = globalThis.crypto as Crypto | undefined;
-    if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
-    return `fil-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  /**
+   * Client application ref shown on vakalatnama and sent as `clientApplicationRef` on save.
+   * Format (adjust segments here when rules change):
+   *   `{YYYYMMDD}-{caseCategoryId}-{subjectCode}-{officeCode}-{unique}`
+   * Example: `20260516-C1-002-MHURB01-A3F2`
+   */
+  private buildClientApplicationRef(): string {
+    this.ensureClientRefSeedParts();
+    const appTypeCode = `C${this.caseCategoryId()}`;
+    const subjectCode = this.resolveSubjectCodeForRef();
+    const officeCode = this.resolveOfficeCodeForRef();
+    return `${this.clientRefDatePart}-${appTypeCode}-${subjectCode}-${officeCode}-${this.clientRefUniqueSuffix}`;
+  }
+
+  private ensureClientRefSeedParts(): void {
+    if (!this.clientRefDatePart) {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      this.clientRefDatePart = `${y}${m}${d}`;
+    }
+    if (!this.clientRefUniqueSuffix) {
+      this.clientRefUniqueSuffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+    }
+  }
+
+  private resetClientRefSeedParts(): void {
+    this.clientRefDatePart = '';
+    this.clientRefUniqueSuffix = '';
+  }
+
+  private resolveSubjectCodeForRef(): string {
+    const fromSelected = this.selectedSubject()?.subjectCode?.trim();
+    if (fromSelected) return this.sanitizeRefSegment(fromSelected);
+    const subjectId = Number(this.form.controls.subjectId.getRawValue() || 0);
+    if (subjectId > 0) {
+      const row = this.subjects().find((s) => s.id === subjectId);
+      if (row?.subjectCode?.trim()) return this.sanitizeRefSegment(row.subjectCode);
+    }
+    return 'NA';
+  }
+
+  private resolveOfficeCodeForRef(): string {
+    const urbanCode = this.form.controls.urbanOfficeCode.getRawValue().trim();
+    if (urbanCode) return this.sanitizeRefSegment(urbanCode);
+    const snap = this.epicsUrbanOfficeSnapshot();
+    if (snap?.code?.trim()) return this.sanitizeRefSegment(snap.code);
+    const officeId = Number(this.form.controls.officeId.getRawValue() || 0);
+    if (officeId > 0) {
+      const off =
+        this.selectedOffice() ?? this.offices().find((o) => o.id === officeId) ?? null;
+      if (off?.shortName?.trim()) return this.sanitizeRefSegment(off.shortName);
+      return `O${officeId}`;
+    }
+    return 'NA';
+  }
+
+  private sanitizeRefSegment(value: string): string {
+    const cleaned = String(value ?? '')
+      .trim()
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .toUpperCase();
+    return cleaned.slice(0, 16) || 'NA';
+  }
+
+  /** Rebuild ref from date / category / subject / office while draft is not saved on server. */
+  private refreshFilingClientRefIfDraft(): void {
+    if (this.hydrating) return;
+    if (this.serverApplicationId() != null && this.serverApplicationId()! > 0) return;
+    this.filingClientRef.set(this.buildClientApplicationRef());
+    this.schedulePersist();
   }
 
   private readSession(): Category1FilingSession | null {
@@ -757,9 +952,20 @@ export class Category1ObjectionComponent {
         mutationDetails: this.mutationDetails(),
         mutationFound: this.mutationFound(),
         searchedMutation: this.searchedMutation(),
-        notice9Resolved: this.notice9Resolved(),
+        notice9Resolved: this.compactNotice9ForSession(this.notice9Resolved()),
+        notice9InwardRef:
+          this.mutationDetails()?.inwardNumber?.trim() ||
+          this.form.controls.searchValue.getRawValue().trim() ||
+          null,
         manualAttachFileName: this.manualAttachFileName(),
-        manualNotice9FileName: this.manualNotice9FileName()
+        manualNotice9FileName: this.manualNotice9FileName(),
+        applicantPincodeLookup: { ...this.applicantPincodeLookup() },
+        respondentPincodeLookup: { ...this.respondentPincodeLookup() },
+        actsSnapshot: [...this.acts()],
+        sectionsSnapshot: [...this.sections()],
+        subdistrictsSnapshot: [...this.subdistricts()],
+        talukasSnapshot: [...this.talukas()],
+        officesSnapshot: [...this.offices()]
       };
       sessionStorage.setItem(this.sessionKey(), JSON.stringify(snapshot));
     } catch {
@@ -790,7 +996,8 @@ export class Category1ObjectionComponent {
 
     const snap = this.readSession();
     if (!snap || snap.v !== CATEGORY1_SESSION_VERSION || snap.caseCategoryId !== this.caseCategoryId()) {
-      this.filingClientRef.set(this.newClientRef());
+      this.resetClientRefSeedParts();
+      this.filingClientRef.set(this.buildClientApplicationRef());
       this.serverApplicationId.set(null);
       this.applicantIdByClientRowKeySig.set({});
       this.addApplicant();
@@ -817,6 +1024,28 @@ export class Category1ObjectionComponent {
     this.rebuildApplicantsAndRespondents(apps, resps);
     this.form.patchValue(scalarFields as object, { emitEvent: false });
 
+    if (snap.applicantPincodeLookup) {
+      this.applicantPincodeLookup.set({ ...snap.applicantPincodeLookup });
+    }
+    if (snap.respondentPincodeLookup) {
+      this.respondentPincodeLookup.set({ ...snap.respondentPincodeLookup });
+    }
+    if (snap.actsSnapshot?.length) {
+      this.acts.set(snap.actsSnapshot);
+    }
+    if (snap.sectionsSnapshot?.length) {
+      this.sections.set(snap.sectionsSnapshot);
+    }
+    if (snap.subdistrictsSnapshot?.length) {
+      this.subdistricts.set(snap.subdistrictsSnapshot);
+    }
+    if (snap.talukasSnapshot?.length) {
+      this.talukas.set(snap.talukasSnapshot);
+    }
+    if (snap.officesSnapshot?.length) {
+      this.offices.set(snap.officesSnapshot);
+    }
+
     this.disputedLands.set(snap.disputedLands ?? []);
     this.vakaltnamaAssignments.set(snap.vakaltnamaAssignments ?? []);
     this.vakaltnamaCoAdvocates.set(snap.vakaltnamaCoAdvocates ?? []);
@@ -840,6 +1069,8 @@ export class Category1ObjectionComponent {
     this.manualAttachFileName.set(snap.manualAttachFileName ?? null);
     this.manualNotice9FileName.set(snap.manualNotice9FileName ?? null);
     this.epicsUrbanOfficeSnapshot.set(snap.epicsUrbanOfficeSnapshot ?? null);
+
+    this.maybeRefetchNoticeNineAfterRestore(snap);
 
     const officeFallback = snap.selectedOffice ?? null;
     this.restoreLocationOfficeAndActChain(scalarFields, officeFallback);
@@ -882,17 +1113,25 @@ export class Category1ObjectionComponent {
     const deptId = this.selectedSubject()?.departmentId;
     const subPref = Number(scalarFields['subdistrictId'] ?? 0);
 
+    const actIdSaved = Number(scalarFields['actId'] ?? 0);
+    const sectionIdSaved = Number(scalarFields['sectionId'] ?? 0);
+
     const finish = (): void => {
       const officeIdSaved = Number(scalarFields['officeId'] ?? 0);
       this.form.controls.officeId.setValue(officeIdSaved, { emitEvent: false });
       this.selectedOffice.set(
         officeFallback ?? this.offices().find((o) => o.id === officeIdSaved) ?? null
       );
-      this.restoreSectionsThenHydrationDone(Number(scalarFields['actId'] ?? 0));
+      this.restoreSectionsThenHydrationDone(actIdSaved, sectionIdSaved);
     };
 
+    if (this.talukas().length > 0 && districtId > 0) {
+      finish();
+      return;
+    }
+
     if (!districtId || districtId < 1) {
-      this.finalizeHydration();
+      this.restoreSectionsThenHydrationDone(actIdSaved, sectionIdSaved);
       return;
     }
 
@@ -922,17 +1161,27 @@ export class Category1ObjectionComponent {
     });
   }
 
-  private restoreSectionsThenHydrationDone(actId: number): void {
-    if (actId > 0) {
+  private restoreSectionsThenHydrationDone(actId: number, sectionId = 0): void {
+    const applySection = (): void => {
+      if (sectionId !== 0) {
+        this.form.controls.sectionId.setValue(sectionId, { emitEvent: false });
+      }
+      if (actId > 0) {
+        this.form.controls.actId.setValue(actId, { emitEvent: false });
+      }
+      this.finalizeHydration();
+    };
+
+    if (actId > 0 && this.sections().length === 0) {
       this.lookups.getSections(actId).subscribe({
         next: (rows) => {
           this.sections.set(rows);
-          this.finalizeHydration();
+          applySection();
         },
-        error: () => this.finalizeHydration()
+        error: () => applySection()
       });
     } else {
-      this.finalizeHydration();
+      applySection();
     }
   }
 
@@ -944,15 +1193,21 @@ export class Category1ObjectionComponent {
     this.hydrating = false;
     this.setupPersistencePipeline();
     this.schedulePersist();
-    const village = this.form.controls.urbanVillageCode.getRawValue().trim();
-    if (this.isEpicsSubject() && this.form.controls.searchMode.getRawValue() === 'MUTATION_NUMBER' && village) {
-      this.loadUrbanMutationTypes();
-    }
+
+    const searchMode = this.form.controls.searchMode.getRawValue();
     const urbanDist = this.form.controls.urbanDistrictCode.getRawValue().trim();
+    const urbanOffice = this.form.controls.urbanOfficeCode.getRawValue().trim();
+    const urbanVillage = this.form.controls.urbanVillageCode.getRawValue().trim();
+
     if (this.isEpicsSubject() && urbanDist) {
-      this.loadUrbanSearchOffices(urbanDist);
+      this.restoreUrbanSearchDropdowns(urbanDist, urbanOffice);
     } else {
       this.syncEpicsUrbanOfficeSnapshot();
+    }
+
+    // Reload mutation-type list when mode is MUTATION_NUMBER and a village is already chosen
+    if (this.isEpicsSubject() && searchMode === 'MUTATION_NUMBER' && urbanVillage) {
+      this.loadUrbanMutationTypes();
     }
   }
 
@@ -1017,7 +1272,13 @@ export class Category1ObjectionComponent {
 
   private loadSections(actId: number): void {
     this.lookups.getSections(actId).subscribe({
-      next: (rows) => this.sections.set(rows),
+      next: (rows) => {
+        this.sections.set(rows);
+        // Auto-select when there is exactly one section so the user doesn't have to
+        if (rows.length === 1 && this.form.controls.sectionId.getRawValue() === 0) {
+          this.form.controls.sectionId.setValue(rows[0].id);
+        }
+      },
       error: (err: unknown) => this.apiError.set(this.formatError(err))
     });
   }
@@ -1050,6 +1311,29 @@ export class Category1ObjectionComponent {
           this.apiError.set(this.formatError(err));
           this.syncEpicsUrbanOfficeSnapshot();
         }
+      });
+  }
+
+  /**
+   * Restores the District → Office → Village dropdown chain after a session restore.
+   * Uses a single forkJoin so `loadingUrbanSearchChain` is toggled only once for both requests.
+   */
+  private restoreUrbanSearchDropdowns(districtCode: string, officeCode: string): void {
+    this.loadingUrbanSearchChain.set(true);
+    const offices$ = this.landRecords.getUrbanOffices(districtCode).pipe(catchError(() => of([])));
+    const villages$ = officeCode
+      ? this.landRecords.getUrbanVillages(officeCode).pipe(catchError(() => of([])))
+      : of([] as UrbanVillage[]);
+
+    forkJoin({ offices: offices$, villages: villages$ })
+      .pipe(finalize(() => this.loadingUrbanSearchChain.set(false)))
+      .subscribe({
+        next: ({ offices, villages }) => {
+          this.urbanSearchOffices.set((offices as UrbanOffice[]) || []);
+          this.urbanSearchVillages.set((villages as UrbanVillage[]) || []);
+          this.syncEpicsUrbanOfficeSnapshot();
+        },
+        error: () => this.syncEpicsUrbanOfficeSnapshot()
       });
   }
 
@@ -1089,7 +1373,8 @@ export class Category1ObjectionComponent {
     this.notice9Resolved.set({ available: false, sourceKind: null, url: null, previewKind: 'none' });
 
     forkJoin({
-      mutation: this.landRecords.getUrbanMutationDetail(v).pipe(catchError(() => of(null))),
+      // Use the list endpoint so we get ALL applicant rows (used for PARTIES suggestions)
+      mutations: this.landRecords.getUrbanMutationDetailList(v).pipe(catchError(() => of([] as UrbanMutationDetailResponse[]))),
       notice9: this.landRecords.getUrbanNoticeNineView(v).pipe(catchError(() => of(null)))
     })
       .pipe(
@@ -1099,14 +1384,17 @@ export class Category1ObjectionComponent {
         })
       )
       .subscribe({
-        next: ({ mutation, notice9 }) => {
+        next: ({ mutations, notice9 }) => {
           if (searchToken !== this.latestMutationSearchToken) return;
-          const hasDetail = this.hasMeaningfulMutationDetail(mutation);
+          // Store all records for suggestion panel on the PARTIES step
+          this.mutationSuggestions.set(mutations);
+          const first = mutations[0] ?? null;
+          const hasDetail = this.hasMeaningfulMutationDetail(first);
           if (!hasDetail) {
             this.mutationFound.set(false);
             this.mutationDetails.set(null);
           } else {
-            this.mutationDetails.set(this.toMutationDetailsView(mutation));
+            this.mutationDetails.set(this.toMutationDetailsView(first));
             this.mutationFound.set(true);
           }
           if (notice9) {
@@ -1120,6 +1408,7 @@ export class Category1ObjectionComponent {
           if (searchToken !== this.latestMutationSearchToken) return;
           this.mutationFound.set(false);
           this.mutationDetails.set(null);
+          this.mutationSuggestions.set([]);
           this.notice9Resolved.set({ available: false, sourceKind: null, url: null, previewKind: 'none' });
           this.apiError.set(this.formatError(err));
           this.schedulePersist();
@@ -1185,12 +1474,14 @@ export class Category1ObjectionComponent {
     if (row) {
       this.epicsUrbanOfficeSnapshot.set({ code: row.office_code, name: row.office_name });
     }
+    this.refreshFilingClientRefIfDraft();
     this.schedulePersist();
   }
 
   private clearSearchResultState(): void {
     this.mutationFound.set(false);
     this.mutationDetails.set(null);
+    this.mutationSuggestions.set([]);
     this.notice9Resolved.set({ available: false, sourceKind: null, url: null, previewKind: 'none' });
     this.manualAttachFileName.set(null);
     this.manualNotice9FileName.set(null);
@@ -1218,6 +1509,57 @@ export class Category1ObjectionComponent {
     this.syncEpicsUrbanOfficeSnapshot();
   }
 
+  protected isNotice9ImagePreview(url: string): boolean {
+    if (this.notice9Resolved().previewKind === 'image') return true;
+    const lower = (url || '').toLowerCase();
+    return lower.startsWith('data:image/') || /\.(png|jpg|jpeg|webp|gif)(\?|$)/.test(lower);
+  }
+
+  protected isNotice9PdfPreview(url: string): boolean {
+    if (this.notice9Resolved().previewKind === 'pdf') return true;
+    const lower = (url || '').toLowerCase();
+    return lower.startsWith('data:application/pdf') || lower.endsWith('.pdf');
+  }
+
+  private compactNotice9ForSession(n9: NoticeNineResolved): NoticeNineResolved {
+    if (n9.url && n9.url.length > 120_000) {
+      return { available: true, sourceKind: n9.sourceKind, url: null, previewKind: n9.previewKind };
+    }
+    return n9;
+  }
+
+  private maybeRefetchNoticeNineAfterRestore(snap: Category1FilingSession): void {
+    if (!snap.searchedMutation) return;
+    const inward =
+      snap.notice9InwardRef?.trim() ||
+      snap.mutationDetails?.inwardNumber?.trim() ||
+      String((snap.form as { searchValue?: string })?.searchValue || '').trim();
+    if (!inward) return;
+    const n9 = snap.notice9Resolved;
+    if (n9?.url && n9.available) return;
+    this.fetchNoticeNineForInward(inward);
+  }
+
+  private fetchNoticeNineForInward(inwardNumber: string): void {
+    const inward = inwardNumber.trim();
+    if (!inward) return;
+    this.loadingNotice9.set(true);
+    this.landRecords
+      .getUrbanNoticeNineView(inward)
+      .pipe(
+        catchError(() => of(null)),
+        finalize(() => this.loadingNotice9.set(false))
+      )
+      .subscribe({
+        next: (notice9) => {
+          if (notice9) {
+            this.applyNoticeNineViewResult(notice9);
+            this.schedulePersist();
+          }
+        }
+      });
+  }
+
   private applyNoticeNineViewResult(response: NoticeNineViewResponse | string | Record<string, unknown>): void {
     const resolved = this.resolveNoticeNine(response);
     this.notice9Resolved.set(resolved);
@@ -1230,59 +1572,76 @@ export class Category1ObjectionComponent {
     }
   }
 
+  private normalizeNoticeNinePayload(
+    response: NoticeNineViewResponse | string | Record<string, unknown> | null | undefined
+  ): NoticeNineViewResponse | string | Record<string, unknown> {
+    if (response == null) return {};
+    if (typeof response === 'string') return response;
+    if (typeof response !== 'object' || Array.isArray(response)) return {};
+    const o = response as Record<string, unknown>;
+    if (o['data'] != null) return this.normalizeNoticeNinePayload(o['data'] as typeof response);
+    if (o['result'] != null) return this.normalizeNoticeNinePayload(o['result'] as typeof response);
+    return o;
+  }
+
   private resolveNoticeNine(response: NoticeNineViewResponse | string | Record<string, unknown>): NoticeNineResolved {
     const empty: NoticeNineResolved = { available: false, sourceKind: null, url: null, previewKind: 'none' };
+    const payload = this.normalizeNoticeNinePayload(response);
 
-    if (typeof response === 'string') {
-      const cleaned = this.cleanText(response);
+    if (typeof payload === 'string') {
+      const cleaned = this.cleanText(payload);
       if (!cleaned) return empty;
-      if (cleaned.startsWith('data:')) {
-        return {
-          available: true,
-          sourceKind: 'data',
-          url: cleaned,
-          previewKind: this.detectPreviewKindFromUrl(cleaned)
-        };
-      }
+      const isData = cleaned.startsWith('data:');
       return {
         available: true,
-        sourceKind: 'external',
+        sourceKind: isData ? 'data' : 'external',
         url: cleaned,
         previewKind: this.detectPreviewKindFromUrl(cleaned)
       };
     }
 
-    const raw = response as NoticeNineViewResponse;
-    const type = this.cleanText(raw.type || '').toLowerCase();
+    const raw = payload as Record<string, unknown>;
+    const type = this.cleanText(String(raw['type'] ?? raw['Type'] ?? '')).toLowerCase();
+    const base64 = this.cleanText(
+      String(raw['base64'] ?? raw['Base64'] ?? raw['fileContent'] ?? raw['content'] ?? '')
+    );
+    const isBase64Payload = type === 'base64-file' || type === 'base64' || (!type && !!base64);
 
-    // Case 1: base64-file response
-    if (type === 'base64-file') {
-      const directDataUrl = this.cleanText(raw.dataUrl || '');
-      const mimeType = this.cleanText(raw.mimeType || 'application/octet-stream');
-      const base64 = this.cleanText(raw.base64 || '');
+    if (isBase64Payload) {
+      const directDataUrl = this.cleanText(
+        String(raw['dataUrl'] ?? raw['data_url'] ?? raw['dataURL'] ?? '')
+      );
+      const mimeType = this.cleanText(
+        String(
+          raw['mimeType'] ??
+            raw['mime_type'] ??
+            raw['contentType'] ??
+            raw['content_type'] ??
+            'application/octet-stream'
+        )
+      );
 
       let dataUrl = '';
       if (directDataUrl) {
         dataUrl = directDataUrl;
       } else if (base64) {
-        dataUrl = `data:${mimeType};base64,${base64}`;
+        const normalizedB64 = base64.replace(/\s/g, '');
+        dataUrl = `data:${mimeType};base64,${normalizedB64}`;
       }
       if (!dataUrl) return empty;
 
+      const previewKind = this.detectPreviewKindFromUrl(dataUrl, mimeType);
       return {
         available: true,
         sourceKind: 'data',
         url: dataUrl,
-        previewKind: mimeType.startsWith('image/')
-          ? 'image'
-          : mimeType === 'application/pdf'
-            ? 'pdf'
-            : this.detectPreviewKindFromUrl(dataUrl)
+        previewKind
       };
     }
 
-    // Case 2: url response
-    const rawUrl = this.cleanText(raw.url || raw.notice9Url || raw.fileUrl || '');
+    const rawUrl = this.cleanText(
+      String(raw['url'] ?? raw['notice9Url'] ?? raw['notice9_url'] ?? raw['fileUrl'] ?? raw['file_url'] ?? '')
+    );
     if (rawUrl) {
       const isData = rawUrl.startsWith('data:');
       return {
@@ -1293,7 +1652,6 @@ export class Category1ObjectionComponent {
       };
     }
 
-    // Case 3: unavailable
     return empty;
   }
 
@@ -1307,10 +1665,15 @@ export class Category1ObjectionComponent {
     return v;
   }
 
-  private detectPreviewKindFromUrl(url: string): 'image' | 'pdf' | 'none' {
+  private detectPreviewKindFromUrl(url: string, mimeType = ''): 'image' | 'pdf' | 'none' {
     const lower = url.toLowerCase();
+    const mime = mimeType.toLowerCase();
+    if (mime.startsWith('image/')) return 'image';
+    if (mime === 'application/pdf') return 'pdf';
     if (lower.startsWith('data:image/')) return 'image';
     if (lower.startsWith('data:application/pdf')) return 'pdf';
+    if (lower.includes('base64,/9j/') || lower.includes('base64,ivborw0kg')) return 'image';
+    if (lower.includes('base64,jvberi')) return 'pdf';
     if (lower.endsWith('.pdf')) return 'pdf';
     if (/\.(png|jpg|jpeg|webp|gif)(\?|$)/.test(lower)) return 'image';
     return 'none';
@@ -1498,7 +1861,8 @@ export class Category1ObjectionComponent {
 
     this.hydrating = true;
 
-    this.filingClientRef.set(this.newClientRef());
+    this.resetClientRefSeedParts();
+    this.filingClientRef.set(this.buildClientApplicationRef());
     this.serverApplicationId.set(null);
     this.applicantIdByClientRowKeySig.set({});
     this.stepIndex.set(0);
@@ -1757,12 +2121,20 @@ export class Category1ObjectionComponent {
       this.applicants.controls.forEach((g) => g.markAllAsTouched());
       this.respondents.controls.forEach((g) => g.markAllAsTouched());
     }
+    if (this.applicants.length < 1) {
+      this.apiError.set('At least one applicant is required. Please add applicant details.');
+      return false;
+    }
+    if (this.respondents.length < 1) {
+      this.apiError.set('At least one respondent is required. Please add respondent details.');
+      return false;
+    }
     if (!this.applicants.valid) {
-      this.apiError.set('Please complete all mandatory applicant details and valid pincode/mobile.');
+      this.apiError.set('Please complete all mandatory applicant details (name, mobile, pincode, address).');
       return false;
     }
     if (!this.respondents.valid) {
-      this.apiError.set('Please complete all mandatory respondent details and valid pincode/mobile.');
+      this.apiError.set('Please complete all mandatory respondent details (name, mobile, pincode, address).');
       return false;
     }
     return true;
@@ -1774,6 +2146,7 @@ export class Category1ObjectionComponent {
       this.apiError.set('Create at least one vakaltnama group with advocate and applicants.');
       return false;
     }
+    // Each applicant must appear in at least one group (can appear in multiple)
     const applicantIds = this.applicantOptions().map((a) => a.id);
     const covered = new Set<string>();
     for (const g of assignments) {
@@ -1783,13 +2156,9 @@ export class Category1ObjectionComponent {
     }
     for (const id of applicantIds) {
       if (!covered.has(id)) {
-        this.apiError.set('Each applicant must be assigned to exactly one vakaltnama group.');
+        this.apiError.set('Every applicant must be included in at least one vakaltnama group.');
         return false;
       }
-    }
-    if (covered.size !== applicantIds.length) {
-      this.apiError.set('Vakaltnama groups must cover each applicant once (no duplicate assignments).');
-      return false;
     }
     return true;
   }
@@ -1839,7 +2208,10 @@ export class Category1ObjectionComponent {
         officeName: row.officeName,
         villageCode: row.villageCode,
         villageName: row.villageName,
-        ctsNo: row.ctsNo
+        parentCtsNo: row.parentCtsNo || row.ctsNo,
+        subCtsNo: row.subCtsNo || null,
+        ctsNo: row.ctsNo,
+        propertyDetail: row.propertyDetail ?? null
       };
     });
   }

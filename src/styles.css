@@ -376,3 +376,119 @@ body {
     height: 420px;
   }
 }
+
+/* ── Mutation suggestion panel (PARTIES step) ───────────────────────────── */
+.rccms-app .suggestion-panel {
+  border: 1.5px solid #c7d9f5;
+  background: #f0f6ff;
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+
+.rccms-app .suggestion-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  margin-bottom: 10px;
+}
+
+.rccms-app .suggestion-title {
+  font-weight: 600;
+  font-size: 0.96rem;
+  color: #1a3a6b;
+}
+
+.rccms-app .suggestion-sub {
+  font-size: 0.82rem;
+  color: #5a6a85;
+}
+
+.rccms-app .suggestion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rccms-app .suggestion-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid #d0e4fb;
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.rccms-app .sug-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.rccms-app .sug-name {
+  font-size: 0.95rem;
+  color: #1a1a2e;
+  flex-basis: 100%;
+}
+
+.rccms-app .sug-detail {
+  font-size: 0.8rem;
+  color: #4a5568;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+
+.rccms-app .sug-address {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.rccms-app .sug-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+  align-items: flex-end;
+}
+
+.rccms-app .suggestion-card.sug-applied {
+  opacity: 0.72;
+  background: #f4f8f4;
+  border-color: #b6d9b6;
+}
+
+.rccms-app .sug-applied-badge {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #2e7d32;
+  white-space: nowrap;
+}
+
+.rccms-app .sug-applied-hint {
+  font-size: 0.74rem;
+  color: #6a8a6a;
+  white-space: nowrap;
+  text-align: right;
+}
+
+@media (max-width: 600px) {
+  .rccms-app .suggestion-card {
+    flex-direction: column;
+  }
+
+  .rccms-app .sug-actions {
+    flex-direction: row;
+    width: 100%;
+  }
+
+  .rccms-app .sug-actions .btn {
+    flex: 1;
+  }
+}

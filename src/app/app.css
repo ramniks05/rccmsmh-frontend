@@ -54,13 +54,30 @@
 }
 
 .top-nav a {
-  color: #ffffff;
+  color: rgba(255,255,255,0.9);
   text-decoration: none;
   font-weight: 500;
+  font-size: 0.9rem;
+  transition: color 120ms;
 }
 
 .top-nav a:hover {
-  text-decoration: underline;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.top-nav .nav-login-btn {
+  background: #f97316;
+  color: #ffffff;
+  padding: 0.4rem 1rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.top-nav .nav-login-btn:hover {
+  background: #ea6c0a;
+  text-decoration: none;
 }
 
 .content {
