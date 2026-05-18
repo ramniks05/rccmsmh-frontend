@@ -2,7 +2,7 @@ import { Component, computed, DestroyRef, inject, input, signal } from '@angular
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { catchError, debounceTime, finalize, forkJoin, map, merge, of, Subject } from 'rxjs';
+import { catchError, debounceTime, finalize, forkJoin, map, merge, of, Subject, switchMap } from 'rxjs';
 
 import { SubjectRecord, SubjectService } from '../../../services/subject.service';
 import {
@@ -23,6 +23,10 @@ import { ApplicantOption, VakaltnamaAssignment } from '../vakaltnama-panel/vakal
 import {
   LandRecordsService,
   NoticeNineViewResponse,
+  RuralDistrict,
+  RuralSubSurveyRow,
+  RuralTaluka,
+  RuralVillage,
   UrbanMutationDetailResponse,
   UrbanDistrict,
   UrbanOffice,
@@ -101,6 +105,12 @@ interface Category1FilingSession {
   mutationDetails: MutationDetailsView | null;
   mutationFound: boolean;
   searchedMutation: boolean;
+  rural712Searched?: boolean;
+  rural712SubSurveyRows?: RuralSubSurveyRow[];
+  selectedRural712Index?: number | null;
+  rural712LandDetails?: Record<string, unknown>[];
+  rural712SatbaraSigned?: boolean | null;
+  rural712SatbaraMessage?: string | null;
   notice9Resolved: NoticeNineResolved;
   /** Inward used for Notice 9 — refetch after refresh if preview URL was not stored. */
   notice9InwardRef?: string | null;
@@ -195,6 +205,43 @@ export class Category1ObjectionComponent {
     const name = String(subject.subjectName || '').trim().toUpperCase();
     return code === '002' || name.includes('EPICS') || name.includes('EPCS');
   });
+
+  /** Rural RoR / Eferfar (7/12) — subject code 001 or name indicates 7/12, ROR, Eferfar. */
+  protected readonly isRural712Subject = computed(() => {
+    const subject = this.selectedSubject();
+    if (!subject) return false;
+    if (this.isEpicsSubject()) return false;
+    const code = String(subject.subjectCode || '').trim().toUpperCase();
+    const name = String(subject.subjectName || '').trim().toUpperCase();
+    return (
+      code === '001' ||
+      name.includes('7/12') ||
+      name.includes('712') ||
+      name.includes('ROR') ||
+      name.includes('रोखा') ||
+      name.includes('EFARFAR') ||
+      name.includes('E-FERFAR') ||
+      name.includes('FERFAR') ||
+      name.includes('ईफेरफार') ||
+      name.includes('फेरफार')
+    );
+  });
+
+  protected readonly activeStepHint = computed(() => {
+    const step = this.activeStep();
+    if (step.key === 'DISPUTED_ORDER') {
+      if (this.isRural712Subject()) {
+        return 'Select Eferfar (7/12) subject, search the plot and review order details';
+      }
+      if (this.isEpicsSubject()) {
+        return 'Select ePICS subject, search mutation and review order details';
+      }
+    }
+    if (step.key === 'DISPUTED_LAND' && this.isRural712Subject()) {
+      return 'Add disputed 7/12 plots (Eferfar) from land records';
+    }
+    return step.hint;
+  });
   protected readonly selectedOffice = signal<OfficeResponse | null>(null);
 
   /** Set after a successful search (or when API returns a match). */
@@ -234,6 +281,41 @@ export class Category1ObjectionComponent {
     return this.urbanSearchMutations();
   });
 
+  protected readonly ruralSearchDistricts = signal<RuralDistrict[]>([]);
+  protected readonly ruralSearchTalukas = signal<RuralTaluka[]>([]);
+  protected readonly ruralSearchVillages = signal<RuralVillage[]>([]);
+  protected readonly rural712SubSurveyRows = signal<RuralSubSurveyRow[]>([]);
+  protected readonly loadingRural712Search = signal(false);
+  protected readonly rural712Searched = signal(false);
+  protected readonly selectedRural712Index = signal<number | null>(null);
+  protected readonly rural712LandDetails = signal<Record<string, unknown>[]>([]);
+  protected readonly loadingRural712LandDetail = signal(false);
+  protected readonly rural712LandDetailError = signal<string | null>(null);
+  protected readonly rural712SatbaraSigned = signal<boolean | null>(null);
+  protected readonly rural712SatbaraMessage = signal<string | null>(null);
+  protected readonly loadingRural712SatbaraCheck = signal(false);
+  protected readonly rural712SatbaraCheckError = signal<string | null>(null);
+  protected readonly loadingRural712SatbaraPdf = signal(false);
+  protected readonly rural712SatbaraPdfError = signal<string | null>(null);
+  protected readonly rural712SatbaraPdfUrl = signal<string | null>(null);
+
+  protected readonly rural712LandDetailColumns = computed(() => {
+    const rows = this.rural712LandDetails();
+    if (!rows.length) return [] as string[];
+    const keys = new Set<string>();
+    for (const row of rows.slice(0, 10)) {
+      Object.keys(row).forEach((k) => keys.add(k));
+    }
+    return Array.from(keys);
+  });
+
+  protected readonly selectedRural712Row = computed(() => {
+    const idx = this.selectedRural712Index();
+    const rows = this.rural712SubSurveyRows();
+    if (idx == null || idx < 0 || idx >= rows.length) return null;
+    return rows[idx];
+  });
+
   protected readonly form = this.fb.nonNullable.group({
     subjectId: [0, [Validators.required, Validators.min(1)]],
     districtId: [0],
@@ -245,6 +327,10 @@ export class Category1ObjectionComponent {
     searchValue: ['', [Validators.required, Validators.minLength(2)]],
     mutationYear: [''],
     mutationTypeFilter: [''],
+    ruralDistrictCode: [''],
+    ruralTalukaCode: [''],
+    ruralVillageLgdCode: [''],
+    ruralSurveyPin: [''],
     urbanDistrictCode: [''],
     urbanOfficeCode: [''],
     urbanVillageCode: [''],
@@ -322,8 +408,15 @@ export class Category1ObjectionComponent {
     });
   }
 
-  /** District for वकीलपत्र court line — step 1 ePICS district or mutation API `district_name`. */
+  /** District for वकीलपत्र court line — step 1 ePICS / 7/12 district or mutation API `district_name`. */
   protected filingDistrictForVakalatnama(): string {
+    if (this.isRural712Subject()) {
+      const ruralCode = (this.form.controls.ruralDistrictCode.getRawValue() || '').trim();
+      if (ruralCode) {
+        const ruralRow = this.ruralSearchDistricts().find((d) => d.district_code === ruralCode);
+        if (ruralRow?.district_name?.trim()) return ruralRow.district_name.trim();
+      }
+    }
     const fromApi = this.mutationDetails()?.districtName?.trim();
     if (fromApi) return fromApi;
     const code = (this.form.controls.urbanDistrictCode.getRawValue() || '').trim();
@@ -634,6 +727,7 @@ export class Category1ObjectionComponent {
     this.loadActs();
     this.loadOccupations();
     this.loadUrbanSearchDistricts();
+    this.loadRuralSearchDistricts();
 
     this.form.controls.subjectId.valueChanges.subscribe((subjectId) => {
       if (this.hydrating) return;
@@ -669,6 +763,9 @@ export class Category1ObjectionComponent {
         });
         this.manualAttachFileName.set(null);
         this.manualNotice9FileName.set(null);
+      }
+      if (!this.isRural712Subject()) {
+        this.resetRural712SearchChain();
       }
       this.resetLocationChain();
       if (subjectId && subjectId > 0) {
@@ -733,6 +830,49 @@ export class Category1ObjectionComponent {
       if (this.hydrating) return;
       this.clearSearchResultState();
       this.resetUrbanSearchChain();
+    });
+    this.form.controls.ruralDistrictCode.valueChanges.subscribe((districtCode) => {
+      if (this.hydrating) return;
+      this.clearRural712SearchState();
+      this.form.patchValue(
+        { ruralTalukaCode: '', ruralVillageLgdCode: '', ruralSurveyPin: '' },
+        { emitEvent: false }
+      );
+      this.ruralSearchTalukas.set([]);
+      this.ruralSearchVillages.set([]);
+      if (!districtCode?.trim()) return;
+      this.loadingRural712Search.set(true);
+      this.landRecords
+        .getRuralTalukas(districtCode.trim())
+        .pipe(finalize(() => this.loadingRural712Search.set(false)))
+        .subscribe({
+          next: (rows) => this.ruralSearchTalukas.set(rows || []),
+          error: (err: unknown) => this.apiError.set(this.formatError(err))
+        });
+    });
+    this.form.controls.ruralTalukaCode.valueChanges.subscribe((talukaCode) => {
+      if (this.hydrating) return;
+      this.clearRural712SearchState();
+      this.form.patchValue({ ruralVillageLgdCode: '', ruralSurveyPin: '' }, { emitEvent: false });
+      this.ruralSearchVillages.set([]);
+      const districtCode = this.form.controls.ruralDistrictCode.getRawValue().trim();
+      if (!districtCode || !talukaCode?.trim()) return;
+      this.loadingRural712Search.set(true);
+      this.landRecords
+        .getRuralVillages(districtCode, talukaCode.trim())
+        .pipe(finalize(() => this.loadingRural712Search.set(false)))
+        .subscribe({
+          next: (rows) => this.ruralSearchVillages.set(rows || []),
+          error: (err: unknown) => this.apiError.set(this.formatError(err))
+        });
+    });
+    this.form.controls.ruralVillageLgdCode.valueChanges.subscribe(() => {
+      if (this.hydrating) return;
+      this.clearRural712SearchState();
+    });
+    this.form.controls.ruralSurveyPin.valueChanges.subscribe(() => {
+      if (this.hydrating) return;
+      this.clearRural712SearchState();
     });
     this.form.controls.urbanDistrictCode.valueChanges.subscribe((districtCode) => {
       if (this.hydrating) return;
@@ -965,7 +1105,13 @@ export class Category1ObjectionComponent {
         sectionsSnapshot: [...this.sections()],
         subdistrictsSnapshot: [...this.subdistricts()],
         talukasSnapshot: [...this.talukas()],
-        officesSnapshot: [...this.offices()]
+        officesSnapshot: [...this.offices()],
+        rural712Searched: this.rural712Searched(),
+        rural712SubSurveyRows: [...this.rural712SubSurveyRows()],
+        selectedRural712Index: this.selectedRural712Index(),
+        rural712LandDetails: [...this.rural712LandDetails()],
+        rural712SatbaraSigned: this.rural712SatbaraSigned(),
+        rural712SatbaraMessage: this.rural712SatbaraMessage()
       };
       sessionStorage.setItem(this.sessionKey(), JSON.stringify(snapshot));
     } catch {
@@ -1069,6 +1215,20 @@ export class Category1ObjectionComponent {
     this.manualAttachFileName.set(snap.manualAttachFileName ?? null);
     this.manualNotice9FileName.set(snap.manualNotice9FileName ?? null);
     this.epicsUrbanOfficeSnapshot.set(snap.epicsUrbanOfficeSnapshot ?? null);
+    this.rural712Searched.set(!!snap.rural712Searched);
+    this.rural712SubSurveyRows.set(snap.rural712SubSurveyRows ?? []);
+    this.selectedRural712Index.set(
+      snap.selectedRural712Index != null && snap.selectedRural712Index >= 0
+        ? snap.selectedRural712Index
+        : null
+    );
+    this.rural712LandDetails.set(snap.rural712LandDetails ?? []);
+    this.rural712SatbaraSigned.set(snap.rural712SatbaraSigned ?? null);
+    this.rural712SatbaraMessage.set(snap.rural712SatbaraMessage ?? null);
+    const restoredRuralRow = this.selectedRural712Row();
+    if (restoredRuralRow && this.form.controls.ruralVillageLgdCode.getRawValue().trim()) {
+      this.fetchRural712RowDetails(restoredRuralRow);
+    }
 
     this.maybeRefetchNoticeNineAfterRestore(snap);
 
@@ -1209,6 +1369,12 @@ export class Category1ObjectionComponent {
     if (this.isEpicsSubject() && searchMode === 'MUTATION_NUMBER' && urbanVillage) {
       this.loadUrbanMutationTypes();
     }
+
+    const ruralDist = this.form.controls.ruralDistrictCode.getRawValue().trim();
+    const ruralTal = this.form.controls.ruralTalukaCode.getRawValue().trim();
+    if (this.isRural712Subject() && ruralDist) {
+      this.restoreRuralSearchDropdowns(ruralDist, ruralTal);
+    }
   }
 
   protected loadSubjects(): void {
@@ -1295,6 +1461,406 @@ export class Category1ObjectionComponent {
       next: (rows) => this.urbanSearchDistricts.set(rows || []),
       error: (err: unknown) => this.apiError.set(this.formatError(err))
     });
+  }
+
+  private loadRuralSearchDistricts(): void {
+    this.landRecords.getRuralDistricts().subscribe({
+      next: (rows) => this.ruralSearchDistricts.set(rows || []),
+      error: (err: unknown) => this.apiError.set(this.formatError(err))
+    });
+  }
+
+  private restoreRuralSearchDropdowns(districtCode: string, talukaCode: string): void {
+    this.loadingRural712Search.set(true);
+    const taluka$ = this.landRecords.getRuralTalukas(districtCode);
+    const village$ =
+      talukaCode.trim().length > 0
+        ? this.landRecords.getRuralVillages(districtCode, talukaCode)
+        : of([] as RuralVillage[]);
+    forkJoin({ talukas: taluka$, villages: village$ })
+      .pipe(finalize(() => this.loadingRural712Search.set(false)))
+      .subscribe({
+        next: ({ talukas, villages }) => {
+          this.ruralSearchTalukas.set(talukas || []);
+          this.ruralSearchVillages.set(villages || []);
+        },
+        error: (err: unknown) => this.apiError.set(this.formatError(err))
+      });
+  }
+
+  protected performRural712Search(): void {
+    if (!this.isRural712Subject()) {
+      this.apiError.set('7/12 search is available only for rural RoR (7/12) subjects.');
+      return;
+    }
+    const districtCode = this.form.controls.ruralDistrictCode.getRawValue().trim();
+    const talukaCode = this.form.controls.ruralTalukaCode.getRawValue().trim();
+    const villageLgd = this.form.controls.ruralVillageLgdCode.getRawValue().trim();
+    const pin = this.form.controls.ruralSurveyPin.getRawValue().trim();
+    if (!districtCode) {
+      this.apiError.set('Please select district.');
+      return;
+    }
+    if (!talukaCode) {
+      this.apiError.set('Please select taluka.');
+      return;
+    }
+    if (!villageLgd) {
+      this.apiError.set('Please select village.');
+      return;
+    }
+    if (!pin) {
+      this.apiError.set('Please enter survey number (pin).');
+      return;
+    }
+    this.apiError.set(null);
+    this.loadingRural712Search.set(true);
+    this.rural712SubSurveyRows.set([]);
+    this.rural712LandDetails.set([]);
+    this.rural712LandDetailError.set(null);
+    this.clearRural712SatbaraState();
+    this.rural712Searched.set(true);
+    this.landRecords
+      .getRuralSubSurveyList(villageLgd, pin)
+      .pipe(finalize(() => this.loadingRural712Search.set(false)))
+      .subscribe({
+        next: (rows) => {
+          const list = rows || [];
+          this.rural712SubSurveyRows.set(list);
+          this.selectedRural712Index.set(list.length > 0 ? 0 : null);
+          if (!list.length) {
+            this.rural712LandDetails.set([]);
+            this.apiError.set('No 7/12 / Eferfar records found for this survey number.');
+          } else {
+            this.fetchRural712RowDetails(list[0]);
+          }
+          this.schedulePersist();
+        },
+        error: (err: unknown) => {
+          this.apiError.set(this.formatError(err));
+          this.schedulePersist();
+        }
+      });
+  }
+
+  protected addRural712PlotToDisputedLands(row: RuralSubSurveyRow): void {
+    const dist = this.ruralSearchDistricts().find(
+      (d) => d.district_code.trim() === this.form.controls.ruralDistrictCode.getRawValue().trim()
+    );
+    const tal = this.ruralSearchTalukas().find(
+      (t) => t.taluka_code.trim() === this.form.controls.ruralTalukaCode.getRawValue().trim()
+    );
+    const vil = this.ruralSearchVillages().find(
+      (v) => v.lgd_village_code.trim() === this.form.controls.ruralVillageLgdCode.getRawValue().trim()
+    );
+    if (!dist || !tal || !vil) return;
+    const key = `RURAL|${vil.lgd_village_code.trim()}|${row.pin}|${row.pin1}|${row.pin2}|${row.pin3}|${row.pin4}|${row.pin5}|${row.pin6}|${row.pin7}|${row.pin8}`;
+    const existing = this.disputedLands();
+    if (existing.some((x) => this.disputedLandKey(x) === key)) {
+      this.apiError.set('This plot is already in disputed land list.');
+      return;
+    }
+
+    const pushRow = (landDetail: Record<string, unknown>[] | undefined) => {
+      const next: DisputedLandRow = {
+        type: 'RURAL_7_12',
+        districtCode: dist.district_code.trim(),
+        districtName: dist.district_name,
+        talukaCode: tal.taluka_code.trim(),
+        talukaName: tal.taluka_name,
+        villageLgdCode: vil.lgd_village_code.trim(),
+        villageName: vil.village_name,
+        pin: row.pin,
+        pinParts: {
+          pin1: row.pin1,
+          pin2: row.pin2,
+          pin3: row.pin3,
+          pin4: row.pin4,
+          pin5: row.pin5,
+          pin6: row.pin6,
+          pin7: row.pin7,
+          pin8: row.pin8
+        },
+        landDetail: landDetail?.length ? landDetail : undefined
+      };
+      this.disputedLands.set([...existing, next]);
+      this.apiMessage.set('Plot added to disputed land list (see Disputed land step).');
+      this.schedulePersist();
+    };
+
+    pushRow(undefined);
+  }
+
+  protected rural712PinLabel(r: RuralSubSurveyRow): string {
+    const parts = [r.pin1, r.pin2, r.pin3, r.pin4, r.pin5, r.pin6, r.pin7, r.pin8]
+      .map((x) => String(x || '').trim())
+      .filter(Boolean);
+    return parts.length ? `${r.pin} (${parts.join('')})` : r.pin;
+  }
+
+  protected selectRural712OrderRow(index: number): void {
+    if (index < 0 || index >= this.rural712SubSurveyRows().length) return;
+    this.selectedRural712Index.set(index);
+    const row = this.rural712SubSurveyRows()[index];
+    if (row) this.fetchRural712RowDetails(row);
+    this.schedulePersist();
+  }
+
+  protected viewRural712SatbaraPdf(): void {
+    const row = this.selectedRural712Row();
+    if (!row) {
+      this.rural712SatbaraPdfError.set('Select a 7/12 row from the table below first.');
+      return;
+    }
+    const existing = this.rural712SatbaraPdfUrl();
+    if (existing) {
+      this.openRural712SatbaraPdfInNewTab(existing);
+      return;
+    }
+    this.fetchRural712SatbaraPdfForRow(row, 'view');
+  }
+
+  protected downloadRural712SatbaraPdf(): void {
+    const row = this.selectedRural712Row();
+    if (!row) {
+      this.rural712SatbaraPdfError.set('Select a 7/12 row from the table below first.');
+      return;
+    }
+    const existing = this.rural712SatbaraPdfUrl();
+    if (existing) {
+      this.triggerRural712SatbaraDownload(existing);
+      return;
+    }
+    this.fetchRural712SatbaraPdfForRow(row, 'download');
+  }
+
+  protected formatRural712LandDetailCell(value: unknown): string {
+    if (value == null) return '';
+    if (typeof value === 'object') {
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    }
+    return String(value);
+  }
+
+  private rural712LandDetailParams(row: RuralSubSurveyRow) {
+    return {
+      villageLgdCode: this.form.controls.ruralVillageLgdCode.getRawValue().trim(),
+      pin: row.pin,
+      pin1: row.pin1,
+      pin2: row.pin2,
+      pin3: row.pin3,
+      pin4: row.pin4,
+      pin5: row.pin5,
+      pin6: row.pin6,
+      pin7: row.pin7,
+      pin8: row.pin8
+    };
+  }
+
+  /** Eferfar row details: check signed → PDF (VII). Land area (G2B) API disabled for now. */
+  private fetchRural712RowDetails(row: RuralSubSurveyRow): void {
+    this.fetchRural712SatbaraChainForRow(row);
+  }
+
+  /**
+   * Step VI — check digitally signed Satbara when a row is selected.
+   * PDF is loaded on demand via View / Download (large files are not embedded on the page).
+   */
+  private fetchRural712SatbaraChainForRow(row: RuralSubSurveyRow): void {
+    const villageLgd = this.form.controls.ruralVillageLgdCode.getRawValue().trim();
+    if (!villageLgd) return;
+    const params = this.rural712LandDetailParams(row);
+    this.clearRural712SatbaraState();
+    this.loadingRural712SatbaraCheck.set(true);
+    this.landRecords
+      .checkRuralSatbaraDigitallySigned(params)
+      .pipe(finalize(() => this.loadingRural712SatbaraCheck.set(false)))
+      .subscribe({
+        next: (result) => {
+          this.rural712SatbaraSigned.set(result.digitallySigned);
+          this.rural712SatbaraMessage.set(result.message ?? null);
+          this.schedulePersist();
+        },
+        error: (err: unknown) => {
+          this.rural712SatbaraCheckError.set(this.formatError(err));
+          this.schedulePersist();
+        }
+      });
+  }
+
+  private fetchRural712SatbaraPdfForRow(
+    row: RuralSubSurveyRow,
+    afterLoad: 'view' | 'download' | null = null
+  ): void {
+    const previous = this.rural712SatbaraPdfUrl();
+    if (previous?.startsWith('blob:')) {
+      URL.revokeObjectURL(previous);
+    }
+    this.rural712SatbaraPdfError.set(null);
+    this.rural712SatbaraPdfUrl.set(null);
+    this.loadingRural712SatbaraPdf.set(true);
+    this.landRecords
+      .getRuralDigitallySignedSatbaraPdf(this.rural712LandDetailParams(row))
+      .pipe(finalize(() => this.loadingRural712SatbaraPdf.set(false)))
+      .subscribe({
+        next: (pdf) => {
+          this.applyRural712SatbaraPdf(pdf);
+          const url = this.rural712SatbaraPdfUrl();
+          if (url && afterLoad === 'view') {
+            this.openRural712SatbaraPdfInNewTab(url);
+          } else if (url && afterLoad === 'download') {
+            this.triggerRural712SatbaraDownload(url);
+          }
+          this.schedulePersist();
+        },
+        error: (err: unknown) => {
+          this.rural712SatbaraPdfError.set(this.formatError(err));
+          this.schedulePersist();
+        }
+      });
+  }
+
+  private openRural712SatbaraPdfInNewTab(url: string): void {
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      this.rural712SatbaraPdfError.set(
+        'Pop-up blocked. Allow pop-ups for this site, or use Download Satbara PDF.'
+      );
+    }
+  }
+
+  private triggerRural712SatbaraDownload(url: string): void {
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'satbara-7-12.pdf';
+    anchor.rel = 'noopener';
+    anchor.click();
+  }
+
+  private applyRural712SatbaraPdf(pdf: { dataUrl: string; mimeType: string }): void {
+    const previous = this.rural712SatbaraPdfUrl();
+    if (previous?.startsWith('blob:')) {
+      URL.revokeObjectURL(previous);
+    }
+
+    const url = pdf.dataUrl.trim();
+    if (!url) {
+      this.rural712SatbaraPdfError.set('Satbara PDF response was empty.');
+      return;
+    }
+
+    const blobUrl = this.toSatbaraPdfBlobUrl(url) ?? url;
+    if (!blobUrl) {
+      this.rural712SatbaraPdfError.set('Could not prepare Satbara PDF for viewing.');
+      return;
+    }
+
+    this.rural712SatbaraPdfUrl.set(blobUrl);
+    this.rural712SatbaraPdfError.set(null);
+  }
+
+  /** Blob URL for view/download in a new tab (large PDFs are not embedded on the page). */
+  private toSatbaraPdfBlobUrl(dataUrl: string): string | null {
+    const trimmed = dataUrl.trim();
+    if (trimmed.startsWith('blob:') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    if (!trimmed.toLowerCase().startsWith('data:')) {
+      return null;
+    }
+    const comma = trimmed.indexOf(',');
+    if (comma < 0) return null;
+    const meta = trimmed.slice(0, comma).toLowerCase();
+    const payload = trimmed.slice(comma + 1).replace(/\s/g, '');
+    if (!meta.includes('application/pdf') && !payload.startsWith('JVBERi')) {
+      return null;
+    }
+    try {
+      const binary = atob(payload);
+      if (!binary.startsWith('%PDF')) {
+        return null;
+      }
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      return URL.createObjectURL(blob);
+    } catch {
+      return trimmed;
+    }
+  }
+
+  private clearRural712SatbaraState(): void {
+    const prev = this.rural712SatbaraPdfUrl();
+    if (prev?.startsWith('blob:')) {
+      URL.revokeObjectURL(prev);
+    }
+    this.rural712SatbaraSigned.set(null);
+    this.rural712SatbaraMessage.set(null);
+    this.rural712SatbaraCheckError.set(null);
+    this.rural712SatbaraPdfError.set(null);
+    this.rural712SatbaraPdfUrl.set(null);
+    this.loadingRural712SatbaraCheck.set(false);
+    this.loadingRural712SatbaraPdf.set(false);
+  }
+
+  protected rural712LocationSummary(): string {
+    const dist = this.ruralSearchDistricts().find(
+      (d) => d.district_code === this.form.controls.ruralDistrictCode.getRawValue().trim()
+    );
+    const tal = this.ruralSearchTalukas().find(
+      (t) => t.taluka_code === this.form.controls.ruralTalukaCode.getRawValue().trim()
+    );
+    const vil = this.ruralSearchVillages().find(
+      (v) => v.lgd_village_code === this.form.controls.ruralVillageLgdCode.getRawValue().trim()
+    );
+    const pin = this.form.controls.ruralSurveyPin.getRawValue().trim();
+    return [dist?.district_name, tal?.taluka_name, vil?.village_name, pin ? `Pin ${pin}` : '']
+      .filter(Boolean)
+      .join(' / ');
+  }
+
+  protected rural712ReadonlyLocationLabel(): string {
+    const s = this.rural712LocationSummary();
+    return s || '— Complete 7/12 search on step 1 —';
+  }
+
+  private disputedLandKey(x: DisputedLandRow): string {
+    if (x.type === 'RURAL_7_12') {
+      const p = x.pinParts;
+      return `RURAL|${x.villageLgdCode}|${x.pin}|${p.pin1}|${p.pin2}|${p.pin3}|${p.pin4}|${p.pin5}|${p.pin6}|${p.pin7}|${p.pin8}`;
+    }
+    return `URBAN|${x.villageCode}|${x.ctsNo}|${x.subCtsNo || ''}`;
+  }
+
+  private clearRural712SearchState(): void {
+    this.rural712Searched.set(false);
+    this.rural712SubSurveyRows.set([]);
+    this.selectedRural712Index.set(null);
+    this.rural712LandDetails.set([]);
+    this.rural712LandDetailError.set(null);
+    this.loadingRural712LandDetail.set(false);
+    this.clearRural712SatbaraState();
+  }
+
+  private resetRural712SearchChain(): void {
+    this.form.patchValue(
+      {
+        ruralDistrictCode: '',
+        ruralTalukaCode: '',
+        ruralVillageLgdCode: '',
+        ruralSurveyPin: ''
+      },
+      { emitEvent: false }
+    );
+    this.ruralSearchTalukas.set([]);
+    this.ruralSearchVillages.set([]);
+    this.clearRural712SearchState();
   }
 
   private loadUrbanSearchOffices(districtCode: string): void {
@@ -1625,7 +2191,11 @@ export class Category1ObjectionComponent {
       if (directDataUrl) {
         dataUrl = directDataUrl;
       } else if (base64) {
-        const normalizedB64 = base64.replace(/\s/g, '');
+        const normalizedB64 = base64
+          .replace(/\\r\\n/g, '')
+          .replace(/\\n/g, '')
+          .replace(/\\r/g, '')
+          .replace(/\s/g, '');
         dataUrl = `data:${mimeType};base64,${normalizedB64}`;
       }
       if (!dataUrl) return empty;
@@ -2032,6 +2602,35 @@ export class Category1ObjectionComponent {
       this.apiError.set('Please select subject.');
       return false;
     }
+    if (this.isRural712Subject()) {
+      if (markTouched) {
+        this.form.controls.ruralDistrictCode.markAsTouched();
+        this.form.controls.ruralTalukaCode.markAsTouched();
+        this.form.controls.ruralVillageLgdCode.markAsTouched();
+        this.form.controls.ruralSurveyPin.markAsTouched();
+      }
+      const districtCode = this.form.controls.ruralDistrictCode.getRawValue().trim();
+      const talukaCode = this.form.controls.ruralTalukaCode.getRawValue().trim();
+      const villageLgd = this.form.controls.ruralVillageLgdCode.getRawValue().trim();
+      const pin = this.form.controls.ruralSurveyPin.getRawValue().trim();
+      if (!districtCode || !talukaCode || !villageLgd || !pin) {
+        this.apiError.set('Complete district, taluka, village and survey number, then search.');
+        return false;
+      }
+      if (!this.rural712Searched()) {
+        this.apiError.set('Please run Search for 7/12 records before continuing.');
+        return false;
+      }
+      if (this.rural712SubSurveyRows().length === 0) {
+        this.apiError.set('No 7/12 / Eferfar records found — adjust search criteria or verify survey number.');
+        return false;
+      }
+      if (this.selectedRural712Index() == null) {
+        this.apiError.set('Select the 7/12 record that is the disputed order.');
+        return false;
+      }
+      return true;
+    }
     if (!this.isEpicsSubject()) {
       return true;
     }
@@ -2195,7 +2794,8 @@ export class Category1ObjectionComponent {
           pin5: row.pinParts.pin5,
           pin6: row.pinParts.pin6,
           pin7: row.pinParts.pin7,
-          pin8: row.pinParts.pin8
+          pin8: row.pinParts.pin8,
+          landDetail: row.landDetail?.length ? row.landDetail : null
         };
       }
       return {

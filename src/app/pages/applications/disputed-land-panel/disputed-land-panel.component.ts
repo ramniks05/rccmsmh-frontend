@@ -27,6 +27,8 @@ export type DisputedLandRow =
       villageName: string;
       pin: string;
       pinParts: Omit<RuralSubSurveyRow, 'pin'>;
+      /** Mahabhumi land area / 7/12 detail rows from land-detail-survey-wise API. */
+      landDetail?: Record<string, unknown>[];
     }
   | {
       type: 'URBAN_PROPERTY_CARD';
@@ -83,6 +85,19 @@ export class DisputedLandPanelComponent {
   protected readonly urbanSelectedSubCts = signal('');
   protected readonly loadingSubCts = signal(false);
   protected readonly loadingPropertyDetails = signal(false);
+  protected readonly ruralLandDetailPreview = signal<Record<string, unknown>[]>([]);
+  protected readonly loadingRuralLandDetail = signal(false);
+  protected readonly ruralLandDetailPreviewKey = signal<string | null>(null);
+
+  protected readonly ruralLandDetailColumns = computed(() => {
+    const rows = this.ruralLandDetailPreview();
+    if (!rows.length) return [] as string[];
+    const keys = new Set<string>();
+    for (const row of rows.slice(0, 10)) {
+      Object.keys(row).forEach((k) => keys.add(k));
+    }
+    return Array.from(keys);
+  });
 
   protected readonly canLoadUrbanSubCts = computed(() => {
     return (
@@ -112,6 +127,8 @@ export class DisputedLandPanelComponent {
     this.mode.set(next);
     this.error.set(null);
     this.ruralSubSurveyRows.set([]);
+    this.ruralLandDetailPreview.set([]);
+    this.ruralLandDetailPreviewKey.set(null);
     this.urbanSubCtsRows.set([]);
     this.urbanPropertyDetails.set([]);
     this.ruralDistrictCode.set('');
@@ -183,15 +200,66 @@ export class DisputedLandPanelComponent {
   protected onRuralVillageChange(lgdCode: string): void {
     this.ruralVillageLgdCode.set(lgdCode);
     this.ruralSubSurveyRows.set([]);
+    this.ruralLandDetailPreview.set([]);
+    this.ruralLandDetailPreviewKey.set(null);
   }
 
   protected setRuralPin(v: string): void {
     this.ruralPin.set(v);
   }
 
-  /** Rural 7/12 search API is not available yet — no action on search. */
   protected searchRural(): void {
+    const village = this.ruralVillageLgdCode().trim();
+    const pin = this.ruralPin().trim();
+    if (!this.ruralDistrictCode().trim()) {
+      this.error.set('Please select district.');
+      return;
+    }
+    if (!this.ruralTalukaCode().trim()) {
+      this.error.set('Please select taluka.');
+      return;
+    }
+    if (!village) {
+      this.error.set('Please select village.');
+      return;
+    }
+    if (!pin) {
+      this.error.set('Please enter survey number (pin).');
+      return;
+    }
     this.error.set(null);
+    this.loading.set(true);
+    this.ruralSubSurveyRows.set([]);
+    this.ruralLandDetailPreview.set([]);
+    this.ruralLandDetailPreviewKey.set(null);
+    this.api
+      .getRuralSubSurveyList(village, pin)
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: (rows) => {
+          this.ruralSubSurveyRows.set(rows || []);
+          if (!rows?.length) {
+            this.error.set('No 7/12 records found for this survey number.');
+          }
+        },
+        error: (e) => this.error.set(this.formatError(e))
+      });
+  }
+
+  protected ruralPinLabel(r: RuralSubSurveyRow): string {
+    const parts = [r.pin1, r.pin2, r.pin3, r.pin4, r.pin5, r.pin6, r.pin7, r.pin8]
+      .map((x) => String(x || '').trim())
+      .filter(Boolean);
+    return parts.length ? parts.join('') : '—';
+  }
+
+  protected ruralRowPreviewKey(r: RuralSubSurveyRow): string {
+    const v = this.ruralVillageLgdCode().trim();
+    return `${v}|${r.pin}|${r.pin1}|${r.pin2}|${r.pin3}|${r.pin4}|${r.pin5}|${r.pin6}|${r.pin7}|${r.pin8}`;
+  }
+
+  protected loadRuralLandDetailPreview(_r: RuralSubSurveyRow): void {
+    this.error.set('Land area details (G2B) are temporarily disabled.');
   }
 
   protected addRuralRow(r: RuralSubSurveyRow): void {
