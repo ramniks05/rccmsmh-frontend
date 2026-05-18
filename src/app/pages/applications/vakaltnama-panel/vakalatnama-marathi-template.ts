@@ -4,7 +4,6 @@
  */
 
 export interface VakalatnamaMarathiVars {
-  // Existing fields (kept for backward compatibility during testing)
   applicationNo: string;
   courtPlace: string;
   courtOfficeName: string;
@@ -22,14 +21,6 @@ export interface VakalatnamaMarathiVars {
   dateDay: string;
   monthMah: string;
   yearTwoDigits: string;
-
-  // New fields for updated template
-  applicantNames?: string[];       // numbered list १.२.३.४. under अर्जदार / वादी
-  respondentNames?: string[];      // numbered list १.२.३.४. under प्रतिवादी / जवाबदार
-  representativeAddress?: string;  // रा. [address]
-  advocateName?: string;           // अधिवक्ता श्री. [name]
-  advocateRegistrationNo?: string; // अधिवक्ता नोंदणी क्र. [reg]
-  footerPlace?: string;            // ठिकाण : [place]
 }
 
 const DEVANAGARI_DIGITS = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'] as const;
@@ -79,308 +70,202 @@ function buildSignatureListHtml(names: string[]): string {
 }
 
 export function buildMarathiVakalatnamaHtml(v: VakalatnamaMarathiVars): string {
-  const matterDescription =v.matterDescription ?? '';
-
-  const advocateBarCouncilNumber =
-    matterDescription.match(/\((\d+)\)\s*$/)?.[1] || '';
-
   const appNo = orBlank(v.applicationNo);
   const courtPlace = orBlank(v.courtPlace);
   const courtOffice = orBlank(v.courtOfficeName);
   const caseNo = orBlank(v.caseNumber);
   const caseYy = orBlank(v.caseYearTwoDigits);
+  const applicant = orBlank(v.applicantLine);
+  const resp1 = orBlank(v.respondentLine1);
+  const resp2 = orBlank(v.respondentLine2);
   const selfLine = orBlank(v.representativeSelfLine);
   const pronoun = v.representativePronoun === 'आम्ही' ? 'आम्ही' : 'मी';
-  const addressLine = orBlank(v.representativeAddress ?? '');
-  const advocateName = orBlank(v.advocateName ?? v.advocateEmpoweredLine);
-  const advocateReg = orBlank(v.advocateRegistrationNo ?? '');
   const matter = orBlank(v.matterDescription);
+  const advocates = orBlank(v.advocateEmpoweredLine);
   const deed = orBlank(v.deedLine);
   const day = orBlank(v.dateDay);
   const month = orBlank(v.monthMah);
   const yy = orBlank(v.yearTwoDigits);
-  const place = orBlank(v.footerPlace ?? '');
-  const yearFull = yy ? `२०${toDevanagariDigits(yy)}` : '';
+  const yearFull = yy ? `२०${toDevanagariDigits(yy)}` : '२०';
   const dayDev = day ? toDevanagariDigits(day) : '';
   const monthDev = month ? escDev(month) : '';
+  const dateFooter = [dayDev || '—', monthDev || '—', yearFull].join(' / ');
 
-  // Exact same logic as original courtLineParts
   const courtLineParts: string[] = [];
-  if (courtPlace) courtLineParts.push(`<strong>${escDev(courtPlace)}</strong> येथील मा.`);
-  else courtLineParts.push('येथील मा.');
-  if (courtOffice) courtLineParts.push(`<strong>${escDev(courtOffice)}</strong> येथे`);
-  else courtLineParts.push('येथे');
-  const courtLine = courtLineParts.join(' ');
+  if (courtPlace) courtLineParts.push(`<span class="fill-inline">${escDev(courtPlace)}</span> येथील मे.`);
+  else courtLineParts.push('येथील मे.');
+  if (courtOffice) courtLineParts.push(`<span class="fill-inline">${escDev(courtOffice)}</span> यांचे कोर्टात`);
+  else courtLineParts.push('यांचे कोर्टात');
 
-  const caseLine = [
-    caseNo ? `प्रकरण क्र. <strong>${escDev(caseNo)}</strong>` : 'प्रकरण क्र.',
-    yearFull ? `सन ${yearFull}` : '',
-  ].filter(Boolean).join(' / ');
-
-  // Splits "A, B" into ["A", "B"] as safety net
-  const normalizeNames = (names: string[]): string[] =>
-    names.length === 1 && names[0].includes(',')
-      ? names[0].split(',').map(n => n.trim()).filter(Boolean)
-      : names;
-
-  const applicants: string[] = normalizeNames(
-    v.applicantNames ?? (v.applicantLine ? [v.applicantLine] : [])
-  );
-  const respondents: string[] = normalizeNames(
-    v.respondentNames ?? ([v.respondentLine1, v.respondentLine2].filter(Boolean) as string[])
-  );
-
-  const devanagariNums = ['१', '२', '३', '४', '५', '६', '७', '८', '९'];
-
-  // No empty underlines — only render rows that have data; blank form shows 4 empty numbered rows
-  const buildPartyRows = (names: string[]): string => {
-    const rows = names.length > 0 ? names : ['', '', '', ''];
-    return rows.map((name, i) => {
-      const num = devanagariNums[i] ?? `${i + 1}`;
-      return `<div>${num}. ${name ? `<strong>${escDev(name)}</strong>` : ''}</div>`;
-    }).join('\n');
-  };
-
-  const buildSigRows = (names: string[]): string => {
-    const rows = names.length > 0 ? names : ['', '', '', ''];
-    return rows.map((name, i) => {
-      const num = devanagariNums[i] ?? `${i + 1}`;
-      return `<div class="sig-row">${num}. ${name ? `<strong>${escDev(name)}</strong>` : ''}</div>`;
-    }).join('\n');
-  };
+  const caseLine =
+    caseNo || caseYy
+      ? `<div class="flex-row">${caseNo ? `<span class="fill-inline">${escDev(caseNo)}</span> क्रमांक ,` : ''} सन ${caseYy ? yearFull : '२०'}</div>`
+      : '';
 
   return `<!DOCTYPE html>
 <html lang="mr">
 <head>
     <meta charset="UTF-8">
-    <title>वकीलपत्र</title>
+    <title> </title>
     <style>
-        @page { size: A4; margin: 8mm 6mm; }
+        @page { size: A4; margin: 4mm 0; }
         html, body {
             margin: 0;
             padding: 0;
             background: #fff;
+            overflow-x: hidden;
         }
         body {
-            font-family: 'Noto Serif Devanagari', 'Mangal', serif;
-            font-size: 13pt;
-            line-height: 1.6;
-            color: #000;
+            font-family: 'Noto Sans Devanagari', 'Mangal', 'Arial Unicode MS', sans-serif;
+            line-height: 1.75;
+            color: #1a1a1a;
         }
-        .container {
-            width: 190mm;
-            margin: 0 auto;
+        .vakalatnama-sheet {
+            max-width: 800px;
+            margin: 8px auto;
+            padding: 12px 28px;
             border: 2px solid #000;
-            padding: 6mm 10mm;
             box-sizing: border-box;
+            background: #fff;
         }
-        @media screen {
-            .container { margin: 10px auto; }
+        @media print {
+            @page { size: A4; margin: 4mm 0; }
+            html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 210mm;
+                min-height: 297mm;
+                background: #fff;
+            }
+            body * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .vakalatnama-sheet {
+                max-width: none;
+                width: 200mm;
+                min-height: calc(289mm - 4px);
+                margin: 0 auto;
+                padding: 6mm 12mm;
+                border: 2px solid #000;
+                box-sizing: border-box;
+                page-break-after: avoid;
+                page-break-inside: avoid;
+            }
         }
-        .title {
+        .header {
             text-align: center;
             font-size: 26pt;
-            font-weight: bold;
+            font-weight: 800;
             text-decoration: underline;
-            margin-bottom: 6px;
+            margin-bottom: 12px;
         }
-        .application {
-            text-align: right;
-            font-size: 13pt;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-        .section {
-            display: flex;
-            align-items: flex-start;
-            margin-top: 8px;
-        }
-        .stamp {
-            width: 100px;
-            min-height: 120px;
+        .ni-no { text-align: right; font-size: 14pt; margin-bottom: 24px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+        .stamp-box {
             border: 1.5px solid #000;
+            width: 110px;
+            height: 150px;
             text-align: center;
-            padding-top: 20px;
-            font-size: 10pt;
-            margin-right: 16px;
-            flex-shrink: 0;
-            line-height: 1.8;
+            font-size: 9pt;
+            color: #444;
+            vertical-align: top;
+            padding: 8px 4px;
         }
-        .content {
-            flex: 1;
+        .content-cell { padding-left: 24px; vertical-align: top; text-align: left; }
+        .virudh-table .content-cell { padding-left: 24px; vertical-align: top; text-align: left; }
+        .virudh-table .flex-row { text-align: left; }
+        .flex-row {
+            display: block;
+            margin-bottom: 10px;
+            line-height: 1.85;
             font-size: 13pt;
         }
-        .court-line {
-            margin-bottom: 4px;
-            line-height: 1.7;
-        }
-        .case-line {
-            margin-top: 4px;
-            margin-bottom: 4px;
-        }
-        .party-title {
-            margin-top: 6px;
-            font-weight: bold;
-        }
-        .party-list {
-            margin-top: 2px;
-            padding-left: 16px;
-        }
-        .party-list div {
-            margin-bottom: 3px;
-            line-height: 1.6;
-        }
-        .versus {
+        .fill-inline { display: inline; font-weight: 600; padding: 0 2px; }
+        .vs-divider {
             text-align: center;
-            font-size: 20pt;
             font-weight: bold;
-            margin: 10px 0;
+            font-size: 16pt;
+            padding: 18px 0;
+            margin: 8px 0;
         }
-        .intro {
-            margin-top: 8px;
-            font-size: 13pt;
-            line-height: 1.8;
-        }
-        .deed-row {
-            margin-top: 8px;
-            font-size: 13pt;
-            line-height: 1.7;
-        }
-        .paragraph {
-            margin-top: 10px;
+        .legal-body {
             text-align: justify;
-            text-indent: 40px;
+            text-indent: 50px;
             font-size: 13pt;
-            line-height: 1.7;
-        }
-        .advocate-block {
-            margin-top: 8px;
-            margin-left: 60px;
-            font-size: 13pt;
+            margin-top: 28px;
             line-height: 1.9;
-            font-weight: bold;
         }
-        .accept {
-            margin-top: 10px;
-            font-size: 13pt;
-            font-weight: bold;
-        }
-        .footer {
-            margin-top: 14px;
+        .deed-row { margin-top: 20px; font-size: 13pt; line-height: 1.85; }
+        .footer-section {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
+            margin-top: 56px;
+            flex-wrap: wrap;
+            gap: 24px;
         }
-        .date {
+        .sig-list { list-style: none; padding: 0; margin: 0; min-width: 280px; }
+        .sig-list li {
+            margin-bottom: 14px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #333;
             font-size: 13pt;
-            line-height: 2;
+            line-height: 1.5;
+            min-height: 28px;
         }
-        .sig-section {
-            width: 44%;
-        }
-        .sig-row {
-            border-bottom: 1px solid #000;
-            margin-top: 8px;
-            min-height: 24px;
-            text-align: left;
-            padding-left: 4px;
-            line-height: 1.6;
-        }
-        .signature-title {
-            margin-top: 6px;
-            font-weight: bold;
-            font-size: 13pt;
-        }
-        .advocate-sign {
-            margin-top: 30px;
-            text-align: center;
-        }
-        .advocate-line {
-            border-top: 1.5px solid #000;
-            width: 65%;
-            margin: 0 auto;
-            padding-top: 4px;
-            font-weight: bold;
-            font-size: 13pt;
-        }
+        .sig-list .sig-num { font-weight: 700; margin-right: 6px; }
+        .sig-list .sig-name { font-weight: 600; }
+        .sig-empty { min-height: 28px; border-bottom: 1px solid #333; }
+        .muted-label { color: #444; }
     </style>
 </head>
 <body>
-<div class="container">
+<div class="vakalatnama-sheet">
 
-    <div class="title">वकीलपत्र</div>
+<div class="header">वकीलपत्र</div>
+<div class="ni-no">अर्ज क्र. &nbsp;${appNo ? `<span class="fill-inline">${escapeHtml(appNo)}</span>` : ''}</div>
 
-    <div class="application">
-        अर्ज क्र. : ${appNo ? `<strong>${escapeHtml(appNo)}</strong>` : ''}
+<table>
+    <tr>
+        <td class="stamp-box">कोर्ट फी स्टॅम्पसाठी जागा</td>
+        <td class="content-cell">
+            <div class="flex-row">${courtLineParts.join(' ')}</div>
+            ${caseLine}
+            ${applicant ? `<div class="flex-row"><span class="fill-inline">${escDev(applicant)}</span> <span class="muted-label">वादी / अर्जदार</span></div>` : ''}
+        </td>
+    </tr>
+</table>
+
+<div class="vs-divider">।। विरुद्ध ।।</div>
+
+<table class="virudh-table">
+    <tr>
+        <td class="stamp-box">स्टॅम्पसाठी जागा</td>
+        <td class="content-cell">
+            ${resp1 ? `<div class="flex-row"><span class="fill-inline">${escDev(resp1)}</span> <span class="muted-label">प्रतिवादी / जवाबदार</span></div>` : ''}
+            ${resp2 ? `<div class="flex-row"><span class="fill-inline">${escDev(resp2)}</span> <span class="muted-label">आरोपी / सामनेवाला</span></div>` : ''}
+            ${selfLine ? `<div class="flex-row" style="margin-top: 16px;">${pronoun} <span class="fill-inline">${escDev(selfLine)}</span></div>` : ''}
+        </td>
+    </tr>
+</table>
+
+<div class="deed-row">
+    यांनी या लेखावरून ${deed ? `<span class="fill-inline">${escDev(deed)}</span>` : ''}
+</div>
+
+<div class="legal-body">
+    यांस / माझे आमचे तर्फे हजर राहून वर लिहिलेल्या ${matter ? `<span class="fill-inline">${escDev(matter)}</span>` : 'प्रकरणाचे'} चे काम चालविण्यास आमचेतर्फे ${advocates ? `<span class="fill-inline">${escDev(advocates)}</span>` : ''} यांना वकील नेमले आहे. या गोष्टीचे साक्षीकरिता आज दिनांक ${day ? `<span class="fill-inline">${escDev(day)}</span>` : ''} माहे ${month ? `<span class="fill-inline">${escDev(month)}</span>` : ''} सन ${yearFull} इसवी रोजी ${pronoun} आपली सही केली आहे / अंगठा केला आहे.
+</div>
+
+<div class="footer-section">
+    <div>
+        <p><strong>कबूल करून दाखल.</strong></p>
+        <p style="margin-top: 24px;">दिनांक: ${dateFooter}</p>
     </div>
-
-    <!-- Applicant Section -->
-    <div class="section">
-        <div class="stamp">कोर्ट फी<br>स्टॅम्पसाठी<br>जागा</div>
-        <div class="content">
-            <div class="court-line">${courtLine}</div>
-            ${caseLine ? `<div class="case-line">${caseLine}</div>` : ''}
-            <div class="party-title">अर्जदार / वादी</div>
-            <div class="party-list">
-                ${buildPartyRows(applicants)}
-            </div>
-        </div>
+    <div>
+        <ul class="sig-list">
+            ${buildSignatureListHtml(v.signatureNames)}
+        </ul>
     </div>
-
-    <!-- Versus -->
-    <div class="versus">॥ विरुद्ध ॥</div>
-
-    <!-- Respondent Section -->
-    <div class="section">
-        <div class="stamp">स्टॅम्पसाठी<br>जागा</div>
-        <div class="content">
-            <div class="party-title">प्रतिवादी / जवाबदार</div>
-            <div class="party-list">
-                ${buildPartyRows(respondents)}
-            </div>
-        </div>
-    </div>
-
-    <!-- Intro -->
-    <div class="intro">
-        ${pronoun} ${selfLine ? `<strong>${escDev(selfLine)}</strong>` : ''}
-        ${`रा. <strong>${escDev(addressLine)}</strong>`}
-    </div>
-
-
-    <!-- Main Paragraph -->
-    <div class="paragraph">
-        यांनी या लेखावरून माझेतर्फे / आमचेतर्फे हजर राहून वरील ${matter ? `<strong>${escDev(matter)}</strong> ` : 'प्रकरणामध्ये '}कामकाज चालविणेस, आवश्यक ते अर्ज, पुरावे, कागदपत्रे सादर करण्यासाठी तसेच सदर प्रकरणासंबंधी सर्व आवश्यक कार्यवाही करण्यासाठी खालील अधिवक्ता यांची नेमणूक केलेली आहे.
-    </div>
-
-    <!-- Advocate -->
-    <div class="advocate-block">
-        ${advocateName ? `अधिवक्ता श्री. ${escDev(advocateName)}` : 'अधिवक्ता श्री.'}
-        ${`<br>अधिवक्ता नोंदणी क्र. ${escDev(advocateBarCouncilNumber)}`}
-    </div>
-
-    <!-- Declaration -->
-    <div class="paragraph">
-        या गोष्टीचे साक्षीकरिता आज दिनांक${dayDev ? ` <strong>${dayDev}</strong>` : ''} माहे${monthDev ? ` <strong>${monthDev}</strong>` : ''}${yearFull ? ` सन <strong>${yearFull}</strong>` : ''} रोजी ${pronoun} सही / अंगठा केलेला आहे.
-    </div>
-
-    <!-- Accept -->
-    <div class="accept">कबूल करून दाखल.</div>
-
-    <!-- Footer -->
-    <div class="footer">
-        <div class="date">
-            दिनांक : ${dayDev} / ${monthDev} / ${yearFull}
-            ${`<br>ठिकाण : <strong>${escDev(place)}</strong>`}
-        </div>
-        <div class="sig-section">
-            ${buildSigRows(v.signatureNames)}
-            <div class="signature-title">अर्जदार / वादी यांची सही</div>
-            <div class="advocate-sign">
-                <div class="advocate-line">अधिवक्ता</div>
-            </div>
-        </div>
-    </div>
+</div>
 
 </div>
 </body>
