@@ -3,7 +3,7 @@
     <header class="card-head">
       <div>
         <h3>Applicant objection — disputed order</h3>
-        <p class="sub">{{ activeStep().title }} — {{ activeStep().hint }}</p>
+        <p class="sub">{{ activeStep().title }} — {{ activeStepHint() }}</p>
       </div>
       <div class="step-meta">Step {{ stepIndex() + 1 }} / {{ steps.length }}</div>
     </header>
@@ -239,9 +239,201 @@
                   </button>
                 </div>
               }
+            } @else if (isRural712Subject()) {
+              <div class="mini-head" style="margin-top: 8px">
+                <strong>Eferfar (7/12) search criteria</strong>
+              </div>
+              <p class="sub sub-tight">
+                ई-फेरफार / 7/12: जिल्हा → तालुका → गाव निवडा, सर्वे क्रमांक टाकून शोधा. खाली निवडलेल्या नोंदीचे तपशील पाहा.
+              </p>
+
+              <div class="grid">
+                <label>
+                  District *
+                  <select formControlName="ruralDistrictCode" [disabled]="loadingRural712Search()">
+                    <option [ngValue]="''">Select district</option>
+                    @for (d of ruralSearchDistricts(); track d.district_code) {
+                      <option [ngValue]="d.district_code">{{ d.district_name }}</option>
+                    }
+                  </select>
+                </label>
+                <label>
+                  Taluka *
+                  <select
+                    formControlName="ruralTalukaCode"
+                    [disabled]="!form.controls.ruralDistrictCode.value || loadingRural712Search()"
+                  >
+                    <option [ngValue]="''">Select taluka</option>
+                    @for (t of ruralSearchTalukas(); track t.taluka_code) {
+                      <option [ngValue]="t.taluka_code">{{ t.taluka_name }}</option>
+                    }
+                  </select>
+                </label>
+                <label class="span-2">
+                  Village (LGD) *
+                  <select
+                    formControlName="ruralVillageLgdCode"
+                    [disabled]="!form.controls.ruralTalukaCode.value || loadingRural712Search()"
+                  >
+                    <option [ngValue]="''">Select village</option>
+                    @for (v of ruralSearchVillages(); track v.lgd_village_code) {
+                      <option [ngValue]="v.lgd_village_code">{{ v.village_name }}</option>
+                    }
+                  </select>
+                </label>
+                <label class="span-2">
+                  Survey number (pin) *
+                  <input type="text" formControlName="ruralSurveyPin" placeholder="e.g. 201" />
+                </label>
+              </div>
+
+              <div class="row-actions">
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  (click)="performRural712Search()"
+                  [disabled]="loadingRural712Search()"
+                >
+                  {{ loadingRural712Search() ? 'Searching…' : 'Search' }}
+                </button>
+              </div>
+
             } @else if (form.controls.subjectId.getRawValue() > 0) {
-              <p class="sub">Mutation search criteria is enabled only for subject code 002 (ePICS).</p>
+              <p class="sub">Search criteria is available for ePICS (002) and Eferfar / rural 7/12 subjects.</p>
             }
+
+          @if (isRural712Subject()) {
+            <div class="mini-card">
+              <div class="mini-head">
+                <strong>Eferfar / 7/12 order details</strong>
+              </div>
+
+              @if (!rural712Searched()) {
+                <p class="sub sub-tight">Complete the search above to view 7/12 record details for this disputed order.</p>
+              } @else if (rural712SubSurveyRows().length === 0) {
+                <p class="api-message error tight">No 7/12 records found for the given survey number.</p>
+              } @else {
+                <div class="grid">
+                  <div class="kv span-2">
+                    <span class="k">Location</span>
+                    <span class="v">{{ rural712LocationSummary() }}</span>
+                  </div>
+                  @if (selectedRural712Row(); as sel) {
+                    <div class="kv">
+                      <span class="k">Selected survey (pin)</span>
+                      <span class="v">{{ sel.pin }}</span>
+                    </div>
+                    <div class="kv span-2">
+                      <span class="k">Sub-survey parts</span>
+                      <span class="v muted">{{ rural712PinLabel(sel) }}</span>
+                    </div>
+                  }
+                </div>
+
+                @if (selectedRural712Row()) {
+                  <div class="row-actions" style="margin-top: 10px">
+                    <button
+                      type="button"
+                      class="btn btn-primary btn-compact"
+                      (click)="viewRural712SatbaraPdf()"
+                      [disabled]="loadingRural712SatbaraPdf()"
+                    >
+                      {{
+                        loadingRural712SatbaraPdf()
+                          ? 'Loading Satbara PDF…'
+                          : 'View Satbara PDF'
+                      }}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-compact"
+                      (click)="downloadRural712SatbaraPdf()"
+                      [disabled]="loadingRural712SatbaraPdf()"
+                    >
+                      {{ loadingRural712SatbaraPdf() ? 'Loading…' : 'Download Satbara PDF' }}
+                    </button>
+                  </div>
+                }
+
+                @if (loadingRural712SatbaraCheck()) {
+                  <p class="sub sub-tight-top">Checking digitally signed Satbara (7/12)…</p>
+                }
+                @if (rural712SatbaraCheckError()) {
+                  <p class="api-message error tight">{{ rural712SatbaraCheckError() }}</p>
+                } @else if (rural712SatbaraSigned() === true) {
+                  <p class="api-message success tight">
+                    Digitally signed Satbara is available for this survey row.
+                    @if (rural712SatbaraMessage()) {
+                      <span class="muted"> {{ rural712SatbaraMessage() }}</span>
+                    }
+                  </p>
+                } @else if (rural712SatbaraSigned() === false) {
+                  <p class="sub sub-tight-top muted">
+                    Signed check reported not digitally signed.
+                    @if (rural712SatbaraMessage()) {
+                      {{ rural712SatbaraMessage() }}
+                    }
+                    Use <strong>View Satbara PDF</strong> above to try loading the document.
+                  </p>
+                }
+
+                @if (loadingRural712SatbaraPdf()) {
+                  <p class="sub sub-tight-top">Loading Satbara PDF…</p>
+                }
+                @if (rural712SatbaraPdfError()) {
+                  <p class="api-message error tight">{{ rural712SatbaraPdfError() }}</p>
+                }
+                @if (rural712SatbaraPdfUrl()) {
+                  <p class="sub sub-tight-top">
+                    Satbara PDF is ready. Use <strong>View Satbara PDF</strong> to open in a new tab, or
+                    <strong>Download Satbara PDF</strong> to save a copy.
+                  </p>
+                }
+
+                <p class="sub sub-tight-top">Select which 7/12 row is the disputed order. You may also add plots to the disputed land step.</p>
+                <div class="table-wrap" style="margin-top: 10px">
+                  <table class="simple-table">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th>Survey (pin)</th>
+                        <th>Sub-parts</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (r of rural712SubSurveyRows(); track $index; let i = $index) {
+                        <tr [class.primary-row]="selectedRural712Index() === i">
+                          <td>
+                            <label class="role-option compact">
+                              <input
+                                type="radio"
+                                name="rural712OrderPick"
+                                [checked]="selectedRural712Index() === i"
+                                (change)="selectRural712OrderRow(i)"
+                              />
+                            </label>
+                          </td>
+                          <td>{{ r.pin }}</td>
+                          <td class="muted">{{ rural712PinLabel(r) }}</td>
+                          <td>
+                            <button
+                              type="button"
+                              class="btn btn-secondary btn-compact"
+                              (click)="addRural712PlotToDisputedLands(r)"
+                            >
+                              Add to disputed land
+                            </button>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            </div>
+          }
+
           </div>
 
           @if (isEpicsSubject()) {
@@ -367,6 +559,13 @@
                 <select disabled tabindex="-1" [attr.aria-label]="epicsUrbanOfficeReadonlySelectLabel()">
                   <option>{{ epicsUrbanOfficeReadonlySelectLabel() }}</option>
                 </select>
+              </label>
+            }
+
+            @if (isRural712Subject()) {
+              <label class="span-2">
+                Location (from step 1 — Eferfar / 7/12)
+                <input type="text" [value]="rural712ReadonlyLocationLabel()" readonly />
               </label>
             }
 

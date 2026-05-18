@@ -29,11 +29,11 @@
     <div class="mini-head">
       <strong>Search rural plot (7/12)</strong>
     </div>
-    <p class="sub sub-tight-top muted">7/12 land-records search is not available yet. Use Urban Property Card for now.</p>
+    <p class="sub sub-tight-top">District → Taluka → Village, then enter survey number (pin) and search.</p>
     <div class="grid">
       <label>
-        District
-        <select [value]="ruralDistrictCode()" (change)="onRuralDistrictChange($any($event.target).value)" disabled>
+        District *
+        <select [value]="ruralDistrictCode()" (change)="onRuralDistrictChange($any($event.target).value)" [disabled]="loading()">
           <option value="">Select</option>
           @for (d of ruralDistricts(); track d.district_code) {
             <option [value]="d.district_code.trim()">{{ d.district_name }}</option>
@@ -41,8 +41,12 @@
         </select>
       </label>
       <label>
-        Taluka
-        <select [value]="ruralTalukaCode()" (change)="onRuralTalukaChange($any($event.target).value)" disabled>
+        Taluka *
+        <select
+          [value]="ruralTalukaCode()"
+          (change)="onRuralTalukaChange($any($event.target).value)"
+          [disabled]="!ruralDistrictCode() || loading()"
+        >
           <option value="">Select</option>
           @for (t of ruralTalukas(); track t.taluka_code) {
             <option [value]="t.taluka_code.trim()">{{ t.taluka_name }}</option>
@@ -50,8 +54,12 @@
         </select>
       </label>
       <label class="span-2">
-        Village (LGD)
-        <select [value]="ruralVillageLgdCode()" (change)="onRuralVillageChange($any($event.target).value)" disabled>
+        Village (LGD) *
+        <select
+          [value]="ruralVillageLgdCode()"
+          (change)="onRuralVillageChange($any($event.target).value)"
+          [disabled]="!ruralTalukaCode() || loading()"
+        >
           <option value="">Select</option>
           @for (v of ruralVillages(); track v.lgd_village_code) {
             <option [value]="v.lgd_village_code.trim()">{{ v.village_name }}</option>
@@ -59,14 +67,44 @@
         </select>
       </label>
       <label class="span-2">
-        Survey number (pin)
-        <input type="text" [value]="ruralPin()" (input)="setRuralPin($any($event.target).value)" placeholder="e.g. 201" disabled />
+        Survey number (pin) *
+        <input type="text" [value]="ruralPin()" (input)="setRuralPin($any($event.target).value)" placeholder="e.g. 201" />
       </label>
     </div>
 
     <div class="row-actions">
-      <button type="button" class="btn btn-primary" (click)="searchRural()" disabled>Search (unavailable)</button>
+      <button type="button" class="btn btn-primary" (click)="searchRural()" [disabled]="loading()">
+        {{ loading() ? 'Searching…' : 'Search' }}
+      </button>
     </div>
+
+    @if (ruralSubSurveyRows().length > 0) {
+      <div class="table-wrap" style="margin-top: 12px">
+        <table class="simple-table">
+          <thead>
+            <tr>
+              <th>Survey (pin)</th>
+              <th>Sub-parts</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of ruralSubSurveyRows(); track $index) {
+              <tr>
+                <td>{{ r.pin }}</td>
+                <td class="muted">{{ ruralPinLabel(r) }}</td>
+                <td>
+                  <button type="button" class="btn btn-secondary btn-compact" (click)="addRuralRow(r)">
+                    Add
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+    }
   </div>
 } @else {
   <div class="mini-card">
