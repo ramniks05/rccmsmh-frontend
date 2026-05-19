@@ -26,21 +26,22 @@
           <button type="button" class="btn btn-primary" (click)="loadOfficerInbox()">Refresh</button>
         </div>
         <p class="muted">Showing: {{ officerMenu() }}</p>
-        @if (isCaseMenu() ? caseInboxLoading() : loadingOfficerInbox()) {
+        @if (loadingOfficerInbox() || caseInboxLoading()) {
           <p class="muted">Loading applications...</p>
-        } @else if (isCaseMenu() ? caseInboxError() : officerInboxError()) {
-          <p class="error">{{ isCaseMenu() ? caseInboxError() : officerInboxError() }}</p>
-        } @else if ((isCaseMenu() ? filteredCaseInbox().length : filteredOfficerInbox().length) === 0) {
+        } @else if (officerInboxError()) {
+          <p class="error">{{ officerInboxError() }}</p>
+        } @else if (filteredOfficerInbox().length === 0) {
           <p class="muted">No applications found for selected menu.</p>
         } @else {
           <div class="table-wrap">
             <table class="table">
               <thead>
                 <tr>
-                  <th>{{ isCaseMenu() ? 'Case ID' : 'App ID' }}</th>
-                  <th>{{ isCaseMenu() ? 'Case No' : 'Application No' }}</th>
-                  <th>{{ isCaseMenu() ? 'Application ID' : 'Case' }}</th>
-                  <th>Status</th>
+                  <th>App ID</th>
+                  <th>Application No</th>
+                  <th>Case No</th>
+                  <th>App Status</th>
+                  <th>Case Status</th>
                   <th>Stage</th>
                   <th>Assignee</th>
                   <th>Subject</th>
@@ -49,34 +50,19 @@
                 </tr>
               </thead>
               <tbody>
-                @if (!isCaseMenu()) {
-                  @for (x of filteredOfficerInbox(); track x.applicationId) {
-                    <tr>
-                      <td>{{ x.applicationId }}</td>
-                      <td>{{ x.applicationNo || '-' }}</td>
-                      <td>{{ x.caseId ? ('#' + x.caseId) : '-' }}</td>
-                      <td>{{ x.status }}</td>
-                      <td>{{ x.processingStage || '-' }}</td>
-                      <td>{{ x.currentAssigneeRole || '-' }}</td>
-                      <td>{{ x.subjectName }}</td>
-                      <td>{{ x.officeName }}</td>
-                      <td><button type="button" class="btn btn-secondary btn-xs" (click)="viewOfficerApplication(x.applicationId)">Open</button></td>
-                    </tr>
-                  }
-                } @else {
-                  @for (c of filteredCaseInbox(); track c.caseId) {
-                    <tr>
-                      <td>{{ c.caseId }}</td>
-                      <td>{{ c.caseNo }}</td>
-                      <td>{{ c.filingApplicationId }}</td>
-                      <td>{{ c.status }}</td>
-                      <td>{{ c.status }}</td>
-                      <td>PRESIDING_OFFICER</td>
-                      <td>{{ c.caseCategoryName }}</td>
-                      <td>{{ c.officeName }}</td>
-                      <td><button type="button" class="btn btn-secondary btn-xs" (click)="viewOfficerApplication(c.filingApplicationId)">Open</button></td>
-                    </tr>
-                  }
+                @for (x of filteredOfficerInbox(); track x.applicationId) {
+                  <tr>
+                    <td>{{ x.applicationId }}</td>
+                    <td>{{ x.applicationNo || '-' }}</td>
+                    <td>{{ caseNoFor(x.applicationId) }}</td>
+                    <td>{{ x.status }}</td>
+                    <td>{{ caseStatusFor(x.applicationId) || '-' }}</td>
+                    <td>{{ x.processingStage || '-' }}</td>
+                    <td>{{ x.currentAssigneeRole || '-' }}</td>
+                    <td>{{ x.subjectName }}</td>
+                    <td>{{ x.officeName }}</td>
+                    <td><button type="button" class="btn btn-secondary btn-xs" (click)="viewOfficerApplication(x.applicationId)">Open</button></td>
+                  </tr>
                 }
               </tbody>
             </table>

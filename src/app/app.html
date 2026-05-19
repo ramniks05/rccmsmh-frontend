@@ -8,14 +8,15 @@
       </div>
     </div>
     <nav class="top-nav" aria-label="Primary navigation">
-      @if (!isLoggedIn) {
+      @if (!isLoggedIn()) {
         <a routerLink="/">Home</a>
         <a routerLink="/register/advocate">Advocate</a>
         <a routerLink="/register/party">Party</a>
         <a routerLink="/login" class="nav-login-btn">Login</a>
       }
-      @if (isLoggedIn) {
+      @if (isLoggedIn()) {
         <a routerLink="/portal-home" class="nav-home-link">Home</a>
+        <a routerLink="/cases" class="nav-home-link">My Cases</a>
         <div class="user-menu-wrapper">
           <button
             type="button"
@@ -26,7 +27,7 @@
             <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
             </svg>
-            <span class="user-name">{{ displayName }}</span>
+            <span class="user-name">{{ displayName() }}</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
               <path d="M6 9l6 6 6-6"/>
             </svg>
@@ -35,8 +36,11 @@
             <div class="user-menu-dropdown" (click)="closeUserMenu()">
               <div class="user-menu-header">
                 <div class="user-info">
-                  <div class="user-info-name">{{ displayName }}</div>
-                  <div class="user-info-role">{{ userRole }}</div>
+                  <div class="user-info-name">{{ displayName() }}</div>
+                  <div class="user-info-role">{{ designation() || role() }}</div>
+                  @if (officeName()) {
+                    <div class="user-info-office">{{ officeName() }}</div>
+                  }
                 </div>
               </div>
               <button

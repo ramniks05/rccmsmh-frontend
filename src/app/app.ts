@@ -18,20 +18,17 @@ export class App {
   private readonly router = inject(Router);
 
   protected readonly appName = 'RCCMS Maharashtra';
+
+  // Reactive signals — update instantly on login/logout
+  protected readonly isLoggedIn = this.tokenStorage.isLoggedIn;
+  protected readonly displayName = this.tokenStorage.sessionDisplayName;
+  protected readonly role = this.tokenStorage.sessionRole;
+  protected readonly designation = this.tokenStorage.sessionDesignation;
+  protected readonly officeName = this.tokenStorage.sessionOfficeName;
+
+  // Dropdown state
   protected showUserMenu = false;
   protected isLoggingOut = false;
-
-  protected get isLoggedIn(): boolean {
-    return !!this.tokenStorage.getAccessToken();
-  }
-
-  protected get displayName(): string {
-    return this.tokenStorage.getDisplayName() || 'User';
-  }
-
-  protected get userRole(): string {
-    return this.tokenStorage.getRole() || '';
-  }
 
   protected toggleUserMenu(): void {
     this.showUserMenu = !this.showUserMenu;

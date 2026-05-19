@@ -50,6 +50,7 @@
 .top-nav {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 1rem;
 }
 
@@ -73,6 +74,10 @@
   border-radius: 8px;
   font-weight: 700;
   font-size: 0.85rem;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 120ms;
 }
 
 .top-nav .nav-login-btn:hover {
@@ -94,6 +99,7 @@
   background: rgba(255, 255, 255, 0.25);
 }
 
+/* User dropdown */
 .user-menu-wrapper {
   position: relative;
 }
@@ -118,13 +124,8 @@
   border-color: rgba(255, 255, 255, 0.3);
 }
 
-.user-menu-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
 .user-name {
-  max-width: 120px;
+  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -132,15 +133,14 @@
 
 .user-menu-dropdown {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 0.5rem);
   right: 0;
-  margin-top: 0.5rem;
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   z-index: 1000;
-  min-width: 200px;
+  min-width: 220px;
   overflow: hidden;
 }
 
@@ -153,6 +153,7 @@
 .user-info {
   display: flex;
   flex-direction: column;
+  gap: 0.2rem;
 }
 
 .user-info-name {
@@ -164,9 +165,16 @@
 .user-info-role {
   font-size: 0.8rem;
   color: #6b7280;
-  margin-top: 0.25rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.user-info-office {
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin-top: 0.1rem;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .user-menu-logout {

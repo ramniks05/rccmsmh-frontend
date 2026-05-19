@@ -24,6 +24,13 @@ export class LoginComponent {
   protected showPassword = false;
   protected selectedLoginUserType: LoginRole = 'ADVOCATE';
 
+  constructor() {
+    // If already logged in, redirect to the correct dashboard immediately.
+    if (this.tokenStorage.getAccessToken()) {
+      void this.router.navigate([this.dashboardRoute(this.tokenStorage.getRole())]);
+    }
+  }
+
   protected readonly loginForm = this.fb.nonNullable.group({
     loginId: ['', [Validators.required]],
     password: ['', [Validators.required]]
@@ -35,13 +42,6 @@ export class LoginComponent {
     { value: 'OFFICER', label: 'Officer', labelMr: 'अधिकारी', icon: 'M20 6h-2.18c.07-.44.18-.88.18-1.36C18 2.05 15.96 0 13.36 0c-1.46 0-2.75.63-3.64 1.63L8 3.5 6.28 1.63C5.39.63 4.1 0 2.64 0 1.06 0 0 1.06 0 2.64 0 3.12.11 3.56.18 4H0v14c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-9-1.75c.44-.61 1.12-1 1.89-1C14 3.25 15 4.25 15 5.5c0 .31-.06.6-.16.88L11 6.25c-.28-.47-.58-.93-.63-1.4-.01-.21.02-.41.08-.6zm9 15.75H2V8h16v12z' },
     { value: 'ADMIN', label: 'Admin', labelMr: 'प्रशासक', icon: 'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z' }
   ];
-
-  constructor() {
-    // Redirect already logged-in users to portal home
-    if (this.tokenStorage.getAccessToken()) {
-      void this.router.navigate(['/portal-home']);
-    }
-  }
 
   protected selectRole(role: LoginRole): void {
     this.selectedLoginUserType = role;
@@ -72,12 +72,24 @@ export class LoginComponent {
       .subscribe({
         next: (response: LoginResponse) => {
           this.tokenStorage.saveSession(response);
-          void this.router.navigate(['/portal-home']);
+          void this.router.navigate([this.dashboardRoute(response.role)]);
         },
         error: (error: unknown) => {
           this.loginErrorMessage = this.extractApiError(error);
         }
       });
+  }
+
+  /** Returns the correct landing route based on role. */
+  private dashboardRoute(role: string | null): string {
+    switch ((role || '').toUpperCase()) {
+      case 'OFFICER':
+        return '/cases';
+      case 'ADMIN':
+        return '/admin/masters';
+      default:
+        return '/portal-home';
+    }
   }
 
   private extractApiError(error: unknown): string {

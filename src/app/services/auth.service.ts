@@ -36,6 +36,16 @@ export interface LoginResponse {
   tokenType: string;
   role: string;
   displayName: string;
+  /** Officer's posting designation ID. Null for non-officer roles. */
+  designationId?: number | null;
+  /** Officer's posting designation name (e.g. "Clerk", "Tahsildar"). Null for non-officer roles. */
+  designationName?: string | null;
+  /** Officer's posted office ID. Null for non-officer roles. */
+  officeId?: number | null;
+  /** Officer's posted office name (e.g. "उप अधीक्षक भूमि अभिलेख,अक्कलकुवा"). Null for non-officer roles. */
+  officeName?: string | null;
+  /** Officer's posted office code. Null for non-officer roles. */
+  officeCode?: string | null;
 }
 
 @Injectable({

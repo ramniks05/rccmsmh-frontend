@@ -105,6 +105,8 @@ export class CaseListComponent {
       error: (err: unknown) => this.officerInboxError.set(this.formatError(err)),
       complete: () => this.loadingOfficerInbox.set(false)
     });
+    // Always load ALL cases without a status filter so every menu tab
+    // can client-side filter from the same dataset.
     this.loadCaseInbox();
   }
 
@@ -112,9 +114,9 @@ export class CaseListComponent {
     menu: 'ALL' | 'CLERK_DESK' | 'PO_DESK' | 'HEARING' | 'ORDERSHEET' | 'JUDGMENT'
   ): void {
     this.officerMenu.set(menu);
-    if (menu === 'HEARING') this.loadCaseInbox('HEARING_SCHEDULED');
-    else if (menu === 'ORDERSHEET' || menu === 'JUDGMENT') this.loadCaseInbox('ACTIVE');
-    else this.loadCaseInbox();
+    // No refetch needed — filteredCaseInbox() and filteredOfficerInbox() do client-side
+    // filtering on the already-loaded data. Refetching with a status filter was causing
+    // the list to appear empty when the backend filtered endpoint returned no rows.
   }
 
   protected loadCaseInbox(status?: string): void {
@@ -127,50 +129,79 @@ export class CaseListComponent {
     });
   }
 
+  /** Build a lookup map: filingApplicationId → OfficerCaseInboxItem */
+  private caseMapByAppId(): Map<number, OfficerCaseInboxItem> {
+    const map = new Map<number, OfficerCaseInboxItem>();
+    for (const c of (this.caseInbox() || [])) {
+      map.set(c.filingApplicationId, c);
+    }
+    return map;
+  }
+
+  /** Case status for a given applicationId (from the joined caseInbox). */
+  protected caseStatusFor(applicationId: number): string {
+    return this.caseMapByAppId().get(applicationId)?.status || '';
+  }
+
+  /** Case number for a given applicationId (from the joined caseInbox). */
+  protected caseNoFor(applicationId: number): string {
+    return this.caseMapByAppId().get(applicationId)?.caseNo || '-';
+  }
+
+  /**
+   * ALL menus now use this single filtered list from officerInbox.
+   * Case-level menus (HEARING, ORDERSHEET, JUDGMENT) join with caseInbox
+   * client-side via filingApplicationId so no extra API call is needed.
+   */
   protected filteredOfficerInbox(): OfficerInboxItem[] {
     const rows = this.officerInbox() || [];
     const menu = this.officerMenu();
     const up = (v: unknown) => String(v || '').toUpperCase();
+
     if (menu === 'ALL') return rows;
+
     if (menu === 'CLERK_DESK') {
       return rows.filter((r) => up(r.currentAssigneeRole) === 'CLERK');
     }
+
     if (menu === 'PO_DESK') {
       return rows.filter((r) => up(r.currentAssigneeRole) === 'PRESIDING_OFFICER');
     }
-    if (menu === 'HEARING') {
-      return rows.filter((r) => !!r.caseId && up(r.status) !== 'DISPOSED');
-    }
-    if (menu === 'ORDERSHEET') {
-      return rows.filter((r) => !!r.caseId && up(r.status) !== 'DISPOSED');
-    }
-    // JUDGMENT: pending judgment means case exists but not yet disposed.
-    return rows.filter((r) => !!r.caseId && up(r.status) !== 'DISPOSED');
-  }
 
-  protected filteredCaseInbox(): OfficerCaseInboxItem[] {
-    const rows = this.caseInbox() || [];
-    const menu = this.officerMenu();
-    const up = (v: unknown) => String(v || '').toUpperCase();
+    // For case-level menus, join with caseInbox by applicationId ↔ filingApplicationId
+    const caseMap = this.caseMapByAppId();
+
     if (menu === 'HEARING') {
-      return rows.filter((r) => up(r.status) === 'HEARING_SCHEDULED' || up(r.status) === 'ACTIVE');
+      return rows.filter((r) => {
+        const cs = up(caseMap.get(r.applicationId)?.status);
+        return cs === 'HEARING_SCHEDULED' || cs === 'ACTIVE';
+      });
     }
-    if (menu === 'ORDERSHEET' || menu === 'JUDGMENT') {
-      return rows.filter((r) => up(r.status) !== 'DISPOSED');
+
+    if (menu === 'ORDERSHEET') {
+      return rows.filter((r) => {
+        const cs = up(caseMap.get(r.applicationId)?.status);
+        return !!cs && cs !== 'DISPOSED';
+      });
     }
+
+    if (menu === 'JUDGMENT') {
+      return rows.filter((r) => {
+        const cs = up(caseMap.get(r.applicationId)?.status);
+        return !!cs && cs !== 'DISPOSED';
+      });
+    }
+
     return rows;
   }
 
-  protected isCaseMenu(): boolean {
-    const m = this.officerMenu();
-    return m === 'HEARING' || m === 'ORDERSHEET' || m === 'JUDGMENT';
-  }
-
+  /** Count for each menu badge — always derived from the same filter logic. */
   protected menuCount(
     menu: 'ALL' | 'CLERK_DESK' | 'PO_DESK' | 'HEARING' | 'ORDERSHEET' | 'JUDGMENT'
   ): number {
     const rows = this.officerInbox() || [];
     const up = (v: unknown) => String(v || '').toUpperCase();
+
     if (menu === 'ALL') return rows.length;
     if (menu === 'CLERK_DESK') {
       return rows.filter((r) => up(r.currentAssigneeRole) === 'CLERK').length;
@@ -178,13 +209,26 @@ export class CaseListComponent {
     if (menu === 'PO_DESK') {
       return rows.filter((r) => up(r.currentAssigneeRole) === 'PRESIDING_OFFICER').length;
     }
+
+    const caseMap = this.caseMapByAppId();
+
     if (menu === 'HEARING') {
-      return (this.caseInbox() || []).filter((r) => ['HEARING_SCHEDULED', 'ACTIVE'].includes(up(r.status))).length;
+      return rows.filter((r) => {
+        const cs = up(caseMap.get(r.applicationId)?.status);
+        return cs === 'HEARING_SCHEDULED' || cs === 'ACTIVE';
+      }).length;
     }
     if (menu === 'ORDERSHEET') {
-      return (this.caseInbox() || []).filter((r) => up(r.status) !== 'DISPOSED').length;
+      return rows.filter((r) => {
+        const cs = up(caseMap.get(r.applicationId)?.status);
+        return !!cs && cs !== 'DISPOSED';
+      }).length;
     }
-    return (this.caseInbox() || []).filter((r) => up(r.status) !== 'DISPOSED').length;
+    // JUDGMENT
+    return rows.filter((r) => {
+      const cs = up(caseMap.get(r.applicationId)?.status);
+      return !!cs && cs !== 'DISPOSED';
+    }).length;
   }
 
   protected viewOfficerApplication(applicationId: number): void {

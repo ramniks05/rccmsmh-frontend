@@ -25,6 +25,10 @@ export class PortalHomeComponent {
   constructor() {
     if (!this.tokenStorage.getAccessToken()) {
       void this.router.navigate(['/']);
+      return;
+    }
+    if (this.tokenStorage.isOfficer()) {
+      void this.router.navigate(['/cases']);
     }
   }
 
