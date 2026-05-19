@@ -8,6 +8,8 @@ import {
   AdvocateLookupResponse
 } from '../../../services/advocate-by-bar-council.service';
 import { buildMarathiVakalatnamaHtml, type VakalatnamaMarathiVars } from './vakalatnama-marathi-template';
+import { buildMarathiSunvaniNoticeHtml, SunvaniNoticeVars } from '../../../shared/sunvai-marathi-template';
+import { buildMarathiSatyaPratijnalekhHtml, SatyaPratijnalekhVars } from '../../../shared/prayer-marathi-template';
 
 export interface ApplicantOption {
   id: string;
@@ -283,6 +285,44 @@ export class VakaltnamaPanelComponent {
   }
 
   protected printGroupDocument(group: VakaltnamaAssignment, index: number): void {
+    // const dummySunvaniVars: SunvaniNoticeVars = {
+    //   phoneNumber: '020-12345678',
+    //   emailId: 'jambandi.pune@maharashtra.gov.in',
+
+    //   referenceNumber: 'JA/PUN/2026/001',
+    //   referenceYearTwoDigits: '26',
+    //   noticeDateDay: '१८',
+    //   noticeDateMonth: 'मे',
+    //   noticeDateYear: '26',
+
+    //   applicantNames: ['रमेश कुमार पाटील', 'सुरेश कुमार पाटील'],
+    //   applicantAddress: 'मु. पो. वाशीम, ता. वाशीम, जि. वाशीम',
+
+    //   respondentNames: ['राकेश कुमार शर्मा'],
+    //   respondentAddress: 'मु. पो. अकोला, ता. अकोला, जि. अकोला',
+
+    //   actSection: '२४७',
+    //   villageNameMoje: 'वाशीम',
+    //   taluka: 'वाशीम',
+    //   district: 'वाशीम',
+
+    //   hearingOfficerName: 'उप अधीक्षक भूमि अभिलेख',
+    //   hearingDateDay: '२५',
+    //   hearingDateMonth: 'मे',
+    //   hearingDateYear: '26',
+    //   hearingTime: '११:००',
+    //   hearingAddress: 'कार्यालय उप अधीक्षक भूमि अभिलेख, वाशीम',
+
+    //   signatoryName: 'रा. ब. देशमुख',
+    //   signatoryDesignation: 'उप अधीक्षक भूमि अभिलेख',
+    //   signatoryOffice: 'जमाबंदी आयुक्त कार्यालय, पुणे',
+
+    //   copyRecipients: ['जिल्हाधिकारी, वाशीम', 'तहसीलदार, वाशीम'],
+    // };
+
+    // const dummySatyaPratijnalekhVars: SatyaPratijnalekhVars = {
+    //   signatoryName: 'रमेश कुमार पाटील',
+    // };
     this.documentActionError.set(null);
     this.printHtmlDocument(buildMarathiVakalatnamaHtml(this.buildVarsForGroup(group, index)));
   }
