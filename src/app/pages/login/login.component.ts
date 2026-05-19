@@ -36,6 +36,13 @@ export class LoginComponent {
     { value: 'ADMIN', label: 'Admin', labelMr: 'प्रशासक', icon: 'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z' }
   ];
 
+  constructor() {
+    // Redirect already logged-in users to portal home
+    if (this.tokenStorage.getAccessToken()) {
+      void this.router.navigate(['/portal-home']);
+    }
+  }
+
   protected selectRole(role: LoginRole): void {
     this.selectedLoginUserType = role;
     this.loginErrorMessage = '';

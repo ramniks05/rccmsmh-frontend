@@ -53,6 +53,10 @@ export class AuthService {
     return this.http.post<LoginResponse>(`${this.apiBaseUrl}/api/auth/login`, payload);
   }
 
+  logout(): Observable<void> {
+    return this.http.post<void>(`${this.apiBaseUrl}/api/auth/logout`, {});
+  }
+
   me(): Observable<unknown> {
     return this.http.get<unknown>(`${this.apiBaseUrl}/api/auth/me`);
   }
