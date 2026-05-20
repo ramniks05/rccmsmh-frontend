@@ -1,0 +1,206 @@
+<section class="preview-page">
+
+  <!-- Back -->
+  <div class="back-row">
+    <a routerLink="/portal-home" class="back-link">← Back to Dashboard</a>
+  </div>
+
+  @if (loading()) {
+    <div class="loading-card"><p class="muted">Loading application…</p></div>
+  } @else if (error()) {
+    <div class="error-card"><p class="error">{{ error() }}</p></div>
+  } @else if (data()) {
+
+    <!-- Header -->
+    <div class="preview-header">
+      <div>
+        <h2>{{ app()?.applicationNo }}</h2>
+        @if (app()?.caseNo) { <p class="case-no">Case: {{ app()?.caseNo }}</p> }
+      </div>
+      <span class="status-badge">{{ app()?.status }}</span>
+    </div>
+
+    <!-- Tabs -->
+    <nav class="preview-tabs">
+      <button [class.active]="activeTab()==='application'" (click)="setTab('application')">Application</button>
+      <button [class.active]="activeTab()==='notices'" (click)="setTab('notices')">
+        Notices <span class="tab-count">{{ data()!.notices.length }}</span>
+      </button>
+      <button [class.active]="activeTab()==='hearings'" (click)="setTab('hearings')">
+        Hearings <span class="tab-count">{{ data()!.hearings.length }}</span>
+      </button>
+      <button [class.active]="activeTab()==='ordersheet'" (click)="setTab('ordersheet')">
+        Order Sheet <span class="tab-count">{{ data()!.orderSheetHistory.length }}</span>
+      </button>
+      @if (data()!.judgmentSummary) {
+        <button [class.active]="activeTab()==='judgment'" (click)="setTab('judgment')">Judgment</button>
+      }
+    </nav>
+
+    <!-- ── APPLICATION TAB ── -->
+    @if (activeTab() === 'application') {
+      <div class="tab-content">
+
+        <div class="info-grid">
+          <div class="info-item"><span class="info-label">Application No</span><span>{{ str(app()?.applicationNo) }}</span></div>
+          <div class="info-item"><span class="info-label">Status</span><span>{{ str(app()?.status) }}</span></div>
+          @if (app()?.caseNo) {
+            <div class="info-item"><span class="info-label">Case No</span><span>{{ str(app()?.caseNo) }}</span></div>
+          }
+        </div>
+
+        <!-- Applicants -->
+        @if (arr(app()?.applicants).length > 0) {
+          <div class="section-block">
+            <h4>Applicants</h4>
+            @for (a of arr(app()?.applicants); track $index) {
+              <div class="party-row-preview">
+                <strong>{{ str(a['name']) }}</strong>
+                @if (a['address']) { <span class="address">{{ str(a['address']) }}</span> }
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Respondents -->
+        @if (arr(app()?.respondents).length > 0) {
+          <div class="section-block">
+            <h4>Respondents</h4>
+            @for (r of arr(app()?.respondents); track $index) {
+              <div class="party-row-preview">
+                <strong>{{ str(r['name']) }}</strong>
+                @if (r['address']) { <span class="address">{{ str(r['address']) }}</span> }
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Disputed Lands -->
+        @if (arr(app()?.disputedLands).length > 0) {
+          <div class="section-block">
+            <h4>Disputed Lands</h4>
+            <div class="table-wrap">
+              <table class="table">
+                <thead><tr><th>Village</th><th>Taluka</th><th>District</th><th>Survey/CTS</th></tr></thead>
+                <tbody>
+                  @for (land of arr(app()?.disputedLands); track $index) {
+                    <tr>
+                      <td>{{ str(land['villageName'] ?? land['villageLgdCode']) }}</td>
+                      <td>{{ str(land['talukaName'] ?? land['talukaCode']) }}</td>
+                      <td>{{ str(land['districtName'] ?? land['districtCode']) }}</td>
+                      <td>{{ str(land['surveyNumber'] ?? land['ctsNumber'] ?? land['gat']) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
+        <!-- Attachments -->
+        @if (arr(app()?.attachments).length > 0) {
+          <div class="section-block">
+            <h4>Attachments</h4>
+            @for (att of arr(app()?.attachments); track $index) {
+              <div class="attachment-row">
+                <span>{{ str(att['documentType'] ?? att['fileName'] ?? 'Document ' + ($index + 1)) }}</span>
+                @if (att['fileUrl']) {
+                  <a [href]="str(att['fileUrl'])" target="_blank" class="btn btn-secondary btn-xs">View</a>
+                }
+              </div>
+            }
+          </div>
+        }
+
+      </div>
+    }
+
+    <!-- ── NOTICES TAB ── -->
+    @if (activeTab() === 'notices') {
+      <div class="tab-content">
+        @if (data()!.notices.length === 0) {
+          <p class="muted empty-state">No notices issued yet.</p>
+        } @else {
+          @for (notice of data()!.notices; track notice.noticeId) {
+            <div class="notice-block">
+              <div class="notice-meta">
+                <span class="info-label">Type:</span> {{ notice.noticeType }}
+                &nbsp;&nbsp;
+                <span class="info-label">Status:</span>
+                <span class="status-chip status-{{ notice.status.toLowerCase() }}">{{ notice.status }}</span>
+                @if (notice.servedAt) { &nbsp;&nbsp;<span class="info-label">Served:</span> {{ notice.servedAt }} }
+              </div>
+              @if (notice.finalContent || notice.previewContent) {
+                <div class="notice-html-frame" [innerHTML]="noticeHtml(notice)"></div>
+              }
+            </div>
+          }
+        }
+      </div>
+    }
+
+    <!-- ── HEARINGS TAB ── -->
+    @if (activeTab() === 'hearings') {
+      <div class="tab-content">
+        @if (data()!.hearings.length === 0) {
+          <p class="muted empty-state">No hearings scheduled yet.</p>
+        } @else {
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>#</th><th>Date</th><th>Status</th><th>Remarks</th></tr></thead>
+              <tbody>
+                @for (h of data()!.hearings; track h.hearingId; let i = $index) {
+                  <tr>
+                    <td>{{ i + 1 }}</td>
+                    <td>{{ h.hearingDate }}</td>
+                    <td>{{ h.status || '-' }}</td>
+                    <td>{{ h.remarks || '-' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ── ORDER SHEET TAB ── -->
+    @if (activeTab() === 'ordersheet') {
+      <div class="tab-content">
+        @if (data()!.orderSheetHistory.length === 0) {
+          <p class="muted empty-state">No order sheet entries yet.</p>
+        } @else {
+          <div class="timeline">
+            @for (entry of data()!.orderSheetHistory; track entry.historyId ?? $index) {
+              <div class="timeline-entry">
+                <div class="timeline-dot"></div>
+                <div class="timeline-body">
+                  <div class="timeline-date">{{ entry.hearingDate || '-' }}</div>
+                  <div class="timeline-text">{{ entry.remarks || '-' }}</div>
+                  @if (entry.stage) { <span class="stage-chip">{{ entry.stage }}</span> }
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ── JUDGMENT TAB ── -->
+    @if (activeTab() === 'judgment') {
+      <div class="tab-content">
+        @if (data()!.judgmentSummary) {
+          <div class="judgment-block">
+            <div class="judgment-status">
+              <span class="status-badge">{{ data()!.judgmentWorkflowStatus }}</span>
+            </div>
+            <div class="judgment-text">{{ data()!.judgmentSummary }}</div>
+          </div>
+        } @else {
+          <p class="muted empty-state">Judgment not yet published.</p>
+        }
+      </div>
+    }
+
+  }
+</section>

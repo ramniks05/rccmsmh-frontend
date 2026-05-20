@@ -1,37 +1,86 @@
 <section class="portal-home">
+
+  <!-- Welcome card -->
   <article class="welcome-card">
-    <h2>Welcome, {{ displayName }}</h2>
-    <p class="role-text">Role: {{ role }}</p>
-    <div class="action-row">
-      <button type="button" class="btn btn-primary" (click)="logout()">Logout</button>
+    <div>
+      <h2>Welcome, {{ displayName }}</h2>
+      <p class="role-text">{{ role }}</p>
     </div>
+    <button type="button" class="btn btn-secondary" (click)="logout()" [disabled]="isLoggingOut">
+      {{ isLoggingOut ? 'Logging out…' : 'Logout' }}
+    </button>
   </article>
 
+  <!-- Quick actions -->
   <section class="grid">
-    <a class="tile tile-link" routerLink="/cases">
-      <h3>My Cases</h3>
-      <p>View and track case progress.</p>
-    </a>
     @if (isAdvocate) {
       <a class="tile tile-link" routerLink="/cases/new">
+        <span class="tile-icon">📁</span>
         <h3>File New Case</h3>
-        <p>Select case category and start filing.</p>
+        <p>Select category and start filing.</p>
       </a>
     }
-    <article class="tile">
-      <h3>Notices</h3>
-      <p>Check hearing and update notices.</p>
-    </article>
-    <article class="tile">
-      <h3>Profile</h3>
-      <p>Manage account details.</p>
-    </article>
-
     @if (role === 'ADMIN') {
       <a class="tile tile-link" routerLink="/admin/masters">
+        <span class="tile-icon">⚙️</span>
         <h3>Master Management</h3>
-        <p>Create and maintain master data (Admin)</p>
+        <p>Create and maintain master data.</p>
       </a>
     }
   </section>
+
+  <!-- My Applications -->
+  <section class="applications-section">
+    <div class="section-head">
+      <h3>My Applications</h3>
+      <button type="button" class="btn btn-secondary btn-xs" (click)="loadApplications()" [disabled]="applicationsLoading()">
+        {{ applicationsLoading() ? 'Loading…' : 'Refresh' }}
+      </button>
+    </div>
+
+    @if (applicationsError()) {
+      <p class="error">{{ applicationsError() }}</p>
+    } @else if (applicationsLoading()) {
+      <p class="muted">Loading applications…</p>
+    } @else if (applications().length === 0) {
+      <p class="muted empty-hint">No applications found. @if (isAdvocate) { <a routerLink="/cases/new">File your first case →</a> }</p>
+    } @else {
+      <div class="app-table-wrap">
+        <table class="app-table">
+          <thead>
+            <tr>
+              <th>Application No</th>
+              <th>Subject</th>
+              <th>Office</th>
+              <th>Filing Status</th>
+              <th>Case No / Case Status</th>
+              <th>Filed On</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (app of applications(); track app.applicationId) {
+              <tr>
+                <td><strong>{{ app.applicationNo }}</strong></td>
+                <td>{{ app.subjectName || app.caseCategoryName || '-' }}</td>
+                <td class="office-cell">{{ app.officeName || '-' }}</td>
+                <td><span class="app-status app-status-{{ app.status.toLowerCase() }}">{{ app.status }}</span></td>
+                <td>
+                  @if (app.caseNo) {
+                    <div>{{ app.caseNo }}</div>
+                    <span class="app-status app-status-{{ (app.caseStatus || '').toLowerCase() }}">{{ app.caseStatus }}</span>
+                  } @else { <span class="muted-sm">Pending</span> }
+                </td>
+                <td class="date-cell">{{ app.submittedAt ? (app.submittedAt | slice:0:10) : '-' }}</td>
+                <td>
+                  <a [routerLink]="['/applications', app.applicationId]" class="btn btn-primary btn-xs">View</a>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
 </section>
