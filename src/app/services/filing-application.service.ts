@@ -27,6 +27,77 @@ export interface FilingApplicationSaveResponse {
   [key: string]: unknown;
 }
 
+// ── Party / Advocate read-only preview ────────────────────────────────────────
+
+export interface ApplicationPreviewNotice {
+  noticeId: number;
+  noticeType: string;
+  /** PO_FINALIZED | PO_SIGNED | SERVED */
+  status: string;
+  previewContent: string | null;
+  finalContent: string | null;
+  createdAt: string;
+  updatedAt: string;
+  servedAt?: string | null;
+}
+
+export interface ApplicationPreviewHearing {
+  hearingId: number;
+  hearingDate: string;
+  remarks?: string | null;
+  status?: string;
+}
+
+export interface ApplicationPreviewOrderSheetEntry {
+  historyId?: number;
+  hearingNo?: string | null;
+  hearingDate?: string | null;
+  remarks?: string | null;
+  createdByLoginId?: string;
+  stage?: string;
+}
+
+export interface ApplicationPreviewResponse {
+  application: {
+    applicationId: number;
+    applicationNo: string;
+    caseId?: number | null;
+    caseNo?: string | null;
+    status: string;
+    form?: Record<string, unknown>;
+    applicants?: Record<string, unknown>[];
+    respondents?: Record<string, unknown>[];
+    disputedOrder?: Record<string, unknown>;
+    disputedLands?: Record<string, unknown>[];
+    attachments?: Record<string, unknown>[];
+  };
+  notices: ApplicationPreviewNotice[];
+  hearings: ApplicationPreviewHearing[];
+  orderSheetHistory: ApplicationPreviewOrderSheetEntry[];
+  judgmentWorkflowStatus?: string | null;
+  judgmentSummary?: string | null;
+}
+
+export interface MyApplicationItem {
+  applicationId: number;
+  applicationNo: string;
+  caseId?: number | null;
+  caseNo?: string | null;
+  caseStatus?: string | null;
+  caseCategoryId?: number;
+  caseCategoryName?: string;
+  subjectId?: number;
+  subjectName?: string;
+  officeId?: number;
+  officeName?: string;
+  /** DRAFT | SUBMITTED */
+  status: string;
+  filedByRole?: string;
+  submittedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -36,5 +107,15 @@ export class FilingApplicationService {
 
   save(request: FilingApplicationSaveRequest): Observable<FilingApplicationSaveResponse> {
     return this.http.post<FilingApplicationSaveResponse>(`${this.apiBaseUrl}/api/filing-applications/save`, request);
+  }
+
+  /** GET /api/filing-applications/mine — list of the logged-in advocate/party's own applications */
+  getMyApplications(): Observable<MyApplicationItem[]> {
+    return this.http.get<MyApplicationItem[]>(`${this.apiBaseUrl}/api/filing-applications/mine`);
+  }
+
+  /** GET /api/filing-applications/{id}/preview — full read-only view for party/advocate */
+  getApplicationPreview(applicationId: number): Observable<ApplicationPreviewResponse> {
+    return this.http.get<ApplicationPreviewResponse>(`${this.apiBaseUrl}/api/filing-applications/${applicationId}/preview`);
   }
 }

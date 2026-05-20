@@ -79,8 +79,65 @@
   color: #4b5563;
 }
 
+.welcome-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.tile-icon { font-size: 24px; display: block; margin-bottom: 6px; }
+
+.btn-xs { padding: 4px 10px; font-size: 12px; border-radius: 7px; }
+
+/* Applications section */
+.applications-section {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 22px rgba(24,44,78,0.09);
+  padding: 20px 24px;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-head h3 { margin: 0; font-size: 16px; color: #1e3a5f; }
+
+.empty-hint { padding: 20px 0; text-align: center; }
+.empty-hint a { color: #4338ca; }
+
+.app-table-wrap { overflow-x: auto; }
+.app-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.app-table th { background: #f3f4f6; font-weight: 600; padding: 9px 12px; text-align: left; color: #374151; }
+.app-table td { padding: 9px 12px; border-bottom: 1px solid #f3f4f6; }
+.app-table tr:hover td { background: #f9fafb; }
+
+.app-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.app-status-submitted { background: #dbeafe; color: #1d4ed8; }
+.app-status-active { background: #dcfce7; color: #166534; }
+.app-status-hearing_scheduled { background: #e0e7ff; color: #4338ca; }
+.app-status-disposed { background: #fee2e2; color: #991b1b; }
+.app-status-draft { background: #f3f4f6; color: #6b7280; }
+
+.muted { color: #9ca3af; font-size: 14px; }
+.muted-sm { color: #9ca3af; font-size: 12px; }
+.office-cell { font-size: 12px; max-width: 160px; }
+.date-cell { white-space: nowrap; font-size: 13px; }
+.error { color: #dc2626; font-size: 14px; }
+
 @media (max-width: 700px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
+  .grid { grid-template-columns: 1fr; }
+  .welcome-card { flex-direction: column; align-items: flex-start; }
 }

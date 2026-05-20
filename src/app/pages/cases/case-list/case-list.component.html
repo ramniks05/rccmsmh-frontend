@@ -11,27 +11,126 @@
 
   @if (isOfficer) {
     <section class="officer-layout">
+
+      <!-- ── Sidebar: action queues ── -->
       <aside class="card sidebar">
-        <h3>Officer Menu</h3>
-        <button type="button" class="menu-btn" (click)="setOfficerMenu('ALL')">All Applications <span class="menu-count">{{ menuCount('ALL') }}</span></button>
-        <button type="button" class="menu-btn" (click)="setOfficerMenu('CLERK_DESK')">Clerk Desk <span class="menu-count">{{ menuCount('CLERK_DESK') }}</span></button>
-        <button type="button" class="menu-btn" (click)="setOfficerMenu('PO_DESK')">PO Desk <span class="menu-count">{{ menuCount('PO_DESK') }}</span></button>
-        <button type="button" class="menu-btn" (click)="setOfficerMenu('HEARING')">Hearing Pending <span class="menu-count">{{ menuCount('HEARING') }}</span></button>
-        <button type="button" class="menu-btn" (click)="setOfficerMenu('ORDERSHEET')">Order Sheet Pending <span class="menu-count">{{ menuCount('ORDERSHEET') }}</span></button>
-        <button type="button" class="menu-btn" (click)="setOfficerMenu('JUDGMENT')">Judgment Pending <span class="menu-count">{{ menuCount('JUDGMENT') }}</span></button>
+        <h3>Inbox</h3>
+        @if (loginRole) {
+          <p class="sidebar-role">{{ isClerk ? 'Clerk' : 'Presiding Officer' }}</p>
+        }
+
+        <button type="button" class="menu-btn" [class.active]="officerMenu()==='ALL'" (click)="setOfficerMenu('ALL')">
+          All Applications <span class="menu-count">{{ menuCount('ALL') }}</span>
+        </button>
+
+        <!-- ── Filing Stage ─────────────────────── -->
+        @if (isClerk || isPO) {
+          <div class="menu-divider">Filing Stage</div>
+        }
+
+        @if (isClerk) {
+          <button type="button" class="menu-btn" [class.active]="officerMenu()==='CLERK_DESK'" (click)="setOfficerMenu('CLERK_DESK')">
+            Pending for Scrutiny <span class="menu-count">{{ menuCount('CLERK_DESK') }}</span>
+          </button>
+        }
+
+        @if (isPO) {
+          <button type="button" class="menu-btn" [class.active]="officerMenu()==='PO_DESK'" (click)="setOfficerMenu('PO_DESK')">
+            Pending for Approval <span class="menu-count">{{ menuCount('PO_DESK') }}</span>
+          </button>
+        }
+
+        <!-- ── Case Proceedings ─────────────────── -->
+        <div class="menu-divider">Case Proceedings</div>
+
+        @if (isPO) {
+          <button type="button" class="menu-btn" [class.active]="officerMenu()==='ASSIGN_HEARING'" (click)="setOfficerMenu('ASSIGN_HEARING')">
+            Pending Hearing Date <span class="menu-count">{{ menuCount('ASSIGN_HEARING') }}</span>
+          </button>
+        }
+
+        <button type="button" class="menu-btn" [class.active]="officerMenu()==='PENDING_NOTICE'" (click)="setOfficerMenu('PENDING_NOTICE')">
+          {{ isClerk ? 'Pending Draft Notice' : 'Pending Finalize Notice' }}
+          <span class="menu-count">{{ menuCount('PENDING_NOTICE') }}</span>
+        </button>
+
+        <button type="button" class="menu-btn" [class.active]="officerMenu()==='CAUSE_LIST'" (click)="setOfficerMenu('CAUSE_LIST')">
+          Cause List / Roznama
+        </button>
+
+        <button type="button" class="menu-btn" [class.active]="officerMenu()==='PENDING_ORDER_SHEET'" (click)="setOfficerMenu('PENDING_ORDER_SHEET')">
+          {{ isClerk ? 'Pending Roznama Scrutiny' : 'Pending Sign Roznama' }}
+          <span class="menu-count">{{ menuCount('PENDING_ORDER_SHEET') }}</span>
+        </button>
+
+        <button type="button" class="menu-btn" [class.active]="officerMenu()==='PENDING_JUDGMENT'" (click)="setOfficerMenu('PENDING_JUDGMENT')">
+          {{ isClerk ? 'Pending Draft Judgment' : 'Pending Publish Judgment' }}
+          <span class="menu-count">{{ menuCount('PENDING_JUDGMENT') }}</span>
+        </button>
+
+        @if (isPO) {
+          <button type="button" class="menu-btn" [class.active]="officerMenu()==='DISPOSED'" (click)="setOfficerMenu('DISPOSED')">
+            Disposed <span class="menu-count">{{ menuCount('DISPOSED') }}</span>
+          </button>
+        }
       </aside>
+
+      <!-- ── Application list ── -->
       <article class="card">
         <div class="inbox-head">
-          <h3>Applications</h3>
-          <button type="button" class="btn btn-primary" (click)="loadOfficerInbox()">Refresh</button>
+          <h3>{{ officerMenu() === 'ALL' ? 'All Applications' :
+                 officerMenu() === 'CLERK_DESK' ? 'Pending for Scrutiny' :
+                 officerMenu() === 'PO_DESK' ? 'Pending for Approval' :
+                 officerMenu() === 'ASSIGN_HEARING' ? 'Pending Hearing Date' :
+                 officerMenu() === 'PENDING_NOTICE' ? (isClerk ? 'Pending Draft Notice' : 'Pending Finalize Notice') :
+                 officerMenu() === 'CAUSE_LIST' ? 'Cause List — Roznama' :
+                 officerMenu() === 'PENDING_ORDER_SHEET' ? (isClerk ? 'Pending Roznama Scrutiny' : 'Pending Sign Roznama') :
+                 officerMenu() === 'PENDING_JUDGMENT' ? (isClerk ? 'Pending Draft Judgment' : 'Pending Publish Judgment') : 'Disposed Cases' }}</h3>
+          @if (officerMenu() === 'CAUSE_LIST') {
+            <button type="button" class="btn btn-secondary btn-xs" (click)="loadRoznamaTable()" [disabled]="roznamaTableLoading()">Refresh</button>
+          } @else {
+            <button type="button" class="btn btn-secondary btn-xs" (click)="loadOfficerInbox()">Refresh</button>
+          }
         </div>
-        <p class="muted">Showing: {{ officerMenu() }}</p>
-        @if (loadingOfficerInbox() || caseInboxLoading()) {
-          <p class="muted">Loading applications...</p>
+
+        @if (officerMenu() === 'CAUSE_LIST') {
+          <div class="form-line" style="margin-bottom:12px">
+            <label>Hearing Date</label>
+            <input type="date" [value]="roznamaTableDate()" (input)="roznamaTableDate.set($any($event.target).value); loadRoznamaTable()" />
+          </div>
+          @if (roznamaTableLoading()) {
+            <p class="muted">Loading cause list…</p>
+          } @else if (roznamaTableError()) {
+            <p class="error">{{ roznamaTableError() }}</p>
+          } @else if (roznamaTableRows().length === 0) {
+            <p class="muted">No hearings on this date.</p>
+          } @else {
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>#</th><th>Case No</th><th>Hearing</th><th>Stage</th><th>Roznama</th><th></th></tr>
+                </thead>
+                <tbody>
+                  @for (row of roznamaTableRows(); track row.hearingId) {
+                    <tr>
+                      <td>{{ row.rowNo }}</td>
+                      <td>{{ row.caseNo }}</td>
+                      <td>{{ row.hearingDate }} (#{{ row.hearingNo }})</td>
+                      <td><span class="badge">{{ row.proceedingStage }}</span></td>
+                      <td>{{ row.roznamaStatus || '—' }}</td>
+                      <td><button type="button" class="btn btn-primary btn-xs" (click)="openRoznamaRow(row)">Open</button></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        } @else if (loadingOfficerInbox() || caseInboxLoading()) {
+          <p class="muted">Loading…</p>
         } @else if (officerInboxError()) {
           <p class="error">{{ officerInboxError() }}</p>
         } @else if (filteredOfficerInbox().length === 0) {
-          <p class="muted">No applications found for selected menu.</p>
+          <p class="muted">No applications in this queue.</p>
         } @else {
           <div class="table-wrap">
             <table class="table">
@@ -40,10 +139,7 @@
                   <th>App ID</th>
                   <th>Application No</th>
                   <th>Case No</th>
-                  <th>App Status</th>
-                  <th>Case Status</th>
-                  <th>Stage</th>
-                  <th>Assignee</th>
+                  <th>Status</th>
                   <th>Subject</th>
                   <th>Office</th>
                   <th></th>
@@ -51,17 +147,20 @@
               </thead>
               <tbody>
                 @for (x of filteredOfficerInbox(); track x.applicationId) {
-                  <tr>
+                  <tr [class.selected-row]="selectedApplicationId() === x.applicationId">
                     <td>{{ x.applicationId }}</td>
                     <td>{{ x.applicationNo || '-' }}</td>
                     <td>{{ caseNoFor(x.applicationId) }}</td>
-                    <td>{{ x.status }}</td>
-                    <td>{{ caseStatusFor(x.applicationId) || '-' }}</td>
-                    <td>{{ x.processingStage || '-' }}</td>
-                    <td>{{ x.currentAssigneeRole || '-' }}</td>
+                    <td>
+                      <span class="badge">{{ caseStatusFor(x.applicationId) || x.status }}</span>
+                    </td>
                     <td>{{ x.subjectName }}</td>
                     <td>{{ x.officeName }}</td>
-                    <td><button type="button" class="btn btn-secondary btn-xs" (click)="viewOfficerApplication(x.applicationId)">Open</button></td>
+                    <td>
+                      <button type="button" class="btn btn-primary btn-xs" (click)="viewOfficerApplication(x.applicationId)">
+                        Open
+                      </button>
+                    </td>
                   </tr>
                 }
               </tbody>
@@ -71,115 +170,348 @@
       </article>
     </section>
 
-    <article class="card">
-      <h3>Application Details</h3>
+    <!-- ── Detail panel (shown after clicking Open) ── -->
+    <article class="card" id="application-details-card">
       @if (!selectedApplicationId()) {
-        <p class="muted">Select an application from inbox to view full details.</p>
+        <p class="muted">Select an application from the list above to view details and take action.</p>
       } @else if (loadingOfficerDetail()) {
-        <p class="muted">Loading application details...</p>
+        <p class="muted">Loading application details…</p>
       } @else if (officerDetailError()) {
         <p class="error">{{ officerDetailError() }}</p>
       } @else if (!officerDetail()) {
         <p class="muted">No details available.</p>
       } @else {
-        <div class="form-preview">
-          <div class="action-row">
-            <button type="button" class="btn btn-secondary" (click)="selectOfficerTab('summary')">Summary</button>
-            <button type="button" class="btn btn-secondary" (click)="selectOfficerTab('decision')">Decision</button>
-            <button type="button" class="btn btn-secondary" (click)="selectOfficerTab('proceedings')">Proceedings</button>
-          </div>
 
-          @if (officerTab() === 'decision') {
-            <section class="preview-section">
-              <h4>Decision Actions</h4>
-              <div class="action-row">
-                @if (canPoReviewActions()) {
+        <!-- Header row -->
+        <div class="detail-header">
+          <div>
+            <h3>{{ officerDetail()!.applicationNo || ('Application #' + officerDetail()!.applicationId) }}</h3>
+            <p class="sub">{{ officerDetail()!.caseCategoryName }} · {{ officerDetail()!.subjectName }} · <span class="badge">{{ caseStatusFor(selectedApplicationId()!) || officerDetail()!.status }}</span></p>
+          </div>
+          <div class="action-row">
+            <button type="button" class="tab-btn" [class.tab-active]="officerTab()==='action'" (click)="selectOfficerTab('action')">
+              {{ actionTabLabel() }}
+            </button>
+            <button type="button" class="tab-btn" [class.tab-active]="officerTab()==='details'" (click)="selectOfficerTab('details')">
+              Application Details
+            </button>
+          </div>
+        </div>
+
+        @if (actionError()) { <p class="error">{{ actionError() }}</p> }
+        @if (actionMessage()) { <p class="muted success-msg">✓ {{ actionMessage() }}</p> }
+
+        <!-- ════════════════════════════════════════════
+             ACTION TAB — one context-specific form
+             ════════════════════════════════════════════ -->
+        @if (officerTab() === 'action') {
+          <div class="form-preview">
+
+            <!-- ─ Filing application: Clerk scrutiny & forward to PO ─ -->
+            @if (!caseIdForActions() && canForwardToPo()) {
+              <section class="preview-section">
+                <h4>Scrutiny — Forward to Presiding Officer</h4>
+                <div class="form-line">
+                  <label>Remarks</label>
+                  <textarea rows="2" [value]="actionRemarksInput()" (input)="actionRemarksInput.set($any($event.target).value)" placeholder="Add remarks for PO…"></textarea>
+                </div>
+                <div class="action-row">
+                  <button type="button" class="btn btn-primary" (click)="forwardToPo()" [disabled]="assigning()">
+                    {{ assigning() ? 'Forwarding…' : 'Forward to PO' }}
+                  </button>
+                </div>
+              </section>
+            }
+
+            <!-- ─ Filing application: PO approval decision ─ -->
+            @if (!caseIdForActions() && canPoReviewActions()) {
+              <section class="preview-section">
+                <h4>Approval Decision</h4>
+                <div class="action-row">
                   <button type="button" class="btn btn-primary" (click)="approveAndGenerateCase()" [disabled]="approving() || isDisposedCase()">
                     {{ approving() ? 'Approving…' : 'Approve & Generate Case' }}
                   </button>
+                </div>
+                @if (generatedCase()) {
+                  <div class="kv-grid" style="margin-top:10px">
+                    <div class="kv"><div class="kv-label">Case No</div><div class="kv-value">{{ generatedCase()!.caseNo }}</div></div>
+                    <div class="kv"><div class="kv-label">Case ID</div><div class="kv-value">{{ generatedCase()!.caseId }}</div></div>
+                  </div>
                 }
-              </div>
-              <div class="form-line">
-                <label>Remarks (for forward/return/reject)</label>
-                <textarea rows="2" [value]="actionRemarksInput()" (input)="actionRemarksInput.set($any($event.target).value)"></textarea>
-              </div>
-              <div class="action-row">
-                @if (canForwardToPo()) {
-                  <button type="button" class="btn btn-secondary" (click)="forwardToPo()" [disabled]="assigning()">
-                    {{ assigning() ? 'Forwarding…' : 'Forward to PO' }}
-                  </button>
-                }
-                @if (canPoReviewActions()) {
+                <hr class="sep" />
+                <div class="form-line">
+                  <label>Remarks (for Return or Reject)</label>
+                  <textarea rows="2" [value]="actionRemarksInput()" (input)="actionRemarksInput.set($any($event.target).value)" placeholder="Required for return / reject"></textarea>
+                </div>
+                <div class="action-row">
                   <button type="button" class="btn btn-secondary" (click)="returnToClerk()" [disabled]="assigning()">
                     {{ assigning() ? 'Processing…' : 'Return to Clerk' }}
                   </button>
                   <button type="button" class="btn btn-secondary" (click)="rejectApplicationByPo()" [disabled]="assigning()">
                     {{ assigning() ? 'Processing…' : 'Reject' }}
                   </button>
-                }
-              </div>
-              @if (actionError()) {
-                <p class="error">{{ actionError() }}</p>
-              }
-              @if (actionMessage()) {
-                <p class="muted">{{ actionMessage() }}</p>
-              }
-              <div class="kv-grid">
-                <div class="kv"><div class="kv-label">Processing Stage</div><div class="kv-value">{{ officerDetail()!.processingStage || '-' }}</div></div>
-                <div class="kv"><div class="kv-label">Current Assignee Role</div><div class="kv-value">{{ officerDetail()!.currentAssigneeRole || '-' }}</div></div>
-              </div>
-              @if (generatedCase()) {
-                <div class="kv-grid">
-                  <div class="kv"><div class="kv-label">Application No</div><div class="kv-value">{{ generatedCase()!.applicationNo || '-' }}</div></div>
-                  <div class="kv"><div class="kv-label">Case ID</div><div class="kv-value">{{ generatedCase()!.caseId }}</div></div>
-                  <div class="kv"><div class="kv-label">Case No</div><div class="kv-value">{{ generatedCase()!.caseNo || '-' }}</div></div>
-                  <div class="kv"><div class="kv-label">Server Message</div><div class="kv-value">{{ generatedCase()!.message || '-' }}</div></div>
                 </div>
-              }
-            </section>
-          }
+              </section>
+            }
 
-          @if (officerTab() === 'proceedings') {
-            <section class="preview-section">
-              <h4>Case Proceedings</h4>
-              @if (!caseIdForActions()) {
-                <p class="muted">Proceedings are available after PO approval and case generation.</p>
-              } @else {
-                @if (isDisposedCase()) {
-                  <p class="muted">This case is disposed. Hearing, order sheet, and judgment actions are locked.</p>
+            <!-- ─ ACTIVE / HEARING_SCHEDULED: Hearing schedule ─ -->
+            @if (showHearingSection()) {
+              <section class="preview-section">
+                <h4>Hearing</h4>
+                @if (canScheduleHearing()) {
+                  <div class="form-line">
+                    <label>Hearing Date</label>
+                    <input type="date" [value]="hearingDateInput()" (input)="hearingDateInput.set($any($event.target).value)" />
+                  </div>
+                  <div class="form-line">
+                    <label>Remarks</label>
+                    <input type="text" [value]="hearingRemarksInput()" (input)="hearingRemarksInput.set($any($event.target).value)" placeholder="Optional" />
+                  </div>
+                  <div class="form-line checkbox">
+                    <label>
+                      <input type="checkbox" [checked]="hearingNoticeGenerate()" (change)="hearingNoticeGenerate.set($any($event.target).checked)" />
+                      Generate hearing notice
+                    </label>
+                  </div>
+                  <div class="action-row">
+                    <button type="button" class="btn btn-primary" (click)="scheduleHearing()" [disabled]="hearingsLoading()">
+                      {{ hearingsLoading() ? 'Scheduling…' : 'Schedule Hearing' }}
+                    </button>
+                  </div>
                 }
-                <h5>Schedule Hearing</h5>
-                <div class="form-line">
-                  <label>Hearing Date</label>
-                  <input type="date" [value]="hearingDateInput()" (input)="hearingDateInput.set($any($event.target).value)" [disabled]="!canRunCaseActions()" />
+                <div class="action-row" style="margin-top:8px">
+                  <button type="button" class="btn btn-secondary btn-xs" (click)="loadHearings()" [disabled]="hearingsLoading()">Refresh Hearings</button>
+                  <button type="button" class="btn btn-secondary btn-xs" (click)="loadTodayCauseList()" [disabled]="todayCauseListLoading()">Today Cause List</button>
                 </div>
-                <div class="form-line">
-                  <label>Remarks</label>
-                  <input type="text" [value]="hearingRemarksInput()" (input)="hearingRemarksInput.set($any($event.target).value)" [disabled]="!canRunCaseActions()" />
-                </div>
-                <div class="form-line checkbox">
-                  <label>
-                    <input type="checkbox" [checked]="hearingNoticeGenerate()" (change)="hearingNoticeGenerate.set($any($event.target).checked)" [disabled]="!canRunCaseActions()" />
-                    Generate notice
-                  </label>
-                </div>
-                <div class="action-row">
-                  <button type="button" class="btn btn-secondary" (click)="scheduleHearing()" [disabled]="hearingsLoading() || !canRunCaseActions()">Schedule</button>
-                  <button type="button" class="btn btn-secondary" (click)="loadHearings()" [disabled]="hearingsLoading()">Refresh Hearings</button>
-                  <button type="button" class="btn btn-secondary" (click)="loadTodayCauseList()" [disabled]="todayCauseListLoading()">Today Cause List</button>
-                </div>
-
-                <h5>Hearings</h5>
-                @if (hearings().length === 0) {
-                  <p class="muted">No hearings found.</p>
-                } @else {
-                  <div class="table-wrap">
+                @if (hearings().length > 0) {
+                  <div class="table-wrap" style="margin-top:8px">
                     <table class="table">
-                      <thead><tr><th>ID</th><th>No</th><th>Date</th><th>Status</th><th>Notice</th><th>Remarks</th></tr></thead>
+                      <thead><tr><th>No</th><th>Date</th><th>Status</th><th>Notice</th><th>Remarks</th></tr></thead>
                       <tbody>
                         @for (h of hearings(); track h.hearingId) {
+                          <tr><td>{{ h.hearingNo }}</td><td>{{ h.hearingDate }}</td><td>{{ h.status }}</td><td>{{ h.noticeGenerated ? 'Yes' : 'No' }}</td><td>{{ h.remarks || '-' }}</td></tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+              </section>
+            }
+
+            <!-- ─ HEARING_SCHEDULED: Notice workflow ─ -->
+            @if (showNoticeSection()) {
+              <section class="preview-section">
+                <h4>Notices <span class="stage-chip">Clerk → PO → Served</span></h4>
+
+                <!-- ── CLERK VIEW ── -->
+                @if (viewerFlowRole() === 'CLERK') {
+                  @if (canDraftNotice()) {
+                    <!-- Draft form — shown only when no notice exists yet -->
+                    <div class="form-line">
+                      <label>Notice Type</label>
+                      <input type="text" [value]="noticeType()" (input)="noticeType.set($any($event.target).value)" placeholder="HEARING_NOTICE" />
+                    </div>
+                    <div class="form-line">
+                      <label>Hearing ID (optional)</label>
+                      <input type="number" [value]="noticeHearingIdInput()" (input)="noticeHearingIdInput.set($any($event.target).value)" />
+                    </div>
+                    <div class="form-line">
+                      <label>Select Parties to Notify</label>
+                      @if (partyOptions().length === 0) {
+                        <p class="muted" style="margin:4px 0">No parties found in application details.</p>
+                      } @else {
+                        <div class="party-check-list">
+                          @for (p of partyOptions(); track p.key) {
+                            <label class="party-check-item">
+                              <input type="checkbox"
+                                [checked]="isPartySelected(p.key)"
+                                (change)="toggleParty(p.key, $any($event.target).checked)" />
+                              {{ p.label }}
+                            </label>
+                          }
+                        </div>
+                      }
+                    </div>
+                    @if (selectedPartyKeys().size > 0) {
+                      <div class="action-row" style="gap:8px">
+                        <button type="button" class="btn btn-secondary" (click)="previewNotice()">Preview Notice (Marathi)</button>
+                        <button type="button" class="btn btn-primary" (click)="draftNotice()" [disabled]="noticeActionLoading()">
+                          {{ noticeActionLoading() ? 'Saving…' : 'Save Notice Draft' }}
+                        </button>
+                      </div>
+                    }
+                  } @else if (notices().length > 0) {
+                    @if (notices()[0].status === 'CLERK_DRAFT') {
+                      <!-- Revert banner — PO returned the notice -->
+                      @if (notices()[0].message && notices()[0].message!.toLowerCase().includes('revert')) {
+                        <div class="notice-reverted-banner">
+                          <strong>Presiding Officer returned this notice for correction.</strong>
+                          <p style="margin:4px 0 0">{{ notices()[0].message }}</p>
+                        </div>
+                      }
+                      <!-- Draft saved — Clerk must submit to PO -->
+                      <div class="notice-saved-info">
+                        <span class="badge badge-success">Draft Saved</span>
+                        <p class="muted" style="margin:4px 0 8px">Draft saved. Submit to Presiding Officer when ready.</p>
+                        <div class="action-row" style="gap:8px;margin-top:8px">
+                          <button type="button" class="btn btn-secondary btn-xs" (click)="previewNotice()">Preview Notice (Marathi)</button>
+                          <button type="button" class="btn btn-primary btn-xs"
+                            (click)="submitNoticeToPO(notices()[0].noticeId)"
+                            [disabled]="noticeSubmitting()">
+                            {{ noticeSubmitting() ? 'Submitting…' : 'Submit to Presiding Officer' }}
+                          </button>
+                        </div>
+                      </div>
+                    } @else {
+                      <!-- Submitted — read-only status for Clerk -->
+                      <div class="notice-saved-info">
+                        <span class="badge badge-success">Submitted to Presiding Officer</span>
+                        <p class="muted" style="margin:4px 0 8px">Notice is under PO review. Status: <strong>{{ notices()[0].status }}</strong></p>
+                        <button type="button" class="btn btn-secondary btn-xs" (click)="previewNotice()">Preview Notice (Marathi)</button>
+                      </div>
+                    }
+                  }
+                }
+
+                <!-- ── PRESIDING OFFICER VIEW ── -->
+                @if (viewerFlowRole() === 'PRESIDING_OFFICER') {
+                  @if (noticesLoading()) {
+                    <p class="muted">Loading notices…</p>
+                  } @else if (notices().length === 0) {
+                    <p class="muted">No notice drafted by clerk yet.</p>
+                  } @else {
+                    @for (n of notices(); track n.noticeId) {
+                      <div class="notice-card">
+                        <div class="notice-card-row">
+                          <span class="notice-label">Type:</span> {{ n.noticeType }}
+                          &nbsp;&nbsp;
+                          <span class="notice-label">Status:</span> <span class="badge">{{ n.status }}</span>
+                          @if (n.hearingId) { &nbsp;&nbsp;<span class="notice-label">Hearing:</span> {{ n.hearingId }} }
+                        </div>
+                        <div class="action-row" style="gap:8px;margin-top:8px">
+                          <button type="button" class="btn btn-secondary btn-xs" (click)="previewNotice()">Preview (Marathi)</button>
+                          @if (n.status === 'PO_SCRUTINY') {
+                            <button type="button" class="btn btn-primary btn-xs" (click)="finalizeNotice(n.noticeId)" [disabled]="noticeActionLoading()">
+                              {{ noticeActionLoading() ? 'Processing…' : 'Finalize Notice' }}
+                            </button>
+                          }
+                          @if (n.status === 'PO_FINALIZED') {
+                            <div class="form-inline">
+                              <input type="text" [value]="noticeSignRef()" (input)="noticeSignRef.set($any($event.target).value)" placeholder="Digital Signature Ref" style="width:200px" />
+                              <button type="button" class="btn btn-primary btn-xs" (click)="signNotice(n.noticeId)" [disabled]="noticeActionLoading()">
+                                {{ noticeActionLoading() ? 'Signing…' : 'Sign Notice' }}
+                              </button>
+                            </div>
+                          }
+                          @if (n.status === 'PO_SIGNED') {
+                            <button type="button" class="btn btn-primary btn-xs" (click)="serveNotice(n.noticeId)" [disabled]="noticeActionLoading()">
+                              {{ noticeActionLoading() ? 'Serving…' : 'Serve Notice' }}
+                            </button>
+                          }
+                        </div>
+                        <!-- Revert to Clerk — shown from PO_SCRUTINY onwards, hidden after SERVED -->
+                        @if (n.status === 'PO_SCRUTINY' || n.status === 'PO_FINALIZED' || n.status === 'PO_SIGNED') {
+                          <div class="revert-section">
+                            <label class="revert-label">Revert to Clerk (with remarks)</label>
+                            <div class="form-inline">
+                              <input type="text" class="form-control"
+                                [value]="noticeRevertReason()"
+                                (input)="noticeRevertReason.set($any($event.target).value)"
+                                placeholder="Enter reason for returning notice…"
+                                style="flex:1" />
+                              <button type="button" class="btn btn-warning btn-xs"
+                                (click)="revertNotice(n.noticeId)"
+                                [disabled]="noticeActionLoading() || !noticeRevertReason().trim()">
+                                {{ noticeActionLoading() ? 'Sending…' : 'Revert to Clerk' }}
+                              </button>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    }
+                    <div class="action-row" style="margin-top:6px">
+                      <button type="button" class="btn btn-secondary btn-xs" (click)="loadNotices()" [disabled]="noticesLoading()">Refresh</button>
+                    </div>
+                  }
+                }
+
+              </section>
+            }
+
+            <!-- ─ HEARING_SCHEDULED: Roznama (PO draft → Clerk edit → PO finalize → sign) ─ -->
+            @if (showOrderSheetSection()) {
+              <section class="preview-section">
+                <h4>Order Sheet (Roznama) <span class="stage-chip">Draft → Clerk scrutiny → PO finalize/sign</span></h4>
+                <div class="roznama-tabs" role="tablist">
+                  <button type="button" class="roznama-tab" [class.active]="roznamaPanelTab()==='roznama'" (click)="setRoznamaPanelTab('roznama')">Roznama</button>
+                  @if (canScheduleRehearing()) {
+                    <button type="button" class="roznama-tab" [class.active]="roznamaPanelTab()==='rehearing'" (click)="setRoznamaPanelTab('rehearing')">Reschedule / Rehearing</button>
+                  }
+                </div>
+
+                @if (roznamaPanelTab() === 'rehearing' && canScheduleRehearing()) {
+                  <div class="rehearing-panel">
+                    <p class="muted" style="margin:0 0 10px">
+                      Schedule the next hearing on the same case. Then open Cause List for that date and draft roznamah with the new hearing row.
+                    </p>
+                    @if (hasRoznamaInProgress()) {
+                      <p class="error">Current roznamah is still in progress. Sign or revert before scheduling rehearing.</p>
+                    }
+                    <div class="form-line">
+                      <label>Next Hearing Date</label>
+                      <input type="date" [value]="rehearingDateInput()" (input)="rehearingDateInput.set($any($event.target).value)" />
+                    </div>
+                    <div class="form-line">
+                      <label>Remarks</label>
+                      <input type="text" [value]="rehearingRemarksInput()" (input)="rehearingRemarksInput.set($any($event.target).value)" placeholder="Rehearing" />
+                    </div>
+                    <div class="form-line checkbox">
+                      <label>
+                        <input type="checkbox" [checked]="rehearingNoticeGenerate()" (change)="rehearingNoticeGenerate.set($any($event.target).checked)" />
+                        Generate hearing notice
+                      </label>
+                    </div>
+                    <div class="action-row">
+                      <button type="button" class="btn btn-primary" (click)="scheduleRehearing()" [disabled]="rehearingScheduling() || hasRoznamaInProgress()">
+                        {{ rehearingScheduling() ? 'Scheduling…' : 'Schedule Rehearing' }}
+                      </button>
+                    </div>
+                  </div>
+                } @else {
+                @if (hearings().length > 0) {
+                  <div class="form-line" style="margin-top:8px">
+                    <label>Hearing (select for rehearing / past hearings)</label>
+                    <select class="form-control" (change)="selectRoznamaHearingFromList(hearings()[$any($event.target).selectedIndex])">
+                      @for (h of hearings(); track h.hearingId) {
+                        <option [selected]="roznamaHearingQuery()?.hearingId === h.hearingId">
+                          Hearing #{{ h.hearingNo }} · {{ h.hearingDate }} · {{ h.status }}
+                        </option>
+                      }
+                    </select>
+                  </div>
+                }
+                @if (selectedRoznamaHearing()) {
+                  <p class="muted" style="margin:0 0 8px">
+                    Hearing #{{ selectedRoznamaHearing()!.hearingId }} · {{ selectedRoznamaHearing()!.hearingDate }}
+                    @if (selectedRoznamaTableRow()) {
+                      · <span class="badge">{{ selectedRoznamaTableRow()!.proceedingStage }}</span>
+                    }
+                  </p>
+                }
+
+                @if (isRoznamaReadOnly()) {
+                  <div class="notice-saved-info" style="margin-top:8px">
+                    <span class="badge badge-success">Signed (archived)</span>
+                    <p class="muted" style="margin:4px 0">This hearing roznamah is read-only. Schedule rehearing for a new date, or select another hearing.</p>
+                  </div>
+                  <div class="table-wrap roznama-entry-table-wrap">
+                    <table class="table roznama-entry-table">
+                      <thead><tr><th>Date</th><th>Roznama</th></tr></thead>
+                      <tbody>
+                        @for (row of roznamaEntryRows(); track $index) {
                           <tr>
-                            <td>{{ h.hearingId }}</td><td>{{ h.hearingNo }}</td><td>{{ h.hearingDate }}</td><td>{{ h.status }}</td><td>{{ h.noticeGenerated ? 'Yes' : 'No' }}</td><td>{{ h.remarks || '-' }}</td>
+                            <td class="roznama-date-col">{{ row.date || '—' }}</td>
+                            <td class="roznama-content-col">{{ row.content || '—' }}</td>
                           </tr>
                         }
                       </tbody>
@@ -187,292 +519,436 @@
                   </div>
                 }
 
-                <h5>Order Sheet</h5>
-                <div class="form-line"><label>Hearing ID (optional)</label><input type="number" [value]="orderSheetHearingIdInput()" (input)="orderSheetHearingIdInput.set($any($event.target).value)" [disabled]="!canRunCaseActions()" /></div>
-                <div class="form-line"><label>Content</label><textarea rows="4" [value]="orderSheetContentInput()" (input)="orderSheetContentInput.set($any($event.target).value)" [disabled]="!canRunCaseActions()"></textarea></div>
-                <div class="form-line"><label>Remarks</label><input type="text" [value]="orderSheetRemarksInput()" (input)="orderSheetRemarksInput.set($any($event.target).value)" [disabled]="!canRunCaseActions()" /></div>
-                <div class="action-row">
-                  <button type="button" class="btn btn-secondary" (click)="saveOrderSheet()" [disabled]="orderSheetSaving() || !canRunCaseActions()">{{ orderSheetSaving() ? 'Saving…' : 'Save Order Sheet' }}</button>
-                  <button type="button" class="btn btn-secondary" (click)="loadCurrentOrderSheet()">Refresh Current</button>
-                  <button type="button" class="btn btn-secondary" (click)="loadOrderSheetHistory()">Refresh History</button>
-                </div>
-                @if (currentOrderSheet()) {
+                @if (currentOrderSheet() || isRoznamaReadOnly()) {
                   <div class="kv-grid">
-                    <div class="kv"><div class="kv-label">Case No</div><div class="kv-value">{{ currentOrderSheet()!.caseNo }}</div></div>
-                    <div class="kv"><div class="kv-label">Updated At</div><div class="kv-value">{{ toPrettyDate(currentOrderSheet()!.updatedAt) }}</div></div>
+                    <div class="kv"><div class="kv-label">Status</div><div class="kv-value"><span class="badge">{{ roznamaStatusLabel() }}</span></div></div>
                     <div class="kv"><div class="kv-label">Updated By</div><div class="kv-value">{{ currentOrderSheet()!.updatedByLoginId }}</div></div>
-                    <div class="kv"><div class="kv-label">Content</div><div class="kv-value">{{ currentOrderSheet()!.content }}</div></div>
+                    <div class="kv"><div class="kv-label">Updated At</div><div class="kv-value">{{ toPrettyDate(currentOrderSheet()!.updatedAt) }}</div></div>
                   </div>
                 }
+
+                @if (canPoEditRoznama()) {
+                  @if (poRoznamaEditHint()) {
+                    <p class="muted" style="margin:8px 0 0">{{ poRoznamaEditHint() }}</p>
+                  }
+                  <div class="form-line" style="margin-top:8px">
+                    <label>Hearing ID (optional)</label>
+                    <input type="number" [value]="orderSheetHearingIdInput()" (input)="orderSheetHearingIdInput.set($any($event.target).value)" />
+                  </div>
+                  <div class="form-line">
+                    <label>Roznama (date · content)</label>
+                    <ng-container *ngTemplateOutlet="roznamaEntryTable" />
+                  </div>
+                  <div class="form-line">
+                    <label>Remarks</label>
+                    <input type="text" [value]="orderSheetRemarksInput()" (input)="orderSheetRemarksInput.set($any($event.target).value)" />
+                  </div>
+                  <div class="action-row" style="gap:8px; flex-wrap:wrap">
+                    <button type="button" class="btn btn-secondary" (click)="previewRoznama()">Preview Roznama (Marathi)</button>
+                    <button type="button" class="btn btn-primary" (click)="saveOrderSheet()" [disabled]="orderSheetSaving()">
+                      {{ orderSheetSaving() ? 'Saving…' : poRoznamaSaveLabel() }}
+                    </button>
+                    @if (canFinalizeOrderSheet()) {
+                      <button type="button" class="btn btn-primary" (click)="finalizeOrderSheet()" [disabled]="orderSheetFinalizing()">
+                        {{ orderSheetFinalizing() ? 'Finalizing…' : 'Finalize Roznama' }}
+                      </button>
+                    }
+                    @if (canSignOrderSheet()) {
+                      <button type="button" class="btn btn-primary" (click)="signOrderSheet()" [disabled]="orderSheetSigning() || !orderSheetSignRef().trim()">
+                        {{ orderSheetSigning() ? 'Signing…' : 'Sign Roznama' }}
+                      </button>
+                    }
+                  </div>
+                  @if (canSignOrderSheet()) {
+                    <div class="form-line" style="margin-top:8px">
+                      <label>Digital Signature Reference</label>
+                      <input type="text" [value]="orderSheetSignRef()" (input)="orderSheetSignRef.set($any($event.target).value)" placeholder="DSC_REF_2026_001" />
+                    </div>
+                  }
+                }
+
+                @if (viewerFlowRole() === 'CLERK') {
+                  @if (!currentOrderSheet() && !canClerkEditRoznama() && !isRoznamaReadOnly()) {
+                    <p class="muted" style="margin-top:8px">Presiding Officer has not saved roznamah draft yet for this hearing. Open from Cause List after PO saves, or select the correct hearing.</p>
+                  } @else if (canClerkEditRoznama()) {
+                    <div class="form-line" style="margin-top:8px">
+                      <label>Edit Roznama (from PO draft)</label>
+                      <ng-container *ngTemplateOutlet="roznamaEntryTable" />
+                    </div>
+                    <div class="form-line">
+                      <label>Remarks</label>
+                      <input type="text" [value]="orderSheetRemarksInput()" (input)="orderSheetRemarksInput.set($any($event.target).value)" />
+                    </div>
+                    <div class="action-row" style="gap:8px">
+                      <button type="button" class="btn btn-secondary" (click)="previewRoznama()">Preview Roznama (Marathi)</button>
+                      <button type="button" class="btn btn-secondary" (click)="saveOrderSheet()" [disabled]="orderSheetSaving()">
+                        {{ orderSheetSaving() ? 'Saving…' : 'Save Changes' }}
+                      </button>
+                      @if (canClerkSubmitOrderSheetToPo()) {
+                        <button type="button" class="btn btn-primary" (click)="submitOrderSheetToPO()" [disabled]="orderSheetSubmitting()">
+                          {{ orderSheetSubmitting() ? 'Submitting…' : 'Submit to PO for Scrutiny' }}
+                        </button>
+                      }
+                    </div>
+                  } @else if (currentOrderSheet()?.status === 'PO_SCRUTINY') {
+                    <div class="notice-saved-info" style="margin-top:8px">
+                      <span class="badge badge-success">Submitted to PO</span>
+                      <p class="muted" style="margin:4px 0">Roznama is with Presiding Officer for finalization.</p>
+                    </div>
+                  } @else if (currentOrderSheet()?.status === 'PO_FINALIZED' || currentOrderSheet()?.status === 'PO_SIGNED') {
+                    <p class="muted" style="margin-top:8px">Roznama finalized. Status: {{ currentOrderSheet()!.status }}</p>
+                  }
+                }
+
+                <!-- PO: Revert order sheet to Clerk (on PO_FINALIZED or PO_SIGNED) -->
+                @if (viewerFlowRole() === 'PRESIDING_OFFICER' &&
+                     currentOrderSheet() && (currentOrderSheet()?.status === 'PO_SCRUTINY' || currentOrderSheet()?.status === 'PO_FINALIZED')) {
+                  <div class="revert-section">
+                    <label class="revert-label">Revert Order Sheet to Clerk (with reason)</label>
+                    <div class="form-inline">
+                      <input type="text" class="form-control"
+                        [value]="orderSheetRevertReason()"
+                        (input)="orderSheetRevertReason.set($any($event.target).value)"
+                        placeholder="Enter reason…"
+                        style="flex:1" />
+                      <button type="button" class="btn btn-warning btn-xs"
+                        (click)="revertOrderSheet()"
+                        [disabled]="!orderSheetRevertReason().trim()">
+                        Revert to Clerk
+                      </button>
+                    </div>
+                  </div>
+                }
+
+                <div class="action-row" style="margin-top:8px; gap:8px">
+                  @if (currentOrderSheet() || orderSheetContentInput().trim()) {
+                    <button type="button" class="btn btn-secondary btn-xs" (click)="previewRoznama()">Preview Roznama (Marathi)</button>
+                  }
+                  <button type="button" class="btn btn-secondary btn-xs" (click)="loadCurrentOrderSheet()">Refresh</button>
+                  <button type="button" class="btn btn-secondary btn-xs" (click)="loadOrderSheetHistory()">History</button>
+                </div>
+
                 @if (orderSheetHistory().length > 0) {
-                  <div class="table-wrap">
+                  <div class="table-wrap" style="margin-top:8px">
                     <table class="table">
-                      <thead><tr><th>History ID</th><th>Hearing</th><th>Date</th><th>Remarks</th><th>Created</th></tr></thead>
+                      <thead><tr><th>Hearing</th><th>Date</th><th>Status</th><th>Remarks</th><th>Created By</th></tr></thead>
                       <tbody>
                         @for (h of orderSheetHistory(); track h.historyId) {
-                          <tr><td>{{ h.historyId }}</td><td>{{ h.hearingNo || '-' }}</td><td>{{ h.hearingDate || '-' }}</td><td>{{ h.remarks || '-' }}</td><td>{{ toPrettyDate(h.createdAt) }}</td></tr>
+                          <tr><td>{{ h.hearingNo || '-' }}</td><td>{{ h.hearingDate || '-' }}</td><td>{{ h.status || '-' }}</td><td>{{ h.remarks || '-' }}</td><td>{{ h.createdByLoginId }}</td></tr>
                         }
                       </tbody>
                     </table>
                   </div>
                 }
+                }
+              </section>
+            }
 
-                <h5>Final Judgment</h5>
-                <div class="form-line"><label>Judgment Summary</label><textarea rows="3" [value]="judgmentSummaryInput()" (input)="judgmentSummaryInput.set($any($event.target).value)" [disabled]="!canRunCaseActions()"></textarea></div>
-                <div class="action-row"><button type="button" class="btn btn-primary" (click)="passFinalJudgment()" [disabled]="judgmentSaving() || !canRunCaseActions()">{{ judgmentSaving() ? 'Saving…' : 'Pass Final Judgment' }}</button></div>
-                @if (lastJudgment()) {
+            @if (showPostRoznamaDecisionPanel()) {
+              <section class="preview-section post-roznama-decision">
+                <h4>Next step <span class="stage-chip">After signed roznamah</span></h4>
+                <p class="muted" style="margin:0 0 12px">
+                  Roznamah for this hearing is signed. Choose whether the case needs another hearing or a final judgment.
+                </p>
+                <div class="decision-cards">
+                  @if (showRehearingPathOption()) {
+                    <button
+                      type="button"
+                      class="decision-card"
+                      [class.selected]="postRoznamaPath()==='rehearing'"
+                      (click)="selectPostRoznamaPath('rehearing')">
+                      <span class="decision-card-title">Schedule rehearing</span>
+                      <span class="decision-card-desc">Set the next hearing date on the same case. A new roznamah cycle runs for that date.</span>
+                    </button>
+                  }
+                  @if (showJudgmentPathOption()) {
+                    <button
+                      type="button"
+                      class="decision-card"
+                      [class.selected]="postRoznamaPath()==='judgment'"
+                      (click)="selectPostRoznamaPath('judgment')">
+                      <span class="decision-card-title">Final judgment</span>
+                      <span class="decision-card-desc">Draft, finalize, and publish judgment. The case will be disposed.</span>
+                    </button>
+                  }
+                </div>
+                @if (postRoznamaPath() === 'rehearing') {
+                  <p class="muted decision-hint">Open the <strong>Reschedule / Rehearing</strong> tab in Order Sheet above to pick the next date.</p>
+                }
+                @if (postRoznamaPath() === 'judgment') {
+                  <p class="muted decision-hint">Complete the <strong>Judgment</strong> section below.</p>
+                }
+              </section>
+            }
+
+            <!-- ─ Judgment (order sheet PO_SIGNED → Clerk draft → PO finalize → PO publish) ─ -->
+            @if (showJudgmentSection()) {
+              <section class="preview-section" id="judgment-section">
+                <h4>Judgment <span class="stage-chip">Draft → Submit → Finalize → Publish</span></h4>
+                <p class="muted" style="margin:0 0 10px">{{ judgmentStepHint() }}</p>
+
+                @if (judgmentWorkflow()) {
                   <div class="kv-grid">
-                    <div class="kv"><div class="kv-label">Case No</div><div class="kv-value">{{ lastJudgment()!.caseNo }}</div></div>
-                    <div class="kv"><div class="kv-label">Status</div><div class="kv-value">{{ lastJudgment()!.status }}</div></div>
-                    <div class="kv"><div class="kv-label">Disposed At</div><div class="kv-value">{{ toPrettyDate(lastJudgment()!.disposedAt) }}</div></div>
-                    <div class="kv"><div class="kv-label">Message</div><div class="kv-value">{{ lastJudgment()!.message }}</div></div>
+                    <div class="kv"><div class="kv-label">Status</div><div class="kv-value"><span class="badge">{{ judgmentStatusLabel() }}</span></div></div>
+                    @if (judgmentWorkflow()!.publishedAt) {
+                      <div class="kv"><div class="kv-label">Published At</div><div class="kv-value">{{ toPrettyDate(judgmentWorkflow()!.publishedAt) }}</div></div>
+                    }
                   </div>
                 }
+
+                @if (canDraftJudgment()) {
+                  <div class="form-line" style="margin-top:8px">
+                    <label>Judgment / Order Text</label>
+                    <textarea rows="6" [value]="judgmentSummaryInput()" (input)="judgmentSummaryInput.set($any($event.target).value)" placeholder="Enter final judgment / order text…"></textarea>
+                  </div>
+                  <div class="action-row" style="gap:8px; flex-wrap:wrap">
+                    <button type="button" class="btn btn-primary" (click)="saveDraftJudgment()" [disabled]="judgmentSaving()">
+                      {{ judgmentSaving() ? 'Saving…' : 'Save Judgment Draft' }}
+                    </button>
+                    @if (canClerkSubmitJudgmentToPo()) {
+                      <button type="button" class="btn btn-primary" (click)="submitJudgmentToPO()" [disabled]="judgmentSubmitting() || judgmentSaving()">
+                        {{ judgmentSubmitting() ? 'Submitting…' : 'Submit to PO for Scrutiny' }}
+                      </button>
+                    }
+                  </div>
+                }
+
+                @if (showJudgmentReadOnly()) {
+                  <div class="form-line" style="margin-top:8px">
+                    <label>Judgment / Order Text</label>
+                    <textarea rows="6" readonly [value]="judgmentSummaryInput()"></textarea>
+                  </div>
+                  @if (viewerFlowRole() === 'CLERK' && judgmentStatusLabel() === 'PO_SCRUTINY') {
+                    <p class="muted" style="margin:4px 0">Submitted to Presiding Officer. Waiting for finalize and publish.</p>
+                  }
+                }
+
+                @if (canFinalizeJudgment()) {
+                  <div class="action-row" style="margin-top:8px">
+                    <button type="button" class="btn btn-primary" (click)="finalizeJudgment()" [disabled]="judgmentSaving()">
+                      {{ judgmentSaving() ? 'Finalizing…' : 'Finalize Judgment' }}
+                    </button>
+                  </div>
+                }
+
+                @if (canRevertJudgment()) {
+                  <div class="revert-section">
+                    <label class="revert-label">Revert Judgment to Clerk (with reason)</label>
+                    <div class="form-inline">
+                      <input type="text" class="form-control"
+                        [value]="judgmentRevertReason()"
+                        (input)="judgmentRevertReason.set($any($event.target).value)"
+                        placeholder="Enter reason…"
+                        style="flex:1" />
+                      <button type="button" class="btn btn-warning btn-xs"
+                        (click)="revertJudgment()"
+                        [disabled]="judgmentSaving() || !judgmentRevertReason().trim()">
+                        Revert to Clerk
+                      </button>
+                    </div>
+                  </div>
+                }
+
+                @if (canPublishJudgment()) {
+                  <div class="action-row" style="margin-top:8px">
+                    <button type="button" class="btn btn-primary" (click)="publishJudgment()" [disabled]="judgmentSaving()">
+                      {{ judgmentSaving() ? 'Publishing…' : 'Publish Judgment & Dispose Case' }}
+                    </button>
+                  </div>
+                }
+
+                <div class="action-row" style="margin-top:8px">
+                  <button type="button" class="btn btn-secondary btn-xs" (click)="loadJudgmentWorkflow()">Refresh</button>
+                </div>
+              </section>
+            }
+
+            <!-- ─ No action available ─ -->
+            @if (!canForwardToPo() && !canPoReviewActions() && !showHearingSection() && !showNoticeSection() && !showOrderSheetSection() && !showJudgmentSection()) {
+              <p class="muted">No action required for current status: <strong>{{ caseStatusFor(selectedApplicationId()!) || officerDetail()!.status }}</strong></p>
+            }
+
+          </div>
+        }
+
+        <!-- ════════════════════════════════════════════
+             DETAILS TAB — read-only application summary
+             ════════════════════════════════════════════ -->
+        @if (officerTab() === 'details') {
+          <div class="form-preview">
+
+            <section class="preview-section">
+              <h4>Application Summary</h4>
+              <div class="kv-grid">
+                <div class="kv"><div class="kv-label">Application ID</div><div class="kv-value">{{ officerDetail()!.applicationId }}</div></div>
+                <div class="kv"><div class="kv-label">Application No</div><div class="kv-value">{{ officerDetail()!.applicationNo || '-' }}</div></div>
+                <div class="kv"><div class="kv-label">Case No</div><div class="kv-value">{{ caseNoFor(selectedApplicationId()!) }}</div></div>
+                <div class="kv"><div class="kv-label">Status</div><div class="kv-value">{{ caseStatusFor(selectedApplicationId()!) || officerDetail()!.status }}</div></div>
+                <div class="kv"><div class="kv-label">Case Category</div><div class="kv-value">{{ officerDetail()!.caseCategoryName }}</div></div>
+                <div class="kv"><div class="kv-label">Subject</div><div class="kv-value">{{ officerDetail()!.subjectName }}</div></div>
+                <div class="kv"><div class="kv-label">Office</div><div class="kv-value">{{ officerDetail()!.officeName }}</div></div>
+                <div class="kv"><div class="kv-label">Filed By</div><div class="kv-value">{{ officerDetail()!.filedByName }} ({{ officerDetail()!.filedByRole }})</div></div>
+                <div class="kv"><div class="kv-label">Submitted At</div><div class="kv-value">{{ toPrettyDate(officerDetail()!.submittedAt) }}</div></div>
+              </div>
+              @if (detailDescription()) {
+                <div class="kv" style="margin-top:8px">
+                  <div class="kv-label">Description</div>
+                  <div class="kv-value">{{ detailDescription() }}</div>
+                </div>
               }
             </section>
-          }
 
-          @if (officerTab() === 'summary') {
-          <section class="preview-section">
-            <h4>Application Details</h4>
-            <div class="kv-grid">
-              <div class="kv"><div class="kv-label">Application ID</div><div class="kv-value">{{ officerDetail()!.applicationId }}</div></div>
-              <div class="kv"><div class="kv-label">Status</div><div class="kv-value">{{ officerDetail()!.status }}</div></div>
-              <div class="kv"><div class="kv-label">Case Category</div><div class="kv-value">{{ officerDetail()!.caseCategoryName }}</div></div>
-              <div class="kv"><div class="kv-label">Subject</div><div class="kv-value">{{ officerDetail()!.subjectName }}</div></div>
-              <div class="kv"><div class="kv-label">Office</div><div class="kv-value">{{ officerDetail()!.officeName }}</div></div>
-              <div class="kv"><div class="kv-label">Filed By</div><div class="kv-value">{{ officerDetail()!.filedByName }} ({{ officerDetail()!.filedByRole }})</div></div>
-              <div class="kv"><div class="kv-label">Submitted At</div><div class="kv-value">{{ toPrettyDate(officerDetail()!.submittedAt) }}</div></div>
-              <div class="kv"><div class="kv-label">Created At</div><div class="kv-value">{{ toPrettyDate(officerDetail()!.createdAt) }}</div></div>
-            </div>
-            <div class="kv">
-              <div class="kv-label">Application Description</div>
-              <div class="kv-value">{{ detailDescription() }}</div>
-            </div>
-          </section>
-
-          @if (detailForm()) {
-            <section class="preview-section">
-              <h4>Case and Section Information</h4>
-              <div class="kv-grid">
-                <div class="kv"><div class="kv-label">Subject ID</div><div class="kv-value">{{ detailForm()!['subjectId'] || '-' }}</div></div>
-                <div class="kv"><div class="kv-label">District ID</div><div class="kv-value">{{ detailForm()!['districtId'] || '-' }}</div></div>
-                <div class="kv"><div class="kv-label">Subdistrict ID</div><div class="kv-value">{{ detailForm()!['subdistrictId'] || '-' }}</div></div>
-                <div class="kv"><div class="kv-label">Taluka ID</div><div class="kv-value">{{ detailForm()!['talukaId'] || '-' }}</div></div>
-                <div class="kv"><div class="kv-label">Office ID</div><div class="kv-value">{{ detailForm()!['officeId'] || '-' }}</div></div>
-                <div class="kv"><div class="kv-label">Act ID</div><div class="kv-value">{{ detailForm()!['actId'] || '-' }}</div></div>
-                <div class="kv"><div class="kv-label">Section ID</div><div class="kv-value">{{ detailForm()!['sectionId'] || '-' }}</div></div>
-                <div class="kv"><div class="kv-label">Section Custom</div><div class="kv-value">{{ detailForm()!['sectionCustomText'] || detailForm()!['customSectionName'] || '-' }}</div></div>
-                <div class="kv"><div class="kv-label">Mutation Year</div><div class="kv-value">{{ detailForm()!['mutationYear'] || '-' }}</div></div>
-                <div class="kv"><div class="kv-label">Mutation Type Filter</div><div class="kv-value">{{ detailForm()!['mutationTypeFilter'] || '-' }}</div></div>
-              </div>
-            </section>
-          }
-          }
-
-          <section class="preview-section">
-            <h4>Disputed Order</h4>
-        @if (!detailDisputedOrder()) {
-          <p class="muted">Disputed order details not available.</p>
-        } @else {
-          <div class="kv-grid">
-            <div class="kv"><div class="kv-label">Inward Number</div><div class="kv-value">{{ inwardNumberForNotice9() || '-' }}</div></div>
-            <div class="kv"><div class="kv-label">Mutation Found</div><div class="kv-value">{{ detailDisputedOrder()!['mutationFound'] ? 'Yes' : 'No' }}</div></div>
-            <div class="kv"><div class="kv-label">Mutation Searched</div><div class="kv-value">{{ detailDisputedOrder()!['mutationSearched'] ? 'Yes' : 'No' }}</div></div>
-            <div class="kv"><div class="kv-label">Manual Inward No</div><div class="kv-value">{{ detailDisputedOrder()!['manualInwardNumber'] || '-' }}</div></div>
-            <div class="kv"><div class="kv-label">Manual Inward Date</div><div class="kv-value">{{ detailDisputedOrder()!['manualInwardDate'] || '-' }}</div></div>
-            <div class="kv"><div class="kv-label">Manual Mutation Type</div><div class="kv-value">{{ detailDisputedOrder()!['manualMutationType'] || '-' }}</div></div>
-            <div class="kv"><div class="kv-label">Manual Applicant Name</div><div class="kv-value">{{ detailDisputedOrder()!['manualApplicantName'] || '-' }}</div></div>
-            <div class="kv"><div class="kv-label">Manual Village</div><div class="kv-value">{{ detailDisputedOrder()!['manualVillage'] || '-' }}</div></div>
-            <div class="kv"><div class="kv-label">Manual Status</div><div class="kv-value">{{ detailDisputedOrder()!['manualStatus'] || '-' }}</div></div>
-          </div>
-
-          <h5>Mutation Details</h5>
-          @if (!detailMutationDetails()) {
-            <p class="muted">Mutation details not available.</p>
-          } @else {
-            <div class="kv-grid">
-              <div class="kv"><div class="kv-label">Inward Number</div><div class="kv-value">{{ detailMutationDetails()!['inwardNumber'] || '-' }}</div></div>
-              <div class="kv"><div class="kv-label">Inward Date</div><div class="kv-value">{{ detailMutationDetails()!['inwardDate'] || '-' }}</div></div>
-              <div class="kv"><div class="kv-label">Mutation Type</div><div class="kv-value">{{ detailMutationDetails()!['mutationType'] || '-' }}</div></div>
-              <div class="kv"><div class="kv-label">Applicant Name</div><div class="kv-value">{{ detailMutationDetails()!['applicantName'] || '-' }}</div></div>
-              <div class="kv"><div class="kv-label">Village</div><div class="kv-value">{{ detailMutationDetails()!['village'] || '-' }}</div></div>
-              <div class="kv"><div class="kv-label">Status</div><div class="kv-value">{{ detailMutationDetails()!['status'] || '-' }}</div></div>
-            </div>
-            @if (attachFileUrl()) {
-              <div class="kv"><div class="kv-label">Attach File</div><div class="kv-value"><a [href]="attachFileUrl()!" target="_blank" rel="noreferrer">Open</a></div></div>
-            }
-          }
-
-          <h5>Notice 9</h5>
-          @if (!detailNotice9Resolved()) {
-            <p class="muted">Notice 9 metadata not available.</p>
-          } @else {
-            <div class="kv-grid">
-              <div class="kv"><div class="kv-label">Available</div><div class="kv-value">{{ detailNotice9Resolved()!['available'] ? 'Yes' : 'No' }}</div></div>
-              <div class="kv"><div class="kv-label">Source Kind</div><div class="kv-value">{{ detailNotice9Resolved()!['sourceKind'] || '-' }}</div></div>
-              <div class="kv"><div class="kv-label">Preview Kind</div><div class="kv-value">{{ detailNotice9Resolved()!['previewKind'] || '-' }}</div></div>
-            </div>
-          }
-          <div class="action-row">
-            @if (inwardNumberForNotice9()) {
-              <button type="button" class="btn btn-secondary" (click)="fetchNotice9FromApi()" [disabled]="notice9FetchLoading()">
-                {{ notice9FetchLoading() ? 'Fetching Notice 9…' : 'View Notice 9' }}
-              </button>
-            }
-            @if (notice9EffectiveUrl()) {
-              <a class="btn btn-secondary" [href]="notice9EffectiveUrl()!" target="_blank" rel="noreferrer">Open</a>
-            }
-          </div>
-          @if (notice9FetchError()) {
-            <p class="error">{{ notice9FetchError() }}</p>
-          }
-          @if (notice9EffectiveUrl()) {
-            @if (notice9EffectiveIsImage()) {
-              <img class="notice-preview" [src]="notice9EffectiveUrl()!" alt="Notice 9 preview" />
-            }
-          } @else {
-            <p class="muted">Notice 9 is not stored; use View Notice 9 to fetch from API.</p>
-          }
-        }
-          </section>
-
-          <section class="preview-section">
-            <h4>Applicants</h4>
-        @if (detailApplicants().length === 0) {
-          <p class="muted">No applicants found.</p>
-        } @else {
-          <div class="rows">
-            @for (a of detailApplicants(); track $index) {
-              <article class="mini-card">
-                <p><strong>#{{ a['lineNo'] || '-' }}</strong> {{ a['name'] || '-' }}</p>
-                <p class="muted">{{ a['mobile'] || '-' }}</p>
-                <p class="muted">{{ a['address'] || '-' }}</p>
-              </article>
-            }
-          </div>
-        }
-          </section>
-
-          <section class="preview-section">
-            <h4>Respondents</h4>
-        @if (detailRespondents().length === 0) {
-          <p class="muted">No respondents found.</p>
-        } @else {
-          <div class="rows">
-            @for (r of detailRespondents(); track $index) {
-              <article class="mini-card">
-                <p><strong>#{{ r['lineNo'] || '-' }}</strong> {{ r['name'] || '-' }}</p>
-                <p class="muted">{{ r['mobile'] || '-' }}</p>
-                <p class="muted">{{ r['address'] || '-' }}</p>
-              </article>
-            }
-          </div>
-        }
-          </section>
-
-          <section class="preview-section">
-            <h4>Vakalatnama Assignments</h4>
-        @if (detailVakalatnamaAssignments().length === 0) {
-          <p class="muted">No vakalatnama assignments found.</p>
-        } @else {
-          <div class="rows">
-            @for (v of detailVakalatnamaAssignments(); track $index) {
-              <article class="mini-card">
-                <p><strong>Group No:</strong> {{ v['groupNo'] || '-' }}</p>
-                <p><strong>Primary Advocate ID:</strong> {{ v['primaryAdvocateId'] || '-' }}</p>
-                <p><strong>Applicant IDs:</strong> {{ applicantIdsLabel(v) }}</p>
-                <p><strong>Advocate:</strong> {{ advocateName(v) }}</p>
-                <p><strong>Co-Advocates:</strong> {{ coAdvocatesCount(v) }}</p>
-              </article>
-            }
-          </div>
-        }
-          </section>
-
-          <section class="preview-section">
-            <h4>Disputed Lands</h4>
-        @if (detailDisputedLands().length === 0) {
-          <p class="muted">No disputed lands found.</p>
-        } @else {
-          <div class="table-wrap">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Land type</th>
-                  <th>District</th>
-                  <th>Taluka / Office</th>
-                  <th>Village</th>
-                  <th>Survey / CTS</th>
-                  <th>Source</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (d of detailDisputedLands(); track $index) {
-                  <tr>
-                    <td>{{ d['lineNo'] || ($index + 1) }}</td>
-                    <td>{{ d['landType'] || '-' }}</td>
-                    <td>{{ d['districtName'] || d['districtCode'] || '-' }}</td>
-                    <td>{{ d['talukaName'] || d['officeName'] || d['talukaCode'] || d['officeCode'] || '-' }}</td>
-                    <td>{{ d['villageName'] || d['villageLgdCode'] || d['villageCode'] || '-' }}</td>
-                    <td>{{ d['surveyPin'] || d['ctsNo'] || '-' }}</td>
-                    <td>{{ d['externalSource'] || '-' }}</td>
-                    <td><button type="button" class="btn btn-secondary btn-xs" (click)="viewLandDetails(d)">View details</button></td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-          @if (landDetailLoading()) {
-            <p class="muted">Loading land details…</p>
-          } @else if (landDetailError()) {
-            <p class="error">{{ landDetailError() }}</p>
-          } @else if (landDetailPayload()) {
-            <div class="kv land-detail-box">
-              <div class="kv-label">{{ landDetailTitle() }}</div>
-              <div class="kv-grid">
-                @for (r of landDetailRows(); track $index) {
-                  <div class="kv">
-                    <div class="kv-label">{{ r.label }}</div>
-                    <div class="kv-value">{{ r.value }}</div>
+            @if (detailDisputedOrder()) {
+              <section class="preview-section">
+                <h4>Disputed Order</h4>
+                <div class="kv-grid">
+                  <div class="kv"><div class="kv-label">Inward Number</div><div class="kv-value">{{ inwardNumberForNotice9() || '-' }}</div></div>
+                  <div class="kv"><div class="kv-label">Mutation Found</div><div class="kv-value">{{ detailDisputedOrder()!['mutationFound'] ? 'Yes' : 'No' }}</div></div>
+                  <div class="kv"><div class="kv-label">Manual Inward No</div><div class="kv-value">{{ detailDisputedOrder()!['manualInwardNumber'] || '-' }}</div></div>
+                  <div class="kv"><div class="kv-label">Manual Mutation Type</div><div class="kv-value">{{ detailDisputedOrder()!['manualMutationType'] || '-' }}</div></div>
+                </div>
+                @if (detailMutationDetails()) {
+                  <div class="kv-grid" style="margin-top:8px">
+                    <div class="kv"><div class="kv-label">Mutation Inward No</div><div class="kv-value">{{ detailMutationDetails()!['inwardNumber'] || '-' }}</div></div>
+                    <div class="kv"><div class="kv-label">Mutation Type</div><div class="kv-value">{{ detailMutationDetails()!['mutationType'] || '-' }}</div></div>
+                    <div class="kv"><div class="kv-label">Applicant Name</div><div class="kv-value">{{ detailMutationDetails()!['applicantName'] || '-' }}</div></div>
+                    <div class="kv"><div class="kv-label">Village</div><div class="kv-value">{{ detailMutationDetails()!['village'] || '-' }}</div></div>
+                    <div class="kv"><div class="kv-label">Status</div><div class="kv-value">{{ detailMutationDetails()!['status'] || '-' }}</div></div>
                   </div>
                 }
-              </div>
-            </div>
-          }
-        }
-          </section>
-
-          <section class="preview-section">
-            <h4>Attachments</h4>
-        @if (detailAttachments().length === 0) {
-          <p class="muted">No attachments found.</p>
-        } @else {
-          <div class="rows">
-            @for (f of detailAttachments(); track $index) {
-              <article class="mini-card">
-                <p><strong>Kind:</strong> {{ f['kind'] || '-' }}</p>
-                <p><strong>File:</strong> {{ f['fileName'] || '-' }}</p>
-                <p><strong>MIME:</strong> {{ f['mimeType'] || '-' }}</p>
-                <p><strong>Uploaded At:</strong> {{ uploadedAtLabel(f) }}</p>
-                <p><strong>Uploaded By:</strong> {{ f['uploadedByLoginId'] || '-' }}</p>
-                @if (f['storageKey']) {
-                  <p><strong>Storage Key:</strong> {{ f['storageKey'] }}</p>
-                }
-              </article>
+                <div class="action-row" style="margin-top:8px">
+                  @if (inwardNumberForNotice9()) {
+                    <button type="button" class="btn btn-secondary btn-xs" (click)="fetchNotice9FromApi()" [disabled]="notice9FetchLoading()">
+                      {{ notice9FetchLoading() ? 'Fetching…' : 'View Notice 9' }}
+                    </button>
+                  }
+                  @if (notice9EffectiveUrl()) {
+                    <a class="btn btn-secondary btn-xs" [href]="notice9EffectiveUrl()!" target="_blank" rel="noreferrer">Open Notice 9</a>
+                  }
+                </div>
+                @if (notice9FetchError()) { <p class="error">{{ notice9FetchError() }}</p> }
+              </section>
             }
+
+            @if (detailApplicants().length > 0) {
+              <section class="preview-section">
+                <h4>Applicants</h4>
+                <div class="rows">
+                  @for (a of detailApplicants(); track $index) {
+                    <article class="mini-card">
+                      <p><strong>#{{ a['lineNo'] || ($index+1) }}</strong> {{ a['name'] || '-' }}</p>
+                      <p class="muted">{{ a['mobile'] || '-' }} · {{ a['address'] || '-' }}</p>
+                    </article>
+                  }
+                </div>
+              </section>
+            }
+
+            @if (detailRespondents().length > 0) {
+              <section class="preview-section">
+                <h4>Respondents</h4>
+                <div class="rows">
+                  @for (r of detailRespondents(); track $index) {
+                    <article class="mini-card">
+                      <p><strong>#{{ r['lineNo'] || ($index+1) }}</strong> {{ r['name'] || '-' }}</p>
+                      <p class="muted">{{ r['mobile'] || '-' }} · {{ r['address'] || '-' }}</p>
+                    </article>
+                  }
+                </div>
+              </section>
+            }
+
+            @if (detailDisputedLands().length > 0) {
+              <section class="preview-section">
+                <h4>Disputed Lands</h4>
+                <div class="table-wrap">
+                  <table class="table">
+                    <thead>
+                      <tr>
+                        <th>#</th><th>Land Type</th><th>District</th><th>Taluka / Office</th><th>Village</th><th>Survey / CTS</th><th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (d of detailDisputedLands(); track $index) {
+                        <tr>
+                          <td>{{ d['lineNo'] || ($index+1) }}</td>
+                          <td>{{ d['landType'] || '-' }}</td>
+                          <td>{{ d['districtName'] || d['districtCode'] || '-' }}</td>
+                          <td>{{ d['talukaName'] || d['officeName'] || '-' }}</td>
+                          <td>{{ d['villageName'] || '-' }}</td>
+                          <td>{{ d['surveyPin'] || d['ctsNo'] || '-' }}</td>
+                          <td><button type="button" class="btn btn-secondary btn-xs" (click)="viewLandDetails(d)">View</button></td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+                @if (landDetailLoading()) { <p class="muted">Loading land details…</p> }
+                @else if (landDetailError()) { <p class="error">{{ landDetailError() }}</p> }
+                @else if (landDetailPayload()) {
+                  <div class="kv land-detail-box" style="margin-top:8px">
+                    <div class="kv-label">{{ landDetailTitle() }}</div>
+                    <div class="kv-grid">
+                      @for (r of landDetailRows(); track $index) {
+                        <div class="kv"><div class="kv-label">{{ r.label }}</div><div class="kv-value">{{ r.value }}</div></div>
+                      }
+                    </div>
+                  </div>
+                }
+              </section>
+            }
+
+            @if (detailAttachments().length > 0) {
+              <section class="preview-section">
+                <h4>Attachments</h4>
+                <div class="rows">
+                  @for (f of detailAttachments(); track $index) {
+                    <article class="mini-card">
+                      <p><strong>{{ f['kind'] || 'File' }}</strong> — {{ f['fileName'] || '-' }}</p>
+                      <p class="muted">{{ f['mimeType'] || '-' }} · {{ uploadedAtLabel(f) }}</p>
+                    </article>
+                  }
+                </div>
+              </section>
+            }
+
           </div>
         }
-          </section>
-        </div>
+
       }
     </article>
+
   } @else {
     <article class="card">
-      <p class="muted">Case listing API not wired yet. This page is ready for backend integration.</p>
+      <p class="muted">Case listing is available for officer role only.</p>
     </article>
   }
 </section>
 
+<ng-template #roznamaEntryTable>
+  <div class="table-wrap roznama-entry-table-wrap">
+    <table class="table roznama-entry-table">
+      <thead>
+        <tr><th class="roznama-date-col">Date</th><th>Roznama content</th><th></th></tr>
+      </thead>
+      <tbody>
+        @for (row of roznamaEntryRows(); track $index) {
+          <tr>
+            <td class="roznama-date-col">
+              <input type="date" [value]="row.date" (input)="updateRoznamaRowDate($index, $event)" />
+            </td>
+            <td class="roznama-content-col">
+              <textarea rows="3" [value]="row.content" (input)="updateRoznamaRowContent($index, $event)" placeholder="Proceedings for this date…"></textarea>
+            </td>
+            <td class="roznama-actions-col">
+              @if (roznamaEntryRows().length > 1) {
+                <button type="button" class="btn btn-secondary btn-xs" (click)="removeRoznamaTableRow($index)">Remove</button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <button type="button" class="btn btn-secondary btn-xs" style="margin-top:8px" (click)="addRoznamaTableRow()">Add row</button>
+  </div>
+</ng-template>

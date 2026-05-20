@@ -13,11 +13,11 @@ export interface SunvaniNoticeVars {
 
   // Applicant / Appellant (अर्जदार / वादी)
   applicantNames: string[];       // १. २. list
-  applicantAddress: string;       // पूर्ण पत्ता
+  applicantAddresses: string[];   // one address per applicant (parallel to applicantNames)
 
   // Respondent (जाबदार / प्रतिवादी)
   respondentNames: string[];      // १. २. list
-  respondentAddress: string;      // पूर्ण पत्ता
+  respondentAddresses: string[];  // one address per respondent (parallel to respondentNames)
 
   // Subject box
   actSection: string;             // कलम ___
@@ -78,8 +78,8 @@ export function buildMarathiSunvaniNoticeHtml(v: any): string {
   const noticeDay = orBlank(v.noticeDateDay);
   const noticeMonth = orBlank(v.noticeDateMonth);
   const noticeYear = orBlank(v.noticeDateYear);
-  const applicantAddress = orBlank(v.applicantAddress);
-  const respondentAddress = orBlank(v.respondentAddress);
+  const applicantAddresses: string[] = Array.isArray(v.applicantAddresses) ? v.applicantAddresses : [];
+  const respondentAddresses: string[] = Array.isArray(v.respondentAddresses) ? v.respondentAddresses : [];
   const actSection = orBlank(v.actSection);
   const village = orBlank(v.villageNameMoje);
   const taluka = orBlank(v.taluka);
@@ -100,11 +100,12 @@ export function buildMarathiSunvaniNoticeHtml(v: any): string {
 
   const devanagariNums = ['१', '२', '३', '४', '५', '६', '७', '८', '९'];
 
-  const buildNameRows = (names: string[], minRows = 2): string => {
+  const buildNameRows = (names: string[], addresses: string[] = [], minRows = 2): string => {
     const rows = names.length > 0 ? names : Array(minRows).fill('');
     return rows.map((name, i) => {
       const num = devanagariNums[i] ?? `${i + 1}`;
-      return `<div class="party-row">${num}. ${name ? `<strong>${escDev(name)}</strong>` : ''}</div>`;
+      const addr = addresses[i] ? `<div class="party-address">&nbsp;&nbsp;&nbsp;(पूर्ण पत्ता : <strong>${escDev(addresses[i])}</strong>)</div>` : '';
+      return `<div class="party-row">${num}. ${name ? `<strong>${escDev(name)}</strong>` : ''}${addr}</div>`;
     }).join('\n');
   };
 
@@ -319,8 +320,7 @@ export function buildMarathiSunvaniNoticeHtml(v: any): string {
     <!-- Applicant / Appellant -->
     <div class="prati">
         <strong>प्रति,</strong>
-        ${buildNameRows(v.applicantNames)}
-        ${applicantAddress ? `<div class="party-address">(पूर्ण पत्ता : <strong>${escDev(applicantAddress)}</strong>)</div>` : '<div class="party-address">(पूर्ण पत्ता : )</div>'}
+        ${buildNameRows(v.applicantNames, applicantAddresses)}
         <div class="party-label">...अपीलदार / अर्जदार / वादी</div>
     </div>
 
@@ -329,8 +329,7 @@ export function buildMarathiSunvaniNoticeHtml(v: any): string {
 
     <!-- Respondent -->
     <div>
-        ${buildNameRows(v.respondentNames)}
-        ${respondentAddress ? `<div class="party-address">(पूर्ण पत्ता : <strong>${escDev(respondentAddress)}</strong>)</div>` : '<div class="party-address">(पूर्ण पत्ता : )</div>'}
+        ${buildNameRows(v.respondentNames, respondentAddresses)}
         <div class="party-label">...जाबदार / प्रतिवादी</div>
     </div>
 
@@ -370,6 +369,305 @@ export function buildMarathiSunvaniNoticeHtml(v: any): string {
         </div>
     </div>
 
+</div>
+</body>
+</html>`;
+}
+
+/** One row in the roznamah register (date | proceedings). */
+export interface RoznamaEntryRow {
+  date: string;
+  content: string;
+}
+
+/** Header + case context for roznama preview (same letterhead as notice). */
+export interface RoznamaPreviewVars {
+  phoneNumber: string;
+  emailId: string;
+  referenceNumber: string;
+  referenceYearTwoDigits: string;
+  noticeDateDay: string;
+  noticeDateMonth: string;
+  noticeDateYear: string;
+  actSection: string;
+  villageNameMoje: string;
+  taluka: string;
+  district: string;
+  hearingDateDisplay: string;
+  /** Tabular rows (preferred). */
+  roznamaRows?: RoznamaEntryRow[];
+  /** Legacy single block; used if roznamaRows empty. */
+  roznamaContent?: string;
+  signatoryName: string;
+  signatoryDesignation: string;
+  signatoryOffice: string;
+}
+
+const MARATHI_MONTHS = ['जानेवारी','फेब्रुवारी','मार्च','एप्रिल','मे','जून','जुलै','ऑगस्ट','सप्टेंबर','ऑक्टोबर','नोव्हेंबर','डिसेंबर'];
+
+/** ISO or display date → Marathi date string for table column. */
+export function formatRoznamaDateForDisplay(dateStr: string): string {
+  const raw = (dateStr || '').trim();
+  if (!raw) return '';
+  const iso = raw.slice(0, 10);
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return escDev(raw);
+  const day = toDevanagariDigits(String(d.getDate()));
+  const month = MARATHI_MONTHS[d.getMonth()] ?? '';
+  const year = toDevanagariDigits(String(d.getFullYear()));
+  return [day, month, year].filter(Boolean).join(' / ');
+}
+
+/** Parse API / stored content into table rows. */
+export function parseRoznamaContent(raw: string, defaultDate = ''): RoznamaEntryRow[] {
+  const text = (raw || '').trim();
+  if (!text) {
+    return defaultDate ? [{ date: defaultDate, content: '' }] : [];
+  }
+  if (text.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((item) => {
+          const o = item as Record<string, unknown>;
+          return {
+            date: String(o['date'] ?? o['hearingDate'] ?? defaultDate).slice(0, 10),
+            content: String(o['content'] ?? o['text'] ?? '')
+          };
+        });
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  const lineRows: RoznamaEntryRow[] = [];
+  for (const line of text.split(/\n+/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const pipe = trimmed.match(/^(\d{4}-\d{2}-\d{2})\s*[|:\t]\s*(.+)$/);
+    if (pipe) {
+      lineRows.push({ date: pipe[1], content: pipe[2] });
+      continue;
+    }
+  }
+  if (lineRows.length > 0) return lineRows;
+  return [{ date: defaultDate, content: text }];
+}
+
+/** Serialize table rows for PUT /roznama content field. */
+export function serializeRoznamaContent(rows: RoznamaEntryRow[]): string {
+  const cleaned = rows
+    .map((r) => ({ date: (r.date || '').slice(0, 10), content: (r.content || '').trim() }))
+    .filter((r) => r.date || r.content);
+  if (cleaned.length === 0) return '';
+  if (cleaned.length === 1 && !cleaned[0].date) {
+    return cleaned[0].content;
+  }
+  return JSON.stringify(cleaned);
+}
+
+function buildRoznamaTableHtml(rows: RoznamaEntryRow[], fallbackContent: string): string {
+  const effective =
+    rows.length > 0
+      ? rows
+      : parseRoznamaContent(fallbackContent, '');
+
+  if (effective.length === 0) {
+    return '<p class="muted-body">( रोजनामा मजकूर भरा )</p>';
+  }
+
+  const body = effective
+    .map((row) => {
+      const dateCell = formatRoznamaDateForDisplay(row.date);
+      const contentCell = row.content
+        ? escapeHtml(row.content).replace(/\n/g, '<br>')
+        : '<span class="muted-body">—</span>';
+      return `<tr>
+        <td class="col-date">${dateCell || '—'}</td>
+        <td class="col-content">${contentCell}</td>
+      </tr>`;
+    })
+    .join('\n');
+
+  return `<table class="roznama-table">
+    <thead>
+      <tr>
+        <th class="col-date">दिनांक</th>
+        <th class="col-content">रोजनामा / कार्यविवरण</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${body}
+    </tbody>
+  </table>`;
+}
+
+/** Roznama preview: notice letterhead + subject + editable body. */
+export function buildMarathiRoznamaPreviewHtml(v: RoznamaPreviewVars): string {
+  const phone = orBlank(v.phoneNumber);
+  const email = orBlank(v.emailId);
+  const refNo = orBlank(v.referenceNumber);
+  const refYy = orBlank(v.referenceYearTwoDigits);
+  const noticeDay = orBlank(v.noticeDateDay);
+  const noticeMonth = orBlank(v.noticeDateMonth);
+  const noticeYear = orBlank(v.noticeDateYear);
+  const actSection = orBlank(v.actSection);
+  const village = orBlank(v.villageNameMoje);
+  const taluka = orBlank(v.taluka);
+  const district = orBlank(v.district);
+  const hearingDate = orBlank(v.hearingDateDisplay);
+  const sigName = orBlank(v.signatoryName);
+  const sigDesig = orBlank(v.signatoryDesignation);
+  const sigOffice = orBlank(v.signatoryOffice);
+
+  const noticeDateFull = [noticeDay, noticeMonth, noticeYear ? `२०${toDevanagariDigits(noticeYear)}` : '']
+    .filter(Boolean)
+    .join(' / ');
+  const refYyFull = refYy ? toDevanagariDigits(refYy) : '';
+  const bodyHtml = buildRoznamaTableHtml(v.roznamaRows || [], v.roznamaContent || '');
+
+  return `<!DOCTYPE html>
+<html lang="mr">
+<head>
+    <meta charset="UTF-8">
+    <title>रोजनामा</title>
+    <style>
+        @page { size: A4; margin: 10mm 12mm; }
+        html, body { margin: 0; padding: 0; background: #fff; }
+        body {
+            font-family: 'Noto Serif Devanagari', 'Mangal', serif;
+            font-size: 12pt;
+            line-height: 1.6;
+            color: #000;
+        }
+        .container {
+            width: 182mm;
+            margin: 0 auto;
+            border: 1px solid #000;
+            padding: 6mm 8mm;
+            box-sizing: border-box;
+        }
+        @media screen { .container { margin: 10px auto; } }
+        .gov-header {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+        }
+        .dept-name { font-size: 18pt; font-weight: bold; margin-bottom: 2px; }
+        .dept-sub { font-size: 12pt; }
+        .office-name { font-size: 14pt; font-weight: bold; margin: 8px auto; }
+        .office-address { font-size: 11pt; line-height: 1.4; }
+        .contact-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10pt;
+            border-top: 1px solid #ccc;
+            padding-top: 4px;
+            margin-bottom: 6px;
+        }
+        .ref-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 12pt;
+        }
+        .notice-title {
+            text-align: center;
+            font-size: 18pt;
+            font-weight: bold;
+            text-decoration: underline;
+            margin: 14px 0;
+        }
+        .subject-box {
+            background-color: #f2f2f2;
+            border: 1px solid #333;
+            padding: 10px 12px;
+            margin: 12px 0;
+            font-size: 12pt;
+            line-height: 1.8;
+        }
+        .main-content {
+            margin: 16px 0 24px;
+            font-size: 12pt;
+            line-height: 1.8;
+            min-height: 40mm;
+        }
+        .roznama-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12pt;
+        }
+        .roznama-table th,
+        .roznama-table td {
+            border: 1px solid #000;
+            padding: 8px 10px;
+            vertical-align: top;
+            text-align: left;
+        }
+        .roznama-table th {
+            background: #f2f2f2;
+            font-weight: bold;
+            text-align: center;
+        }
+        .roznama-table .col-date {
+            width: 28%;
+            text-align: center;
+        }
+        .roznama-table .col-content {
+            width: 72%;
+            text-align: justify;
+        }
+        .muted-body { color: #666; font-style: italic; }
+        .footer-row {
+            display: flex;
+            justify-content: flex-end;
+            align-items: flex-end;
+            margin-top: 30px;
+        }
+        .sig-block { text-align: center; min-width: 200px; }
+        .sig-name {
+            border-top: 1px solid #000;
+            padding-top: 4px;
+            font-weight: bold;
+            font-size: 12pt;
+            margin-bottom: 4px;
+        }
+        .sig-detail { font-size: 11pt; text-align: left; line-height: 1.8; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="gov-header">
+        <div class="dept-name">महाराष्ट्र शासन</div>
+        <div class="dept-sub">महसूल व वन विभाग</div>
+        <div class="office-name">जमाबंदी आयुक्त आणि संचालक भूमी अभिलेख (म.राज्य), पुणे</div>
+        <div class="office-address">दूसरा व तिसरा मजला, नवीन प्रशासकीय इमारत, विधान भवन समोर, कॅम्प, पुणे - ४११००१</div>
+    </div>
+    <div class="contact-info">
+        <div>दूरध्वनी क्र. : ${phone ? `<strong>${escapeHtml(phone)}</strong>` : ''}</div>
+        <div>Email ID : ${email ? `<strong>${escapeHtml(email)}</strong>` : ''}</div>
+    </div>
+    <div class="ref-row">
+        <div>क्र. ${refNo ? `<strong>${escapeHtml(refNo)}</strong>` : ''} / २०${refYyFull}</div>
+        <div>दिनांक : ${noticeDateFull ? `<strong>${noticeDateFull}</strong>` : ''}</div>
+    </div>
+    <div class="notice-title">रोजनामा</div>
+    <div class="subject-box">
+        <strong>विषय :</strong> महाराष्ट्र जमीन महसूल अधिनियम, १९६६ चे कलम ${actSection ? `<strong>${escDev(actSection)}</strong>` : ''} अन्वये दाखल अर्जाबाबत.<br>
+        मिळकत : मौजे ${village ? `<strong>${escDev(village)}</strong>` : ''}, ता. ${taluka ? `<strong>${escDev(taluka)}</strong>` : ''}, जि. ${district ? `<strong>${escDev(district)}</strong>` : ''}.<br>
+        सुनावणी दिनांक : ${hearingDate ? `<strong>${escDev(hearingDate)}</strong>` : ''}
+    </div>
+    <div class="main-content">${bodyHtml}</div>
+    <div class="footer-row">
+        <div class="sig-block">
+            <div class="sig-name">( ${sigName ? escDev(sigName) : ''} )</div>
+            <div class="sig-detail">
+                पदनाम : ${sigDesig ? `<strong>${escDev(sigDesig)}</strong>` : ''}<br>
+                कार्यालय : ${sigOffice ? `<strong>${escDev(sigOffice)}</strong>` : ''}
+            </div>
+        </div>
+    </div>
 </div>
 </body>
 </html>`;
