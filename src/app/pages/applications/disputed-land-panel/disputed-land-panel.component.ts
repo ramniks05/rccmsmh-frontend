@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, computed, inject, input, OnInit, output, signal } from '@angular/core';
 import { finalize } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 
@@ -50,12 +50,22 @@ export type DisputedLandRow =
   templateUrl: './disputed-land-panel.component.html',
   styleUrl: './disputed-land-panel.component.css'
 })
-export class DisputedLandPanelComponent {
+export class DisputedLandPanelComponent implements OnInit {
   private readonly api = inject(LandRecordsService);
 
   /** Disputed lands list owned by parent; emit when user adds/removes. */
   disputedLands = input<DisputedLandRow[]>([]);
   disputedLandsChange = output<DisputedLandRow[]>();
+
+  // ── Pre-fill inputs from Step 1 ePICS urban search ────────────────────────
+  // The parent binds these from its live form controls. On a page refresh the
+  // values come from sessionStorage via readStoredEpicsFields() instead.
+  prefilledDistrictCode = input<string>('');
+  prefilledOfficeCode   = input<string>('');
+  prefilledVillageCode  = input<string>('');
+  prefilledCtsNo        = input<string>('');
+  prefilledSubCtsNo     = input<string>('');
+  isEpicsSubject        = input<boolean>(false);
 
   protected readonly mode = signal<DisputedLandType>('RURAL_7_12');
 
@@ -85,6 +95,21 @@ export class DisputedLandPanelComponent {
   protected readonly urbanSelectedSubCts = signal('');
   protected readonly loadingSubCts = signal(false);
   protected readonly loadingPropertyDetails = signal(false);
+
+  /**
+   * Stores the user-entered disputed_area value for each property detail row.
+   * Key is the row index (as string). Cleared whenever urbanPropertyDetails resets.
+   */
+  protected readonly disputedAreaMap = signal<Record<string, string>>({});
+
+  protected getDisputedArea(rowIndex: number): string {
+    return this.disputedAreaMap()[String(rowIndex)] ?? '';
+  }
+
+  protected setDisputedArea(rowIndex: number, value: string): void {
+    this.disputedAreaMap.update((prev) => ({ ...prev, [String(rowIndex)]: value }));
+  }
+
   protected readonly ruralLandDetailPreview = signal<Record<string, unknown>[]>([]);
   protected readonly loadingRuralLandDetail = signal(false);
   protected readonly ruralLandDetailPreviewKey = signal<string | null>(null);
@@ -122,6 +147,197 @@ export class DisputedLandPanelComponent {
     this.loadMasters();
   }
 
+  // ── ngOnInit: run prefill exactly once after inputs are set ───────────────
+  ngOnInit(): void {
+    // Prefer live input() values (normal navigation); fall back to
+    // sessionStorage so a page refresh / direct URL still works.
+    const stored   = this.readStoredEpicsFields();
+    const district = (this.prefilledDistrictCode().trim() || stored.districtCode).trim();
+    const office   = (this.prefilledOfficeCode().trim()   || stored.officeCode).trim();
+    const village  = (this.prefilledVillageCode().trim()  || stored.villageCode).trim();
+    const cts      = (this.prefilledCtsNo().trim()        || stored.ctsNo).trim();
+    const subCts   = (this.prefilledSubCtsNo().trim()     || stored.subCtsNo).trim();
+    const isEpics  =  this.isEpicsSubject() || stored.isEpics;
+
+    if (!isEpics || !district || !office || !village) return;
+
+    this.applyUrbanPrefill(district, office, village, cts, subCts);
+  }
+
+  // ── Read ePICS fields from the parent's sessionStorage snapshot ───────────
+  private readStoredEpicsFields(): {
+    districtCode: string;
+    officeCode: string;
+    villageCode: string;
+    ctsNo: string;
+    subCtsNo: string;
+    isEpics: boolean;
+  } {
+    const empty = {
+      districtCode: '',
+      officeCode: '',
+      villageCode: '',
+      ctsNo: '',
+      subCtsNo: '',
+      isEpics: false
+    };
+    try {
+      // The parent writes keys like: rccms.category1.filing.v2.case2
+      const prefix = 'rccms.category1.filing.v';
+      const key = Object.keys(sessionStorage).find((k) => k.startsWith(prefix));
+      if (!key) return empty;
+
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return empty;
+
+      const snap = JSON.parse(raw) as {
+        form?: {
+          urbanDistrictCode?: string;
+          urbanOfficeCode?: string;
+          urbanVillageCode?: string;
+          ctsNoInput?: string;
+          selectedSubCtsNo?: string;
+        };
+        selectedSubject?: { subjectCode?: string; subjectName?: string } | null;
+      };
+
+      const f = snap?.form ?? {};
+
+      // Mirror the parent's isEpicsSubject() computed logic exactly
+      const subjectCode = String(snap?.selectedSubject?.subjectCode ?? '').trim().toUpperCase();
+      const subjectName = String(snap?.selectedSubject?.subjectName ?? '').trim().toUpperCase();
+      const isEpics =
+        subjectCode === '002' ||
+        subjectName.includes('EPICS') ||
+        subjectName.includes('EPCS');
+
+      return {
+        districtCode: String(f.urbanDistrictCode ?? '').trim(),
+        officeCode:   String(f.urbanOfficeCode   ?? '').trim(),
+        villageCode:  String(f.urbanVillageCode  ?? '').trim(),
+        ctsNo:        String(f.ctsNoInput        ?? '').trim(),
+        subCtsNo:     String(f.selectedSubCtsNo  ?? '').trim(),
+        isEpics,
+      };
+    } catch {
+      return empty;
+    }
+  }
+
+  // ── Prefill chain ─────────────────────────────────────────────────────────
+
+  /**
+   * Step 1: Switch to urban mode, set all code signals, restore the office
+   * and village dropdown lists (so <select> renders the correct option),
+   * then kick off the sub-CTS load.
+   */
+  private applyUrbanPrefill(
+    districtCode: string,
+    officeCode: string,
+    villageCode: string,
+    ctsNo: string,
+    subCtsNo: string
+  ): void {
+    this.mode.set('URBAN_PROPERTY_CARD');
+    this.error.set(null);
+    this.urbanDistrictCode.set(districtCode);
+    this.urbanOfficeCode.set(officeCode);
+    this.urbanVillageCode.set(villageCode);
+    this.urbanParentCts.set(ctsNo);
+    this.urbanSelectedSubCts.set('');
+    this.urbanSubCtsRows.set([]);
+    this.urbanPropertyDetails.set([]);
+
+    this.loading.set(true);
+
+    // Restore office dropdown (fire-and-forget; village load drives the chain)
+    this.api.getUrbanOffices(districtCode).subscribe({
+      next:  (rows) => this.urbanOffices.set(rows ?? []),
+      error: (e)    => this.error.set(this.formatError(e))
+    });
+
+    // Restore village dropdown, then continue chain
+    this.api.getUrbanVillages(officeCode).subscribe({
+      next: (rows) => {
+        this.urbanVillages.set(rows ?? []);
+        this.loading.set(false);
+        if (ctsNo) {
+          this.prefillLoadSubCts(villageCode, ctsNo, subCtsNo);
+        }
+      },
+      error: (e) => {
+        this.loading.set(false);
+        this.error.set(this.formatError(e));
+      }
+    });
+  }
+
+  /**
+   * Step 2: Load the sub-CTS list for the village + parent CTS.
+   * If a subCtsNo was already selected in Step 1, resolve and select it,
+   * then immediately fetch property details.
+   */
+  private prefillLoadSubCts(
+    villageCode: string,
+    ctsNo: string,
+    subCtsNo: string
+  ): void {
+    this.loadingSubCts.set(true);
+    this.api
+      .getUrbanSubCtsList(villageCode, ctsNo)
+      .pipe(finalize(() => this.loadingSubCts.set(false)))
+      .subscribe({
+        next: (rows) => {
+          this.urbanSubCtsRows.set(rows ?? []);
+
+          if (!rows?.length) {
+            // Sub-CTS list is empty — still show the selects, user can retry
+            return;
+          }
+
+          if (!subCtsNo) {
+            // No sub-CTS was chosen in Step 1 — show the populated dropdown
+            // and let the user pick manually
+            return;
+          }
+
+          // Find the matching row by label (same logic as ctsRowLabel)
+          const match    = rows.find((r) => this.ctsRowLabel(r) === subCtsNo);
+          const resolved = match ? this.ctsRowLabel(match) : subCtsNo;
+          this.urbanSelectedSubCts.set(resolved);
+
+          // Auto-trigger property details fetch → table renders automatically
+          this.prefillLoadPropertyDetails(villageCode, resolved);
+        },
+        error: (e) => this.error.set(this.formatError(e))
+      });
+  }
+
+  /**
+   * Step 3: Fetch the property detail rows for the resolved sub-CTS.
+   * This is what populates the table — same API as onUrbanSubCtsChange().
+   */
+  private prefillLoadPropertyDetails(
+    villageCode: string,
+    subCtsNo: string
+  ): void {
+    this.loadingPropertyDetails.set(true);
+    this.api
+      .getUrbanPropertyDetails(villageCode, subCtsNo)
+      .pipe(finalize(() => this.loadingPropertyDetails.set(false)))
+      .subscribe({
+        next: (rows) => {
+          this.urbanPropertyDetails.set(rows ?? []);
+          if (!rows?.length) {
+            this.error.set('No property details found for the pre-selected sub-CTS.');
+          }
+        },
+        error: (e) => this.error.set(this.formatError(e))
+      });
+  }
+
+  // ── All original methods below — unchanged ────────────────────────────────
+
   protected setMode(next: DisputedLandType): void {
     const hasModeChanged = this.mode() !== next;
     this.mode.set(next);
@@ -131,6 +347,7 @@ export class DisputedLandPanelComponent {
     this.ruralLandDetailPreviewKey.set(null);
     this.urbanSubCtsRows.set([]);
     this.urbanPropertyDetails.set([]);
+    this.disputedAreaMap.set({});
     this.ruralDistrictCode.set('');
     this.ruralTalukaCode.set('');
     this.ruralVillageLgdCode.set('');
@@ -306,6 +523,7 @@ export class DisputedLandPanelComponent {
     this.urbanVillages.set([]);
     this.urbanSubCtsRows.set([]);
     this.urbanPropertyDetails.set([]);
+    this.disputedAreaMap.set({});
     this.urbanParentCts.set('');
     this.urbanSelectedSubCts.set('');
     if (!code) return;
@@ -323,6 +541,7 @@ export class DisputedLandPanelComponent {
     this.urbanVillages.set([]);
     this.urbanSubCtsRows.set([]);
     this.urbanPropertyDetails.set([]);
+    this.disputedAreaMap.set({});
     this.urbanParentCts.set('');
     this.urbanSelectedSubCts.set('');
     if (!code) return;
@@ -338,6 +557,7 @@ export class DisputedLandPanelComponent {
     this.urbanVillageCode.set(code);
     this.urbanSubCtsRows.set([]);
     this.urbanPropertyDetails.set([]);
+    this.disputedAreaMap.set({});
     this.urbanParentCts.set('');
     this.urbanSelectedSubCts.set('');
   }
@@ -346,6 +566,7 @@ export class DisputedLandPanelComponent {
     this.urbanParentCts.set(v);
     this.urbanSubCtsRows.set([]);
     this.urbanPropertyDetails.set([]);
+    this.disputedAreaMap.set({});
     this.urbanSelectedSubCts.set('');
   }
 
@@ -360,6 +581,7 @@ export class DisputedLandPanelComponent {
     this.error.set(null);
     this.urbanSubCtsRows.set([]);
     this.urbanPropertyDetails.set([]);
+    this.disputedAreaMap.set({});
     this.urbanSelectedSubCts.set('');
     this.api
       .getUrbanSubCtsList(villageCode, parentCts)
@@ -378,6 +600,7 @@ export class DisputedLandPanelComponent {
   protected onUrbanSubCtsChange(subCtsNo: string): void {
     this.urbanSelectedSubCts.set(subCtsNo);
     this.urbanPropertyDetails.set([]);
+    this.disputedAreaMap.set({});
     if (!subCtsNo.trim()) return;
     const villageCode = this.urbanVillageCode().trim();
     this.loadingPropertyDetails.set(true);
@@ -413,23 +636,23 @@ export class DisputedLandPanelComponent {
   }
 
   protected addUrbanPropertyRow(row: Record<string, unknown>, index: number): void {
-    this.pushUrbanDisputedLand(row, index);
+    this.pushUrbanDisputedLand(row, index, this.getDisputedArea(index));
   }
 
   protected addUrbanSelection(): void {
     const rows = this.urbanPropertyDetails();
     if (rows.length === 1) {
-      this.pushUrbanDisputedLand(rows[0], 0);
+      this.pushUrbanDisputedLand(rows[0], 0, this.getDisputedArea(0));
       return;
     }
     if (rows.length > 1) {
       this.error.set('Select Add on the property row you want to include.');
       return;
     }
-    this.pushUrbanDisputedLand({}, 0);
+    this.pushUrbanDisputedLand({}, 0, '');
   }
 
-  private pushUrbanDisputedLand(row: Record<string, unknown>, index: number): void {
+  private pushUrbanDisputedLand(row: Record<string, unknown>, index: number, disputedArea: string): void {
     const dist = this.urbanDistricts().find((d) => d.district_code.trim() === this.urbanDistrictCode().trim());
     const off = this.urbanOffices().find((o) => o.office_code.trim() === this.urbanOfficeCode().trim());
     const vil = this.urbanVillages().find((v) => v.village_code.trim() === this.urbanVillageCode().trim());
@@ -467,7 +690,10 @@ export class DisputedLandPanelComponent {
         parentCtsNo: parentCts,
         ctsNo: subCts,
         subCtsNo: subCts,
-        propertyDetail: Object.keys(row).length ? { ...row } : undefined
+        propertyDetail: {
+          ...(Object.keys(row).length ? row : {}),
+          ...(disputedArea.trim() ? { disputed_area: disputedArea.trim() } : {})
+        } as Record<string, unknown>
       }
     ]);
     this.error.set(null);
@@ -511,3 +737,4 @@ export class DisputedLandPanelComponent {
   }
 }
 
+/* disputed_area column appended — no other styles changed */

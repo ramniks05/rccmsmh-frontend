@@ -1,9 +1,11 @@
 import { Component, computed, DestroyRef, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { catchError, debounceTime, finalize, forkJoin, map, merge, of, Subject, switchMap } from 'rxjs';
-
+import {
+  distinctUntilChanged,
+} from 'rxjs';
 import { SubjectRecord, SubjectService } from '../../../services/subject.service';
 import {
   LookupsService,
@@ -68,7 +70,6 @@ interface PartyAddressLookupState {
 export interface MutationDetailsView {
   inwardNumber: string;
   inwardDate: string;
-  /** ePICS / mutation API district (shown in वकीलपत्र court line). */
   districtName?: string;
   mutationNumber?: string;
   mutationDate?: string;
@@ -100,7 +101,6 @@ interface Category1FilingSession {
   vakaltnamaCoAdvocates: AdvocateLookupResponse[];
   selectedSubject: SubjectRecord | null;
   selectedOffice: OfficeResponse | null;
-  /** ePICS urban office (code + name) when office list is not in memory. */
   epicsUrbanOfficeSnapshot?: { code: string; name: string } | null;
   mutationDetails: MutationDetailsView | null;
   mutationFound: boolean;
@@ -112,7 +112,6 @@ interface Category1FilingSession {
   rural712SatbaraSigned?: boolean | null;
   rural712SatbaraMessage?: string | null;
   notice9Resolved: NoticeNineResolved;
-  /** Inward used for Notice 9 — refetch after refresh if preview URL was not stored. */
   notice9InwardRef?: string | null;
   manualAttachFileName: string | null;
   manualNotice9FileName: string | null;
@@ -128,28 +127,26 @@ interface Category1FilingSession {
 @Component({
   selector: 'app-category1-objection',
   imports: [ReactiveFormsModule, VakaltnamaPanelComponent, DisputedLandPanelComponent],
-  templateUrl: './category1-objection.component.html'
+  templateUrl: './category1-objection.component.html',
+  styleUrl: './category1-objection.component.css'
 })
 export class Category1ObjectionComponent {
-  /** From parent `/applications/new?caseCategoryId=…`; required for save API. */
   caseCategoryId = input.required<number>();
 
   private readonly fb = inject(FormBuilder);
+  private readonly http = inject(HttpClient);
   private readonly subjectsApi = inject(SubjectService);
   private readonly lookups = inject(LookupsService);
   private readonly landRecords = inject(LandRecordsService);
   private readonly filingApplications = inject(FilingApplicationService);
   private readonly destroyRef = inject(DestroyRef);
 
-  /** True while re-applying session snapshot (blocks valueChange side effects). */
   private hydrating = false;
   private persistenceSetupDone = false;
   private readonly persistPulse$ = new Subject<void>();
   private latestMutationSearchToken = 0;
 
-  /** Stable client ref for filing API + session; show in UI. */
   protected readonly filingClientRef = signal('');
-  /** Locked date + suffix for {@link buildClientApplicationRef} until form reset / new filing. */
   private clientRefDatePart = '';
   private clientRefUniqueSuffix = '';
   protected readonly serverApplicationId = signal<number | null>(null);
@@ -206,7 +203,6 @@ export class Category1ObjectionComponent {
     return code === '002' || name.includes('EPICS') || name.includes('EPCS');
   });
 
-  /** Rural RoR / Eferfar (7/12) — subject code 001 or name indicates 7/12, ROR, Eferfar. */
   protected readonly isRural712Subject = computed(() => {
     const subject = this.selectedSubject();
     if (!subject) return false;
@@ -244,9 +240,7 @@ export class Category1ObjectionComponent {
   });
   protected readonly selectedOffice = signal<OfficeResponse | null>(null);
 
-  /** Set after a successful search (or when API returns a match). */
   protected readonly mutationDetails = signal<MutationDetailsView | null>(null);
-  /** Full list of applicant rows returned by the mutation API — shown as quick-fill suggestions on the PARTIES step. */
   protected readonly mutationSuggestions = signal<UrbanMutationDetailResponse[]>([]);
   protected readonly mutationFound = signal(false);
   protected readonly searchedMutation = signal(false);
@@ -269,12 +263,10 @@ export class Category1ObjectionComponent {
   protected readonly respondentPincodeLookup = signal<Record<string, PartyAddressLookupState>>({});
   protected readonly urbanSearchDistricts = signal<UrbanDistrict[]>([]);
   protected readonly urbanSearchOffices = signal<UrbanOffice[]>([]);
-  /** Persists ePICS urban office code + name across steps / when `urbanSearchOffices` is cleared. */
   protected readonly epicsUrbanOfficeSnapshot = signal<{ code: string; name: string } | null>(null);
   protected readonly urbanSearchVillages = signal<UrbanVillage[]>([]);
   protected readonly urbanSearchSubCtsRows = signal<UrbanCtsRow[]>([]);
   protected readonly urbanSearchMutations = signal<UrbanMutationListRow[]>([]);
-  /** ePICS “Mutation type” path: options from `getUrbanMutationTypes(villageCode)`. */
   protected readonly urbanMutationTypeOptions = signal<UrbanMutationTypeOption[]>([]);
   protected readonly loadingUrbanMutationTypes = signal(false);
   protected readonly filteredUrbanSearchMutations = computed(() => {
@@ -323,7 +315,6 @@ export class Category1ObjectionComponent {
     talukaId: [0],
     officeId: [0],
     searchMode: ['INWARD_NUMBER' as 'INWARD_NUMBER' | 'SURVEY_NUMBER' | 'MUTATION_NUMBER'],
-    // Search value is required only when clicking Search (not for moving next).
     searchValue: ['', [Validators.required, Validators.minLength(2)]],
     mutationYear: [''],
     mutationTypeFilter: [''],
@@ -345,13 +336,10 @@ export class Category1ObjectionComponent {
     manualApplicantName: [''],
     manualVillage: [''],
     manualStatus: [''],
-
-    // Next step (case act / section)
     actId: [0, [Validators.required, Validators.min(1)]],
     sectionId: [0, [Validators.required, Validators.min(1)]],
     customSectionName: [''],
     applicationDescription: [''],
-
     applicants: this.fb.array([] as ReturnType<Category1ObjectionComponent['createPartyGroup']>[]),
     respondents: this.fb.array([] as ReturnType<Category1ObjectionComponent['createPartyGroup']>[])
   });
@@ -367,22 +355,26 @@ export class Category1ObjectionComponent {
   private createPartyGroup() {
     const group = this.fb.nonNullable.group({
       tempId: [this.makeTempId()],
-      // Backward compatibility for older session snapshots.
       name: [''],
       firstName: ['', [Validators.required]],
+      firstNameMr: [''],
       middleName: [''],
+      middleNameMr: [''],
       lastName: ['', [Validators.required]],
+      lastNameMr: [''],
       pincode: ['', [Validators.required, Validators.pattern(/^\d{6}$/)]],
       district: ['', [Validators.required]],
       taluka: ['', [Validators.required]],
       village: ['', [Validators.required]],
       villageValue: [''],
       address: ['', [Validators.required, Validators.minLength(5)]],
+      addressMr: [''],
       email: ['', [Validators.email]],
       mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
       dob: [''],
       age: [''],
-      occupation: ['']
+      occupation: [''],
+      occupationMr: ['']
     });
     this.setupPartyGroupSubscriptions(group);
     return group;
@@ -408,7 +400,6 @@ export class Category1ObjectionComponent {
     });
   }
 
-  /** District for वकीलपत्र court line — step 1 ePICS / 7/12 district or mutation API `district_name`. */
   protected filingDistrictForVakalatnama(): string {
     if (this.isRural712Subject()) {
       const ruralCode = (this.form.controls.ruralDistrictCode.getRawValue() || '').trim();
@@ -425,7 +416,6 @@ export class Category1ObjectionComponent {
     return (row?.district_name || '').trim();
   }
 
-  /** Office name before यांचे कोर्टात — ePICS urban office (step 1) or selected registry office. */
   protected filingOfficeNameForVakalatnama(): string {
     const urban = this.epicsUrbanOfficeFromStep1();
     if (urban?.office_name?.trim()) return urban.office_name.trim();
@@ -481,14 +471,9 @@ export class Category1ObjectionComponent {
     };
   }
 
-  /**
-   * Pre-fills the first empty party row (or adds a new one) with the mutation-record data.
-   * Triggers pincode lookup automatically when the pin code is a valid 6-digit number.
-   */
   protected applySuggestion(detail: UrbanMutationDetailResponse, role: 'applicant' | 'respondent'): void {
     const arr = role === 'applicant' ? this.applicants : this.respondents;
 
-    // Find the first row where firstName is still blank
     let targetIndex = -1;
     for (let i = 0; i < arr.length; i++) {
       const g = arr.at(i) as ReturnType<Category1ObjectionComponent['createPartyGroup']>;
@@ -498,7 +483,6 @@ export class Category1ObjectionComponent {
       }
     }
 
-    // No blank row → append a new one
     if (targetIndex === -1) {
       if (role === 'applicant') {
         this.addApplicant();
@@ -526,18 +510,12 @@ export class Category1ObjectionComponent {
       pincode: String(detail.pin_code || '').trim()
     });
 
-    // Auto-run pincode lookup so district/taluka dropdowns populate
     const pincode = String(detail.pin_code || '').trim();
     if (/^\d{6}$/.test(pincode)) {
       this.lookupPincode(role, targetIndex);
     }
   }
 
-  /**
-   * Returns whether a suggestion is already present as an applicant, a respondent, or neither.
-   * Matches on mobile number (preferred) or full name as fallback.
-   * Because it reads live form values, the button re-enables automatically when the party row is removed.
-   */
   protected suggestionAppliedAs(detail: UrbanMutationDetailResponse): 'applicant' | 'respondent' | null {
     const mobile = String(detail.mobile_number || '').trim();
     const name = String(detail.applicant_name || '').trim().toLowerCase();
@@ -651,16 +629,142 @@ export class Category1ObjectionComponent {
     return this.partyLookupState(role, tempId).states[0] || '';
   }
 
-  private setupPartyGroupSubscriptions(group: ReturnType<Category1ObjectionComponent['createPartyGroup']>): void {
-    group.controls.dob.valueChanges.subscribe((value) => {
-      const calculated = this.calculateAge(value || '');
+  private setupPartyGroupSubscriptions(
+  group: ReturnType<Category1ObjectionComponent['createPartyGroup']>
+): void {
+
+  // DOB -> Age
+  group.controls.dob.valueChanges
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe((value) => {
+
+      const calculated =
+        this.calculateAge(value || '');
+
       if (calculated !== null) {
-        // DOB entered — always update age with the calculated value
-        group.controls.age.setValue(String(calculated), { emitEvent: false });
+        group.controls.age.setValue(
+          String(calculated),
+          { emitEvent: false }
+        );
       }
-      // DOB cleared — leave age as-is (user may have typed it manually)
     });
+
+  const translationMappings: [string, string][] = [
+    ['firstName', 'firstNameMr'],
+    ['middleName', 'middleNameMr'],
+    ['lastName', 'lastNameMr'],
+    ['address', 'addressMr'],
+    ['occupation', 'occupationMr']
+  ];
+
+  translationMappings.forEach(
+    ([englishField, marathiField]) => {
+
+      const control =
+        group.get(englishField);
+
+      if (!control) return;
+
+      // typing trigger
+      control.valueChanges
+        .pipe(
+          debounceTime(1500),
+          distinctUntilChanged(),
+          takeUntilDestroyed(this.destroyRef)
+        )
+        .subscribe((value) => {
+
+          this.tryAutoTranslate(
+            value,
+            marathiField,
+            group,
+            englishField
+          );
+        });
+
+      // prefilled trigger
+      setTimeout(() => {
+
+        const existingValue =
+          control.value?.trim();
+
+        if (existingValue) {
+
+          this.tryAutoTranslate(
+            existingValue,
+            marathiField,
+            group,
+            englishField
+          );
+        }
+
+      }, 300);
+    }
+  );
+}
+
+private tryAutoTranslate(
+  englishText: string,
+  marathiFieldName: string,
+  group: ReturnType<Category1ObjectionComponent['createPartyGroup']>,
+  fieldName: string
+): void {
+
+  const text = (englishText ?? '').trim();
+
+  // if English field is cleared, also clear Marathi field to allow re-translation when user adds text again
+  if (!text) {
+    group.patchValue(
+      {
+        [marathiFieldName]: ''
+      },
+      { emitEvent: false }
+    );
+    // Clear the "manually edited" flag when English field is cleared
+    this.manuallyEditedMarathiFields.update((s) => {
+      const next = new Set(s);
+      next.delete(`applicant-0-${marathiFieldName}`);
+      return next;
+    });
+    return;
   }
+
+  const marathiAlready =
+    group.get(marathiFieldName)
+      ?.value
+      ?.trim();
+
+  // Check if this Marathi field was manually edited by the user
+  const wasManuallyEdited = this.manuallyEditedMarathiFields().has(`applicant-0-${marathiFieldName}`);
+
+  // Skip translation only if:
+  // 1. Marathi field has a value AND
+  // 2. It was manually edited by the user
+  // (If not manually edited, we assume the old value is auto-generated and should be re-translated)
+  if (marathiAlready && wasManuallyEdited) {
+    return;
+  }
+
+  // If Marathi has a value but wasn't manually edited, clear it before re-translating
+  // This ensures we replace old auto-generated translations
+  if (marathiAlready && !wasManuallyEdited) {
+    group.patchValue(
+      {
+        [marathiFieldName]: ''
+      },
+      { emitEvent: false }
+    );
+  }
+
+  this.transliterateToMarathi(
+    text,
+    marathiFieldName,
+    group,
+    'applicant',
+    0,
+    fieldName
+  );
+}
 
   private calculateAge(dobIso: string): number | null {
     if (!dobIso) return null;
@@ -987,12 +1091,6 @@ export class Category1ObjectionComponent {
     return `rccms.category1.filing.v${CATEGORY1_SESSION_VERSION}.case${this.caseCategoryId()}`;
   }
 
-  /**
-   * Client application ref shown on vakalatnama and sent as `clientApplicationRef` on save.
-   * Format (adjust segments here when rules change):
-   *   `{YYYYMMDD}-{caseCategoryId}-{subjectCode}-{officeCode}-{unique}`
-   * Example: `20260516-C1-002-MHURB01-A3F2`
-   */
   private buildClientApplicationRef(): string {
     this.ensureClientRefSeedParts();
     const appTypeCode = `C${this.caseCategoryId()}`;
@@ -1053,7 +1151,6 @@ export class Category1ObjectionComponent {
     return cleaned.slice(0, 16) || 'NA';
   }
 
-  /** Rebuild ref from date / category / subject / office while draft is not saved on server. */
   private refreshFilingClientRefIfDraft(): void {
     if (this.hydrating) return;
     if (this.serverApplicationId() != null && this.serverApplicationId()! > 0) return;
@@ -1365,7 +1462,6 @@ export class Category1ObjectionComponent {
       this.syncEpicsUrbanOfficeSnapshot();
     }
 
-    // Reload mutation-type list when mode is MUTATION_NUMBER and a village is already chosen
     if (this.isEpicsSubject() && searchMode === 'MUTATION_NUMBER' && urbanVillage) {
       this.loadUrbanMutationTypes();
     }
@@ -1440,7 +1536,6 @@ export class Category1ObjectionComponent {
     this.lookups.getSections(actId).subscribe({
       next: (rows) => {
         this.sections.set(rows);
-        // Auto-select when there is exactly one section so the user doesn't have to
         if (rows.length === 1 && this.form.controls.sectionId.getRawValue() === 0) {
           this.form.controls.sectionId.setValue(rows[0].id);
         }
@@ -1497,22 +1592,10 @@ export class Category1ObjectionComponent {
     const talukaCode = this.form.controls.ruralTalukaCode.getRawValue().trim();
     const villageLgd = this.form.controls.ruralVillageLgdCode.getRawValue().trim();
     const pin = this.form.controls.ruralSurveyPin.getRawValue().trim();
-    if (!districtCode) {
-      this.apiError.set('Please select district.');
-      return;
-    }
-    if (!talukaCode) {
-      this.apiError.set('Please select taluka.');
-      return;
-    }
-    if (!villageLgd) {
-      this.apiError.set('Please select village.');
-      return;
-    }
-    if (!pin) {
-      this.apiError.set('Please enter survey number (pin).');
-      return;
-    }
+    if (!districtCode) { this.apiError.set('Please select district.'); return; }
+    if (!talukaCode) { this.apiError.set('Please select taluka.'); return; }
+    if (!villageLgd) { this.apiError.set('Please select village.'); return; }
+    if (!pin) { this.apiError.set('Please enter survey number (pin).'); return; }
     this.apiError.set(null);
     this.loadingRural712Search.set(true);
     this.rural712SubSurveyRows.set([]);
@@ -1561,34 +1644,30 @@ export class Category1ObjectionComponent {
       return;
     }
 
-    const pushRow = (landDetail: Record<string, unknown>[] | undefined) => {
-      const next: DisputedLandRow = {
-        type: 'RURAL_7_12',
-        districtCode: dist.district_code.trim(),
-        districtName: dist.district_name,
-        talukaCode: tal.taluka_code.trim(),
-        talukaName: tal.taluka_name,
-        villageLgdCode: vil.lgd_village_code.trim(),
-        villageName: vil.village_name,
-        pin: row.pin,
-        pinParts: {
-          pin1: row.pin1,
-          pin2: row.pin2,
-          pin3: row.pin3,
-          pin4: row.pin4,
-          pin5: row.pin5,
-          pin6: row.pin6,
-          pin7: row.pin7,
-          pin8: row.pin8
-        },
-        landDetail: landDetail?.length ? landDetail : undefined
-      };
-      this.disputedLands.set([...existing, next]);
-      this.apiMessage.set('Plot added to disputed land list (see Disputed land step).');
-      this.schedulePersist();
+    const next: DisputedLandRow = {
+      type: 'RURAL_7_12',
+      districtCode: dist.district_code.trim(),
+      districtName: dist.district_name,
+      talukaCode: tal.taluka_code.trim(),
+      talukaName: tal.taluka_name,
+      villageLgdCode: vil.lgd_village_code.trim(),
+      villageName: vil.village_name,
+      pin: row.pin,
+      pinParts: {
+        pin1: row.pin1,
+        pin2: row.pin2,
+        pin3: row.pin3,
+        pin4: row.pin4,
+        pin5: row.pin5,
+        pin6: row.pin6,
+        pin7: row.pin7,
+        pin8: row.pin8
+      },
+      landDetail: undefined
     };
-
-    pushRow(undefined);
+    this.disputedLands.set([...existing, next]);
+    this.apiMessage.set('Plot added to disputed land list (see Disputed land step).');
+    this.schedulePersist();
   }
 
   protected rural712PinLabel(r: RuralSubSurveyRow): string {
@@ -1608,40 +1687,24 @@ export class Category1ObjectionComponent {
 
   protected viewRural712SatbaraPdf(): void {
     const row = this.selectedRural712Row();
-    if (!row) {
-      this.rural712SatbaraPdfError.set('Select a 7/12 row from the table below first.');
-      return;
-    }
+    if (!row) { this.rural712SatbaraPdfError.set('Select a 7/12 row from the table below first.'); return; }
     const existing = this.rural712SatbaraPdfUrl();
-    if (existing) {
-      this.openRural712SatbaraPdfInNewTab(existing);
-      return;
-    }
+    if (existing) { this.openRural712SatbaraPdfInNewTab(existing); return; }
     this.fetchRural712SatbaraPdfForRow(row, 'view');
   }
 
   protected downloadRural712SatbaraPdf(): void {
     const row = this.selectedRural712Row();
-    if (!row) {
-      this.rural712SatbaraPdfError.set('Select a 7/12 row from the table below first.');
-      return;
-    }
+    if (!row) { this.rural712SatbaraPdfError.set('Select a 7/12 row from the table below first.'); return; }
     const existing = this.rural712SatbaraPdfUrl();
-    if (existing) {
-      this.triggerRural712SatbaraDownload(existing);
-      return;
-    }
+    if (existing) { this.triggerRural712SatbaraDownload(existing); return; }
     this.fetchRural712SatbaraPdfForRow(row, 'download');
   }
 
   protected formatRural712LandDetailCell(value: unknown): string {
     if (value == null) return '';
     if (typeof value === 'object') {
-      try {
-        return JSON.stringify(value);
-      } catch {
-        return String(value);
-      }
+      try { return JSON.stringify(value); } catch { return String(value); }
     }
     return String(value);
   }
@@ -1649,27 +1712,15 @@ export class Category1ObjectionComponent {
   private rural712LandDetailParams(row: RuralSubSurveyRow) {
     return {
       villageLgdCode: this.form.controls.ruralVillageLgdCode.getRawValue().trim(),
-      pin: row.pin,
-      pin1: row.pin1,
-      pin2: row.pin2,
-      pin3: row.pin3,
-      pin4: row.pin4,
-      pin5: row.pin5,
-      pin6: row.pin6,
-      pin7: row.pin7,
-      pin8: row.pin8
+      pin: row.pin, pin1: row.pin1, pin2: row.pin2, pin3: row.pin3, pin4: row.pin4,
+      pin5: row.pin5, pin6: row.pin6, pin7: row.pin7, pin8: row.pin8
     };
   }
 
-  /** Eferfar row details: check signed → PDF (VII). Land area (G2B) API disabled for now. */
   private fetchRural712RowDetails(row: RuralSubSurveyRow): void {
     this.fetchRural712SatbaraChainForRow(row);
   }
 
-  /**
-   * Step VI — check digitally signed Satbara when a row is selected.
-   * PDF is loaded on demand via View / Download (large files are not embedded on the page).
-   */
   private fetchRural712SatbaraChainForRow(row: RuralSubSurveyRow): void {
     const villageLgd = this.form.controls.ruralVillageLgdCode.getRawValue().trim();
     if (!villageLgd) return;
@@ -1692,14 +1743,9 @@ export class Category1ObjectionComponent {
       });
   }
 
-  private fetchRural712SatbaraPdfForRow(
-    row: RuralSubSurveyRow,
-    afterLoad: 'view' | 'download' | null = null
-  ): void {
+  private fetchRural712SatbaraPdfForRow(row: RuralSubSurveyRow, afterLoad: 'view' | 'download' | null = null): void {
     const previous = this.rural712SatbaraPdfUrl();
-    if (previous?.startsWith('blob:')) {
-      URL.revokeObjectURL(previous);
-    }
+    if (previous?.startsWith('blob:')) URL.revokeObjectURL(previous);
     this.rural712SatbaraPdfError.set(null);
     this.rural712SatbaraPdfUrl.set(null);
     this.loadingRural712SatbaraPdf.set(true);
@@ -1710,11 +1756,8 @@ export class Category1ObjectionComponent {
         next: (pdf) => {
           this.applyRural712SatbaraPdf(pdf);
           const url = this.rural712SatbaraPdfUrl();
-          if (url && afterLoad === 'view') {
-            this.openRural712SatbaraPdfInNewTab(url);
-          } else if (url && afterLoad === 'download') {
-            this.triggerRural712SatbaraDownload(url);
-          }
+          if (url && afterLoad === 'view') this.openRural712SatbaraPdfInNewTab(url);
+          else if (url && afterLoad === 'download') this.triggerRural712SatbaraDownload(url);
           this.schedulePersist();
         },
         error: (err: unknown) => {
@@ -1727,9 +1770,7 @@ export class Category1ObjectionComponent {
   private openRural712SatbaraPdfInNewTab(url: string): void {
     const opened = window.open(url, '_blank', 'noopener,noreferrer');
     if (!opened) {
-      this.rural712SatbaraPdfError.set(
-        'Pop-up blocked. Allow pop-ups for this site, or use Download Satbara PDF.'
-      );
+      this.rural712SatbaraPdfError.set('Pop-up blocked. Allow pop-ups for this site, or use Download Satbara PDF.');
     }
   }
 
@@ -1743,53 +1784,30 @@ export class Category1ObjectionComponent {
 
   private applyRural712SatbaraPdf(pdf: { dataUrl: string; mimeType: string }): void {
     const previous = this.rural712SatbaraPdfUrl();
-    if (previous?.startsWith('blob:')) {
-      URL.revokeObjectURL(previous);
-    }
-
+    if (previous?.startsWith('blob:')) URL.revokeObjectURL(previous);
     const url = pdf.dataUrl.trim();
-    if (!url) {
-      this.rural712SatbaraPdfError.set('Satbara PDF response was empty.');
-      return;
-    }
-
+    if (!url) { this.rural712SatbaraPdfError.set('Satbara PDF response was empty.'); return; }
     const blobUrl = this.toSatbaraPdfBlobUrl(url) ?? url;
-    if (!blobUrl) {
-      this.rural712SatbaraPdfError.set('Could not prepare Satbara PDF for viewing.');
-      return;
-    }
-
+    if (!blobUrl) { this.rural712SatbaraPdfError.set('Could not prepare Satbara PDF for viewing.'); return; }
     this.rural712SatbaraPdfUrl.set(blobUrl);
     this.rural712SatbaraPdfError.set(null);
   }
 
-  /** Blob URL for view/download in a new tab (large PDFs are not embedded on the page). */
   private toSatbaraPdfBlobUrl(dataUrl: string): string | null {
     const trimmed = dataUrl.trim();
-    if (trimmed.startsWith('blob:') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      return trimmed;
-    }
-    if (!trimmed.toLowerCase().startsWith('data:')) {
-      return null;
-    }
+    if (trimmed.startsWith('blob:') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+    if (!trimmed.toLowerCase().startsWith('data:')) return null;
     const comma = trimmed.indexOf(',');
     if (comma < 0) return null;
     const meta = trimmed.slice(0, comma).toLowerCase();
     const payload = trimmed.slice(comma + 1).replace(/\s/g, '');
-    if (!meta.includes('application/pdf') && !payload.startsWith('JVBERi')) {
-      return null;
-    }
+    if (!meta.includes('application/pdf') && !payload.startsWith('JVBERi')) return null;
     try {
       const binary = atob(payload);
-      if (!binary.startsWith('%PDF')) {
-        return null;
-      }
+      if (!binary.startsWith('%PDF')) return null;
       const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      const blob = new Blob([bytes], { type: 'application/pdf' });
-      return URL.createObjectURL(blob);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
     } catch {
       return trimmed;
     }
@@ -1797,9 +1815,7 @@ export class Category1ObjectionComponent {
 
   private clearRural712SatbaraState(): void {
     const prev = this.rural712SatbaraPdfUrl();
-    if (prev?.startsWith('blob:')) {
-      URL.revokeObjectURL(prev);
-    }
+    if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
     this.rural712SatbaraSigned.set(null);
     this.rural712SatbaraMessage.set(null);
     this.rural712SatbaraCheckError.set(null);
@@ -1810,19 +1826,11 @@ export class Category1ObjectionComponent {
   }
 
   protected rural712LocationSummary(): string {
-    const dist = this.ruralSearchDistricts().find(
-      (d) => d.district_code === this.form.controls.ruralDistrictCode.getRawValue().trim()
-    );
-    const tal = this.ruralSearchTalukas().find(
-      (t) => t.taluka_code === this.form.controls.ruralTalukaCode.getRawValue().trim()
-    );
-    const vil = this.ruralSearchVillages().find(
-      (v) => v.lgd_village_code === this.form.controls.ruralVillageLgdCode.getRawValue().trim()
-    );
+    const dist = this.ruralSearchDistricts().find((d) => d.district_code === this.form.controls.ruralDistrictCode.getRawValue().trim());
+    const tal = this.ruralSearchTalukas().find((t) => t.taluka_code === this.form.controls.ruralTalukaCode.getRawValue().trim());
+    const vil = this.ruralSearchVillages().find((v) => v.lgd_village_code === this.form.controls.ruralVillageLgdCode.getRawValue().trim());
     const pin = this.form.controls.ruralSurveyPin.getRawValue().trim();
-    return [dist?.district_name, tal?.taluka_name, vil?.village_name, pin ? `Pin ${pin}` : '']
-      .filter(Boolean)
-      .join(' / ');
+    return [dist?.district_name, tal?.taluka_name, vil?.village_name, pin ? `Pin ${pin}` : ''].filter(Boolean).join(' / ');
   }
 
   protected rural712ReadonlyLocationLabel(): string {
@@ -1850,12 +1858,7 @@ export class Category1ObjectionComponent {
 
   private resetRural712SearchChain(): void {
     this.form.patchValue(
-      {
-        ruralDistrictCode: '',
-        ruralTalukaCode: '',
-        ruralVillageLgdCode: '',
-        ruralSurveyPin: ''
-      },
+      { ruralDistrictCode: '', ruralTalukaCode: '', ruralVillageLgdCode: '', ruralSurveyPin: '' },
       { emitEvent: false }
     );
     this.ruralSearchTalukas.set([]);
@@ -1880,10 +1883,6 @@ export class Category1ObjectionComponent {
       });
   }
 
-  /**
-   * Restores the District → Office → Village dropdown chain after a session restore.
-   * Uses a single forkJoin so `loadingUrbanSearchChain` is toggled only once for both requests.
-   */
   private restoreUrbanSearchDropdowns(districtCode: string, officeCode: string): void {
     this.loadingUrbanSearchChain.set(true);
     const offices$ = this.landRecords.getUrbanOffices(districtCode).pipe(catchError(() => of([])));
@@ -1926,10 +1925,7 @@ export class Category1ObjectionComponent {
     }
     this.form.controls.searchValue.markAsTouched();
     const v = this.form.controls.searchValue.getRawValue().trim();
-    if (v.length < 2) {
-      this.apiError.set('Please enter a search value.');
-      return;
-    }
+    if (v.length < 2) { this.apiError.set('Please enter a search value.'); return; }
     this.apiError.set(null);
     const searchToken = ++this.latestMutationSearchToken;
     this.clearSearchResultState();
@@ -1939,20 +1935,13 @@ export class Category1ObjectionComponent {
     this.notice9Resolved.set({ available: false, sourceKind: null, url: null, previewKind: 'none' });
 
     forkJoin({
-      // Use the list endpoint so we get ALL applicant rows (used for PARTIES suggestions)
       mutations: this.landRecords.getUrbanMutationDetailList(v).pipe(catchError(() => of([] as UrbanMutationDetailResponse[]))),
       notice9: this.landRecords.getUrbanNoticeNineView(v).pipe(catchError(() => of(null)))
     })
-      .pipe(
-        finalize(() => {
-          this.loadingSearch.set(false);
-          this.loadingNotice9.set(false);
-        })
-      )
+      .pipe(finalize(() => { this.loadingSearch.set(false); this.loadingNotice9.set(false); }))
       .subscribe({
         next: ({ mutations, notice9 }) => {
           if (searchToken !== this.latestMutationSearchToken) return;
-          // Store all records for suggestion panel on the PARTIES step
           this.mutationSuggestions.set(mutations);
           const first = mutations[0] ?? null;
           const hasDetail = this.hasMeaningfulMutationDetail(first);
@@ -1984,17 +1973,10 @@ export class Category1ObjectionComponent {
 
   private toMutationDetailsView(detail: UrbanMutationDetailResponse): MutationDetailsView {
     const locationLine = [detail.district_name, detail.taluka, detail.city]
-      .map((x) => String(x || '').trim())
-      .filter(Boolean)
-      .join(' — ');
-    const village =
-      String(detail.village_code || '').trim() ||
-      locationLine ||
-      String(detail.address || '').trim() ||
-      '';
+      .map((x) => String(x || '').trim()).filter(Boolean).join(' — ');
+    const village = String(detail.village_code || '').trim() || locationLine || String(detail.address || '').trim() || '';
     const statusParts = [detail.status_description, detail.sts_code || detail.its_code]
-      .map((x) => String(x || '').trim())
-      .filter(Boolean);
+      .map((x) => String(x || '').trim()).filter(Boolean);
     return {
       inwardNumber: detail.inward_number || this.form.controls.searchValue.getRawValue().trim(),
       inwardDate: detail.inward_date || '',
@@ -2015,31 +1997,23 @@ export class Category1ObjectionComponent {
     };
   }
 
-  private hasMeaningfulMutationDetail(
-    detail: UrbanMutationDetailResponse | null | undefined
-  ): detail is UrbanMutationDetailResponse {
+  private hasMeaningfulMutationDetail(detail: UrbanMutationDetailResponse | null | undefined): detail is UrbanMutationDetailResponse {
     if (!detail || typeof detail !== 'object') return false;
-    const hasAnyCoreField =
+    return (
       !!String(detail.mutation_number || '').trim() ||
       !!String(detail.mutation_date || '').trim() ||
       !!String(detail.mutation_type_description || '').trim() ||
       !!String(detail.status_description || '').trim() ||
       !!String(detail.notice9_dispatch_number || '').trim() ||
-      !!String(detail.cts_number || '').trim();
-    return hasAnyCoreField;
+      !!String(detail.cts_number || '').trim()
+    );
   }
 
   private syncEpicsUrbanOfficeSnapshot(): void {
     const code = this.form.controls.urbanOfficeCode.getRawValue().trim();
-    if (!code) {
-      this.epicsUrbanOfficeSnapshot.set(null);
-      this.schedulePersist();
-      return;
-    }
+    if (!code) { this.epicsUrbanOfficeSnapshot.set(null); this.schedulePersist(); return; }
     const row = this.urbanSearchOffices().find((o) => o.office_code === code);
-    if (row) {
-      this.epicsUrbanOfficeSnapshot.set({ code: row.office_code, name: row.office_name });
-    }
+    if (row) this.epicsUrbanOfficeSnapshot.set({ code: row.office_code, name: row.office_name });
     this.refreshFilingClientRefIfDraft();
     this.schedulePersist();
   }
@@ -2056,14 +2030,9 @@ export class Category1ObjectionComponent {
   private resetUrbanSearchChain(): void {
     this.form.patchValue(
       {
-        urbanDistrictCode: '',
-        urbanOfficeCode: '',
-        urbanVillageCode: '',
-        ctsNoInput: '',
-        selectedSubCtsNo: '',
-        selectedInwardNumber: '',
-        mutationNumberInput: '',
-        selectedUrbanMutationTypeCode: ''
+        urbanDistrictCode: '', urbanOfficeCode: '', urbanVillageCode: '',
+        ctsNoInput: '', selectedSubCtsNo: '', selectedInwardNumber: '',
+        mutationNumberInput: '', selectedUrbanMutationTypeCode: ''
       },
       { emitEvent: false }
     );
@@ -2112,16 +2081,10 @@ export class Category1ObjectionComponent {
     this.loadingNotice9.set(true);
     this.landRecords
       .getUrbanNoticeNineView(inward)
-      .pipe(
-        catchError(() => of(null)),
-        finalize(() => this.loadingNotice9.set(false))
-      )
+      .pipe(catchError(() => of(null)), finalize(() => this.loadingNotice9.set(false)))
       .subscribe({
         next: (notice9) => {
-          if (notice9) {
-            this.applyNoticeNineViewResult(notice9);
-            this.schedulePersist();
-          }
+          if (notice9) { this.applyNoticeNineViewResult(notice9); this.schedulePersist(); }
         }
       });
   }
@@ -2130,12 +2093,7 @@ export class Category1ObjectionComponent {
     const resolved = this.resolveNoticeNine(response);
     this.notice9Resolved.set(resolved);
     const current = this.mutationDetails();
-    if (current) {
-      this.mutationDetails.set({
-        ...current,
-        notice9Url: resolved.url
-      });
-    }
+    if (current) this.mutationDetails.set({ ...current, notice9Url: resolved.url });
   }
 
   private normalizeNoticeNinePayload(
@@ -2158,68 +2116,32 @@ export class Category1ObjectionComponent {
       const cleaned = this.cleanText(payload);
       if (!cleaned) return empty;
       const isData = cleaned.startsWith('data:');
-      return {
-        available: true,
-        sourceKind: isData ? 'data' : 'external',
-        url: cleaned,
-        previewKind: this.detectPreviewKindFromUrl(cleaned)
-      };
+      return { available: true, sourceKind: isData ? 'data' : 'external', url: cleaned, previewKind: this.detectPreviewKindFromUrl(cleaned) };
     }
 
     const raw = payload as Record<string, unknown>;
     const type = this.cleanText(String(raw['type'] ?? raw['Type'] ?? '')).toLowerCase();
-    const base64 = this.cleanText(
-      String(raw['base64'] ?? raw['Base64'] ?? raw['fileContent'] ?? raw['content'] ?? '')
-    );
+    const base64 = this.cleanText(String(raw['base64'] ?? raw['Base64'] ?? raw['fileContent'] ?? raw['content'] ?? ''));
     const isBase64Payload = type === 'base64-file' || type === 'base64' || (!type && !!base64);
 
     if (isBase64Payload) {
-      const directDataUrl = this.cleanText(
-        String(raw['dataUrl'] ?? raw['data_url'] ?? raw['dataURL'] ?? '')
-      );
-      const mimeType = this.cleanText(
-        String(
-          raw['mimeType'] ??
-            raw['mime_type'] ??
-            raw['contentType'] ??
-            raw['content_type'] ??
-            'application/octet-stream'
-        )
-      );
-
+      const directDataUrl = this.cleanText(String(raw['dataUrl'] ?? raw['data_url'] ?? raw['dataURL'] ?? ''));
+      const mimeType = this.cleanText(String(raw['mimeType'] ?? raw['mime_type'] ?? raw['contentType'] ?? raw['content_type'] ?? 'application/octet-stream'));
       let dataUrl = '';
       if (directDataUrl) {
         dataUrl = directDataUrl;
       } else if (base64) {
-        const normalizedB64 = base64
-          .replace(/\\r\\n/g, '')
-          .replace(/\\n/g, '')
-          .replace(/\\r/g, '')
-          .replace(/\s/g, '');
+        const normalizedB64 = base64.replace(/\\r\\n/g, '').replace(/\\n/g, '').replace(/\\r/g, '').replace(/\s/g, '');
         dataUrl = `data:${mimeType};base64,${normalizedB64}`;
       }
       if (!dataUrl) return empty;
-
-      const previewKind = this.detectPreviewKindFromUrl(dataUrl, mimeType);
-      return {
-        available: true,
-        sourceKind: 'data',
-        url: dataUrl,
-        previewKind
-      };
+      return { available: true, sourceKind: 'data', url: dataUrl, previewKind: this.detectPreviewKindFromUrl(dataUrl, mimeType) };
     }
 
-    const rawUrl = this.cleanText(
-      String(raw['url'] ?? raw['notice9Url'] ?? raw['notice9_url'] ?? raw['fileUrl'] ?? raw['file_url'] ?? '')
-    );
+    const rawUrl = this.cleanText(String(raw['url'] ?? raw['notice9Url'] ?? raw['notice9_url'] ?? raw['fileUrl'] ?? raw['file_url'] ?? ''));
     if (rawUrl) {
       const isData = rawUrl.startsWith('data:');
-      return {
-        available: true,
-        sourceKind: isData ? 'data' : 'external',
-        url: rawUrl,
-        previewKind: this.detectPreviewKindFromUrl(rawUrl)
-      };
+      return { available: true, sourceKind: isData ? 'data' : 'external', url: rawUrl, previewKind: this.detectPreviewKindFromUrl(rawUrl) };
     }
 
     return empty;
@@ -2228,9 +2150,7 @@ export class Category1ObjectionComponent {
   private cleanText(value: string): string {
     let v = String(value ?? '').trim();
     if (!v) return '';
-    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
-      v = v.slice(1, -1).trim();
-    }
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1).trim();
     v = v.replace(/\\\//g, '/').trim();
     return v;
   }
@@ -2267,32 +2187,26 @@ export class Category1ObjectionComponent {
     return String(row.new_cts_numb_2000 || row.cts_no || '').trim();
   }
 
-  /** ePICS urban office row for current `urbanOfficeCode` (selected on step 1). */
   protected epicsUrbanOfficeFromStep1(): UrbanOffice | null {
     const code = this.form.controls.urbanOfficeCode.getRawValue().trim();
     if (!code) return null;
     return this.urbanSearchOffices().find((o) => o.office_code === code) ?? null;
   }
 
-  /** Single-line label for read-only office dropdown on Case act and PO (code — name). */
   protected epicsUrbanOfficeReadonlySelectLabel(): string {
     const code = this.form.controls.urbanOfficeCode.getRawValue().trim();
     const snap = this.epicsUrbanOfficeSnapshot();
-    if (code && snap && snap.code === code) {
-      return `${snap.code} — ${snap.name}`;
-    }
+    if (code && snap && snap.code === code) return `${snap.code} — ${snap.name}`;
     const o = this.epicsUrbanOfficeFromStep1();
     if (o) return `${o.office_code} — ${o.office_name}`;
     if (code) return `${code} —`;
     return '— Select office in step 1 (District → Office) —';
   }
 
-  /** Option text in step 1 urban office dropdowns: code — name. */
   protected urbanOfficeOptionLabel(o: UrbanOffice): string {
     return `${o.office_code} — ${o.office_name}`;
   }
 
-  /** ePICS urban inward dropdown: inward - applicant - mutation no. - date (hyphen-separated). */
   protected urbanMutationInwardOptionLabel(m: UrbanMutationListRow): string {
     const inward = String(m.inward_number || '').trim() || '-';
     const name = String(m.applicant_name || '').trim() || '-';
@@ -2303,15 +2217,9 @@ export class Category1ObjectionComponent {
 
   protected loadUrbanSubCtsRows(): void {
     const villageCode = this.form.controls.urbanVillageCode.getRawValue().trim();
-    if (!villageCode) {
-      this.apiError.set('Please select village first.');
-      return;
-    }
+    if (!villageCode) { this.apiError.set('Please select village first.'); return; }
     const parentCts = this.form.controls.ctsNoInput.getRawValue().trim();
-    if (!parentCts) {
-      this.apiError.set('Please enter parent CTS number (required for sub CTS list).');
-      return;
-    }
+    if (!parentCts) { this.apiError.set('Please enter parent CTS number (required for sub CTS list).'); return; }
     this.loadingUrbanSearchChain.set(true);
     this.apiError.set(null);
     this.urbanSearchMutations.set([]);
@@ -2329,10 +2237,7 @@ export class Category1ObjectionComponent {
   protected loadUrbanMutationsBySubCts(): void {
     const villageCode = this.form.controls.urbanVillageCode.getRawValue().trim();
     const ctsNo = this.form.controls.selectedSubCtsNo.getRawValue().trim();
-    if (!villageCode || !ctsNo) {
-      this.apiError.set('Please select sub CTS number first.');
-      return;
-    }
+    if (!villageCode || !ctsNo) { this.apiError.set('Please select sub CTS number first.'); return; }
     this.loadingUrbanSearchChain.set(true);
     this.apiError.set(null);
     this.form.controls.selectedInwardNumber.setValue('', { emitEvent: false });
@@ -2346,13 +2251,9 @@ export class Category1ObjectionComponent {
       });
   }
 
-  /** Loads mutation-type options for the selected village (ePICS “Mutation type” search). */
   protected loadUrbanMutationTypes(): void {
     const villageCode = this.form.controls.urbanVillageCode.getRawValue().trim();
-    if (!villageCode) {
-      this.urbanMutationTypeOptions.set([]);
-      return;
-    }
+    if (!villageCode) { this.urbanMutationTypeOptions.set([]); return; }
     this.loadingUrbanMutationTypes.set(true);
     this.apiError.set(null);
     this.landRecords
@@ -2370,10 +2271,7 @@ export class Category1ObjectionComponent {
   protected loadUrbanMutationsByMutationType(): void {
     const villageCode = this.form.controls.urbanVillageCode.getRawValue().trim();
     const mutationTypeCode = this.form.controls.selectedUrbanMutationTypeCode.getRawValue().trim();
-    if (!villageCode || !mutationTypeCode) {
-      this.apiError.set('Please select village and mutation type first.');
-      return;
-    }
+    if (!villageCode || !mutationTypeCode) { this.apiError.set('Please select village and mutation type first.'); return; }
     this.loadingUrbanSearchChain.set(true);
     this.apiError.set(null);
     this.form.controls.selectedInwardNumber.setValue('', { emitEvent: false });
@@ -2389,11 +2287,7 @@ export class Category1ObjectionComponent {
 
   protected searchBySelectedInward(): void {
     const inward = this.form.controls.selectedInwardNumber.getRawValue().trim();
-    if (!inward) {
-      this.apiError.set('Please select inward number.');
-      return;
-    }
-    // Keep Survey/CTS or Mutation type mode selected; API still uses inward in `searchValue`.
+    if (!inward) { this.apiError.set('Please select inward number.'); return; }
     this.form.controls.searchValue.setValue(inward, { emitEvent: false });
     this.performSearch();
   }
@@ -2421,78 +2315,44 @@ export class Category1ObjectionComponent {
     this.offices.set([]);
   }
 
-  /** After successful final submit: clear session + blank form so user can file again (keeps districts master list). */
   private resetAfterFinalSubmit(): void {
-    try {
-      sessionStorage.removeItem(this.sessionKey());
-    } catch {
-      //
-    }
-
+    try { sessionStorage.removeItem(this.sessionKey()); } catch { /**/ }
     this.hydrating = true;
-
     this.resetClientRefSeedParts();
     this.filingClientRef.set(this.buildClientApplicationRef());
     this.serverApplicationId.set(null);
     this.applicantIdByClientRowKeySig.set({});
     this.stepIndex.set(0);
-
     this.disputedLands.set([]);
     this.vakaltnamaAssignments.set([]);
     this.vakaltnamaCoAdvocates.set([]);
-
     this.mutationDetails.set(null);
     this.mutationFound.set(false);
     this.searchedMutation.set(false);
     this.loadingSearch.set(false);
     this.loadingNotice9.set(false);
-    this.notice9Resolved.set({
-      available: false,
-      sourceKind: null,
-      url: null,
-      previewKind: 'none'
-    });
+    this.notice9Resolved.set({ available: false, sourceKind: null, url: null, previewKind: 'none' });
     this.manualAttachFileName.set(null);
     this.manualNotice9FileName.set(null);
-
     this.selectedSubject.set(null);
     this.selectedOffice.set(null);
     this.epicsUrbanOfficeSnapshot.set(null);
-
     while (this.applicants.length) this.applicants.removeAt(0);
     while (this.respondents.length) this.respondents.removeAt(0);
     this.applicants.push(this.createPartyGroup());
     this.respondents.push(this.createPartyGroup());
-
     this.form.patchValue(
       {
-        subjectId: 0,
-        searchMode: 'INWARD_NUMBER' as const,
-        searchValue: '',
-        mutationYear: '',
-        mutationTypeFilter: '',
-        urbanDistrictCode: '',
-        urbanOfficeCode: '',
-        urbanVillageCode: '',
-        ctsNoInput: '',
-        selectedSubCtsNo: '',
-        selectedInwardNumber: '',
-        mutationNumberInput: '',
-        selectedUrbanMutationTypeCode: '',
-        manualInwardNumber: '',
-        manualInwardDate: '',
-        manualMutationType: '',
-        manualApplicantName: '',
-        manualVillage: '',
-        manualStatus: '',
-        actId: 0,
-        sectionId: 0,
-        customSectionName: '',
-        applicationDescription: ''
+        subjectId: 0, searchMode: 'INWARD_NUMBER' as const, searchValue: '',
+        mutationYear: '', mutationTypeFilter: '', urbanDistrictCode: '',
+        urbanOfficeCode: '', urbanVillageCode: '', ctsNoInput: '',
+        selectedSubCtsNo: '', selectedInwardNumber: '', mutationNumberInput: '',
+        selectedUrbanMutationTypeCode: '', manualInwardNumber: '', manualInwardDate: '',
+        manualMutationType: '', manualApplicantName: '', manualVillage: '',
+        manualStatus: '', actId: 0, sectionId: 0, customSectionName: '', applicationDescription: ''
       },
       { emitEvent: false }
     );
-
     this.form.controls.districtId.setValue(0, { emitEvent: false });
     this.form.controls.subdistrictId.setValue(0, { emitEvent: false });
     this.form.controls.talukaId.setValue(0, { emitEvent: false });
@@ -2501,10 +2361,8 @@ export class Category1ObjectionComponent {
     this.talukas.set([]);
     this.offices.set([]);
     this.sections.set([]);
-
     this.form.markAsPristine();
     this.form.markAsUntouched();
-
     this.hydrating = false;
     this.schedulePersist();
   }
@@ -2524,7 +2382,6 @@ export class Category1ObjectionComponent {
     this.schedulePersist();
   }
 
-  /** Stepper: back freely; forward only if each intermediate step validates. */
   protected selectStep(targetIndex: number): void {
     this.apiMessage.set(null);
     const current = this.stepIndex();
@@ -2558,30 +2415,15 @@ export class Category1ObjectionComponent {
   private validateStepByKey(key: StepKey, markTouched: boolean): boolean {
     let ok = false;
     switch (key) {
-      case 'DISPUTED_ORDER':
-        ok = this.validateDisputedOrderStep(markTouched);
-        break;
-      case 'ACT_SECTION':
-        ok = this.validateActSectionStep(markTouched);
-        break;
-      case 'PARTIES':
-        ok = this.validatePartiesStep(markTouched);
-        break;
-      case 'VAKALTNAMA':
-        ok = this.validateVakaltnamaStep();
-        break;
-      case 'DISPUTED_LAND':
-        ok = this.validateDisputedLandStep();
-        break;
-      case 'APPLICATION_DESCRIPTION':
-        ok = true;
-        break;
-      default:
-        ok = true;
+      case 'DISPUTED_ORDER': ok = this.validateDisputedOrderStep(markTouched); break;
+      case 'ACT_SECTION': ok = this.validateActSectionStep(markTouched); break;
+      case 'PARTIES': ok = this.validatePartiesStep(markTouched); break;
+      case 'VAKALTNAMA': ok = this.validateVakaltnamaStep(); break;
+      case 'DISPUTED_LAND': ok = this.validateDisputedLandStep(); break;
+      case 'APPLICATION_DESCRIPTION': ok = true; break;
+      default: ok = true;
     }
-    if (!ok && !this.apiError()) {
-      this.apiError.set('Please complete this step before continuing.');
-    }
+    if (!ok && !this.apiError()) this.apiError.set('Please complete this step before continuing.');
     return ok;
   }
 
@@ -2598,10 +2440,7 @@ export class Category1ObjectionComponent {
       this.form.controls.selectedUrbanMutationTypeCode.markAsTouched();
     }
     const subjectId = this.form.controls.subjectId.getRawValue();
-    if (!subjectId || subjectId < 1) {
-      this.apiError.set('Please select subject.');
-      return false;
-    }
+    if (!subjectId || subjectId < 1) { this.apiError.set('Please select subject.'); return false; }
     if (this.isRural712Subject()) {
       if (markTouched) {
         this.form.controls.ruralDistrictCode.markAsTouched();
@@ -2617,101 +2456,48 @@ export class Category1ObjectionComponent {
         this.apiError.set('Complete district, taluka, village and survey number, then search.');
         return false;
       }
-      if (!this.rural712Searched()) {
-        this.apiError.set('Please run Search for 7/12 records before continuing.');
-        return false;
-      }
-      if (this.rural712SubSurveyRows().length === 0) {
-        this.apiError.set('No 7/12 / Eferfar records found — adjust search criteria or verify survey number.');
-        return false;
-      }
-      if (this.selectedRural712Index() == null) {
-        this.apiError.set('Select the 7/12 record that is the disputed order.');
-        return false;
-      }
+      if (!this.rural712Searched()) { this.apiError.set('Please run Search for 7/12 records before continuing.'); return false; }
+      if (this.rural712SubSurveyRows().length === 0) { this.apiError.set('No 7/12 / Eferfar records found — adjust search criteria or verify survey number.'); return false; }
+      if (this.selectedRural712Index() == null) { this.apiError.set('Select the 7/12 record that is the disputed order.'); return false; }
       return true;
     }
-    if (!this.isEpicsSubject()) {
-      return true;
-    }
+    if (!this.isEpicsSubject()) return true;
     const mode = this.form.controls.searchMode.getRawValue();
     if (mode === 'INWARD_NUMBER') {
       const searchValue = this.form.controls.searchValue.getRawValue().trim();
-      if (searchValue.length < 2) {
-        this.apiError.set('Enter search value (at least 2 characters) and search.');
-        return false;
-      }
-      if (!this.searchedMutation()) {
-        this.apiError.set('Please run Search for mutation details before continuing.');
-        return false;
-      }
+      if (searchValue.length < 2) { this.apiError.set('Enter search value (at least 2 characters) and search.'); return false; }
+      if (!this.searchedMutation()) { this.apiError.set('Please run Search for mutation details before continuing.'); return false; }
       return true;
     }
     const urbanDistrict = this.form.controls.urbanDistrictCode.getRawValue().trim();
-    if (!urbanDistrict) {
-      this.apiError.set('Please select district (ePICS urban).');
-      return false;
-    }
+    if (!urbanDistrict) { this.apiError.set('Please select district (ePICS urban).'); return false; }
     const urbanOffice = this.form.controls.urbanOfficeCode.getRawValue().trim();
-    if (!urbanOffice) {
-      this.apiError.set('Please select office (ePICS urban).');
-      return false;
-    }
+    if (!urbanOffice) { this.apiError.set('Please select office (ePICS urban).'); return false; }
     const urbanVillage = this.form.controls.urbanVillageCode.getRawValue().trim();
-    if (!urbanVillage) {
-      this.apiError.set('Please select village.');
-      return false;
-    }
+    if (!urbanVillage) { this.apiError.set('Please select village.'); return false; }
     if (mode === 'SURVEY_NUMBER') {
       const subCts = this.form.controls.selectedSubCtsNo.getRawValue().trim();
-      if (!subCts) {
-        this.apiError.set('Please load sub CTS and select a sub CTS number.');
-        return false;
-      }
+      if (!subCts) { this.apiError.set('Please load sub CTS and select a sub CTS number.'); return false; }
     }
     if (mode === 'MUTATION_NUMBER') {
       const mt = this.form.controls.selectedUrbanMutationTypeCode.getRawValue().trim();
-      if (!mt) {
-        this.apiError.set('Please select mutation type.');
-        return false;
-      }
+      if (!mt) { this.apiError.set('Please select mutation type.'); return false; }
     }
     const inward = this.form.controls.selectedInwardNumber.getRawValue().trim();
-    if (!inward) {
-      this.apiError.set('Please load inward numbers, select an inward number, then use Search by selected inward.');
-      return false;
-    }
+    if (!inward) { this.apiError.set('Please load inward numbers, select an inward number, then use Search by selected inward.'); return false; }
     const searchValue = this.form.controls.searchValue.getRawValue().trim();
-    if (searchValue.length < 2) {
-      this.apiError.set('Use “Search by selected inward” after choosing an inward number.');
-      return false;
-    }
-    if (!this.searchedMutation()) {
-      this.apiError.set('Please run search for mutation details before continuing.');
-      return false;
-    }
+    if (searchValue.length < 2) { this.apiError.set('Use "Search by selected inward" after choosing an inward number.'); return false; }
+    if (!this.searchedMutation()) { this.apiError.set('Please run search for mutation details before continuing.'); return false; }
     return true;
   }
 
   private validateActSectionStep(markTouched: boolean): boolean {
     const c = this.form.controls;
-    if (markTouched) {
-      c.actId.markAsTouched();
-      c.sectionId.markAsTouched();
-    }
-    if (!c.actId.getRawValue() || c.actId.getRawValue() < 1) {
-      this.apiError.set('Please select act.');
-      return false;
-    }
+    if (markTouched) { c.actId.markAsTouched(); c.sectionId.markAsTouched(); }
+    if (!c.actId.getRawValue() || c.actId.getRawValue() < 1) { this.apiError.set('Please select act.'); return false; }
     const sectionId = c.sectionId.getRawValue();
-    if (sectionId === -1) {
-      this.apiError.set('Choose a section from the list, or enter a custom section and click Add section.');
-      return false;
-    }
-    if (!sectionId || sectionId < 1) {
-      this.apiError.set('Please select section.');
-      return false;
-    }
+    if (sectionId === -1) { this.apiError.set('Choose a section from the list, or enter a custom section and click Add section.'); return false; }
+    if (!sectionId || sectionId < 1) { this.apiError.set('Please select section.'); return false; }
     return true;
   }
 
@@ -2720,98 +2506,51 @@ export class Category1ObjectionComponent {
       this.applicants.controls.forEach((g) => g.markAllAsTouched());
       this.respondents.controls.forEach((g) => g.markAllAsTouched());
     }
-    if (this.applicants.length < 1) {
-      this.apiError.set('At least one applicant is required. Please add applicant details.');
-      return false;
-    }
-    if (this.respondents.length < 1) {
-      this.apiError.set('At least one respondent is required. Please add respondent details.');
-      return false;
-    }
-    if (!this.applicants.valid) {
-      this.apiError.set('Please complete all mandatory applicant details (name, mobile, pincode, address).');
-      return false;
-    }
-    if (!this.respondents.valid) {
-      this.apiError.set('Please complete all mandatory respondent details (name, mobile, pincode, address).');
-      return false;
-    }
+    if (this.applicants.length < 1) { this.apiError.set('At least one applicant is required. Please add applicant details.'); return false; }
+    if (this.respondents.length < 1) { this.apiError.set('At least one respondent is required. Please add respondent details.'); return false; }
+    if (!this.applicants.valid) { this.apiError.set('Please complete all mandatory applicant details (name, mobile, pincode, address).'); return false; }
+    if (!this.respondents.valid) { this.apiError.set('Please complete all mandatory respondent details (name, mobile, pincode, address).'); return false; }
     return true;
   }
 
   private validateVakaltnamaStep(): boolean {
     const assignments = this.vakaltnamaAssignments();
-    if (assignments.length < 1) {
-      this.apiError.set('Create at least one vakaltnama group with advocate and applicants.');
-      return false;
-    }
-    // Each applicant must appear in at least one group (can appear in multiple)
+    if (assignments.length < 1) { this.apiError.set('Create at least one vakaltnama group with advocate and applicants.'); return false; }
     const applicantIds = this.applicantOptions().map((a) => a.id);
     const covered = new Set<string>();
-    for (const g of assignments) {
-      for (const id of g.applicantIds) {
-        covered.add(id);
-      }
-    }
+    for (const g of assignments) for (const id of g.applicantIds) covered.add(id);
     for (const id of applicantIds) {
-      if (!covered.has(id)) {
-        this.apiError.set('Every applicant must be included in at least one vakaltnama group.');
-        return false;
-      }
+      if (!covered.has(id)) { this.apiError.set('Every applicant must be included in at least one vakaltnama group.'); return false; }
     }
     return true;
   }
 
   private validateDisputedLandStep(): boolean {
-    if (this.disputedLands().length < 1) {
-      this.apiError.set('Add at least one disputed land record.');
-      return false;
-    }
+    if (this.disputedLands().length < 1) { this.apiError.set('Add at least one disputed land record.'); return false; }
     return true;
   }
 
-  /**
-   * Backend validates land type with `landType`; keep existing `type` too for UI/session compatibility.
-   */
   private buildDisputedLandsPayload(): Array<Record<string, unknown>> {
     return this.disputedLands().map((row, index) => {
       if (row.type === 'RURAL_7_12') {
         return {
-          lineNo: index + 1,
-          landType: row.type,
-          externalSource: 'LAND_RECORDS_API',
-          districtCode: row.districtCode,
-          districtName: row.districtName,
-          talukaCode: row.talukaCode,
-          talukaName: row.talukaName,
-          villageLgdCode: row.villageLgdCode,
-          villageName: row.villageName,
-          surveyPin: row.pin,
-          pin1: row.pinParts.pin1,
-          pin2: row.pinParts.pin2,
-          pin3: row.pinParts.pin3,
-          pin4: row.pinParts.pin4,
-          pin5: row.pinParts.pin5,
-          pin6: row.pinParts.pin6,
-          pin7: row.pinParts.pin7,
-          pin8: row.pinParts.pin8,
+          lineNo: index + 1, landType: row.type, externalSource: 'LAND_RECORDS_API',
+          districtCode: row.districtCode, districtName: row.districtName,
+          talukaCode: row.talukaCode, talukaName: row.talukaName,
+          villageLgdCode: row.villageLgdCode, villageName: row.villageName,
+          surveyPin: row.pin, pin1: row.pinParts.pin1, pin2: row.pinParts.pin2,
+          pin3: row.pinParts.pin3, pin4: row.pinParts.pin4, pin5: row.pinParts.pin5,
+          pin6: row.pinParts.pin6, pin7: row.pinParts.pin7, pin8: row.pinParts.pin8,
           landDetail: row.landDetail?.length ? row.landDetail : null
         };
       }
       return {
-        lineNo: index + 1,
-        landType: row.type,
-        externalSource: 'LAND_RECORDS_API',
-        districtCode: row.districtCode,
-        districtName: row.districtName,
-        officeCode: row.officeCode,
-        officeName: row.officeName,
-        villageCode: row.villageCode,
-        villageName: row.villageName,
-        parentCtsNo: row.parentCtsNo || row.ctsNo,
-        subCtsNo: row.subCtsNo || null,
-        ctsNo: row.ctsNo,
-        propertyDetail: row.propertyDetail ?? null
+        lineNo: index + 1, landType: row.type, externalSource: 'LAND_RECORDS_API',
+        districtCode: row.districtCode, districtName: row.districtName,
+        officeCode: row.officeCode, officeName: row.officeName,
+        villageCode: row.villageCode, villageName: row.villageName,
+        parentCtsNo: row.parentCtsNo || row.ctsNo, subCtsNo: row.subCtsNo || null,
+        ctsNo: row.ctsNo, propertyDetail: row.propertyDetail ?? null
       };
     });
   }
@@ -2819,110 +2558,49 @@ export class Category1ObjectionComponent {
   private buildFormPayload(): Record<string, unknown> {
     const raw = this.form.getRawValue() as Record<string, unknown>;
     const {
-      urbanDistrictCode: _urbanDistrictCode,
-      urbanOfficeCode: _urbanOfficeCode,
-      urbanVillageCode: _urbanVillageCode,
-      ctsNoInput: _ctsNoInput,
-      selectedSubCtsNo: _selectedSubCtsNo,
-      selectedInwardNumber: _selectedInwardNumber,
-      selectedUrbanMutationTypeCode: _selectedUrbanMutationTypeCode,
-      mutationNumberInput: _mutationNumberInput,
+      urbanDistrictCode: _udc, urbanOfficeCode: _uoc, urbanVillageCode: _uvc,
+      ctsNoInput: _cni, selectedSubCtsNo: _ssc, selectedInwardNumber: _sin,
+      selectedUrbanMutationTypeCode: _sumt, mutationNumberInput: _mni,
       ...rawForPayload
     } = raw;
     const applicants = this.applicants.controls.map((ctrl, i) => {
-      const row = (ctrl as any).getRawValue?.() as {
-        tempId?: string;
-        firstName?: string;
-        middleName?: string;
-        lastName?: string;
-        name?: string;
-        pincode?: string;
-        district?: string;
-        taluka?: string;
-        village?: string;
-        villageValue?: string;
-        mobile?: string;
-        address?: string;
-        email?: string;
-        dob?: string;
-        age?: string;
-        occupation?: string;
-      };
-      const key = (row?.tempId || this.makeTempId()).trim();
-      const firstName = row?.firstName || '';
-      const middleName = row?.middleName || '';
-      const lastName = row?.lastName || '';
-      const fullName = [firstName, middleName, lastName].join(' ').trim() || row?.name || '';
+      const row = (ctrl as any).getRawValue?.() as Record<string, string | undefined>;
+      const key = (row['tempId'] || this.makeTempId()).trim();
+      const firstName = row['firstName'] || '';
+      const middleName = row['middleName'] || '';
+      const lastName = row['lastName'] || '';
       return {
-        lineNo: i + 1,
-        tempId: key,
-        clientRowKey: key,
-        firstName,
-        middleName,
-        lastName,
-        name: fullName,
-        pincode: row?.pincode || '',
-        district: row?.district || '',
-        taluka: row?.taluka || '',
-        village: row?.village || '',
-        villageValue: row?.villageValue || '',
-        mobile: row?.mobile || '',
-        address: row?.address || '',
-        email: row?.email || '',
-        dob: row?.dob || '',
-        age: row?.age || '',
-        occupation: row?.occupation || ''
+        lineNo: i + 1, tempId: key, clientRowKey: key,
+        firstName, middleName, lastName,
+        name: [firstName, middleName, lastName].join(' ').trim() || row['name'] || '',
+        pincode: row['pincode'] || '', district: row['district'] || '',
+        taluka: row['taluka'] || '', village: row['village'] || '',
+        villageValue: row['villageValue'] || '', mobile: row['mobile'] || '',
+        address: row['address'] || '', email: row['email'] || '',
+        dob: row['dob'] || '', age: row['age'] || '', occupation: row['occupation'] || ''
       };
     });
     const respondents = this.respondents.controls.map((ctrl, i) => {
-      const row = (ctrl as any).getRawValue?.() as {
-        tempId?: string;
-        firstName?: string;
-        middleName?: string;
-        lastName?: string;
-        name?: string;
-        pincode?: string;
-        district?: string;
-        taluka?: string;
-        village?: string;
-        villageValue?: string;
-        mobile?: string;
-        address?: string;
-        email?: string;
-        dob?: string;
-        age?: string;
-        occupation?: string;
-      };
-      const key = (row?.tempId || this.makeTempId()).trim();
-      const firstName = row?.firstName || '';
-      const middleName = row?.middleName || '';
-      const lastName = row?.lastName || '';
-      const fullName = [firstName, middleName, lastName].join(' ').trim() || row?.name || '';
+      const row = (ctrl as any).getRawValue?.() as Record<string, string | undefined>;
+      const key = (row['tempId'] || this.makeTempId()).trim();
+      const firstName = row['firstName'] || '';
+      const middleName = row['middleName'] || '';
+      const lastName = row['lastName'] || '';
       return {
-        lineNo: i + 1,
-        clientRowKey: key,
-        firstName,
-        middleName,
-        lastName,
-        name: fullName,
-        pincode: row?.pincode || '',
-        district: row?.district || '',
-        taluka: row?.taluka || '',
-        village: row?.village || '',
-        villageValue: row?.villageValue || '',
-        mobile: row?.mobile || '',
-        address: row?.address || '',
-        email: row?.email || '',
-        dob: row?.dob || '',
-        age: row?.age || '',
-        occupation: row?.occupation || ''
+        lineNo: i + 1, clientRowKey: key,
+        firstName, middleName, lastName,
+        name: [firstName, middleName, lastName].join(' ').trim() || row['name'] || '',
+        pincode: row['pincode'] || '', district: row['district'] || '',
+        taluka: row['taluka'] || '', village: row['village'] || '',
+        villageValue: row['villageValue'] || '', mobile: row['mobile'] || '',
+        address: row['address'] || '', email: row['email'] || '',
+        dob: row['dob'] || '', age: row['age'] || '', occupation: row['occupation'] || ''
       };
     });
     return {
       ...rawForPayload,
       sectionCustomText: (raw['customSectionName'] as string) || null,
-      applicants,
-      respondents,
+      applicants, respondents,
       vakalatnamaAssignments: this.vakaltnamaAssignments()
     };
   }
@@ -2944,8 +2622,7 @@ export class Category1ObjectionComponent {
       notice9Resolved: {
         available: n9.available,
         sourceKind: n9.sourceKind ? n9.sourceKind.toUpperCase() : null,
-        url: n9.url,
-        previewKind: n9.previewKind
+        url: n9.url, previewKind: n9.previewKind
       }
     };
   }
@@ -2954,10 +2631,7 @@ export class Category1ObjectionComponent {
     const c = this.form.controls.applicationDescription;
     if (markTouched) c.markAsTouched();
     const v = c.getRawValue().trim();
-    if (v.length < 10) {
-      this.apiError.set('Please enter application description (at least 10 characters).');
-      return false;
-    }
+    if (v.length < 10) { this.apiError.set('Please enter application description (at least 10 characters).'); return false; }
     return true;
   }
 
@@ -2965,50 +2639,33 @@ export class Category1ObjectionComponent {
     for (let i = 0; i < this.steps.length; i++) {
       const key = this.steps[i].key;
       const ok = key === 'APPLICATION_DESCRIPTION' ? this.validateApplicationDescriptionStep(true) : this.validateStepByKey(key, true);
-      if (!ok) {
-        this.stepIndex.set(i);
-        return false;
-      }
+      if (!ok) { this.stepIndex.set(i); return false; }
     }
     return true;
   }
 
-  protected selectedSubjectLabel(): string {
-    return this.selectedSubject()?.subjectName || '';
-  }
-
+  protected selectedSubjectLabel(): string { return this.selectedSubject()?.subjectName || ''; }
   protected selectedActLabel(): string {
     const actId = this.form.controls.actId.getRawValue();
     return this.acts().find((a) => a.id === actId)?.actName || '';
   }
-
   protected selectedSectionLabel(): string {
     const sectionId = this.form.controls.sectionId.getRawValue();
     return this.sections().find((s) => s.id === sectionId)?.sectionName || '';
   }
-
   protected assignmentApplicantsLabel(ids: string[]): string {
     const map = new Map((this.applicantOptions() ?? []).map((a) => [a.id, a.name]));
-    const names = ids.map((id) => map.get(id) ?? id).filter(Boolean);
-    return names.join(', ');
+    return ids.map((id) => map.get(id) ?? id).filter(Boolean).join(', ');
   }
 
-  protected saveDraft(): void {
-    this.apiMessage.set(null);
-    this.postSave('DRAFT');
-  }
-
-  protected finalSubmit(): void {
-    this.apiMessage.set(null);
-    this.postSave('FINAL');
-  }
+  protected saveDraft(): void { this.apiMessage.set(null); this.postSave('DRAFT'); }
+  protected finalSubmit(): void { this.apiMessage.set(null); this.postSave('FINAL'); }
 
   private postSave(mode: 'DRAFT' | 'FINAL'): void {
     const status: FilingSaveStatus = mode === 'FINAL' ? 'SUBMITTED' : 'DRAFT';
     const appId = this.serverApplicationId();
     const body: FilingApplicationSaveRequest = {
-      status,
-      caseCategoryId: this.caseCategoryId(),
+      status, caseCategoryId: this.caseCategoryId(),
       clientApplicationRef: this.filingClientRef(),
       ...(appId != null && appId > 0 ? { applicationId: appId } : {}),
       form: this.buildFormPayload(),
@@ -3028,15 +2685,8 @@ export class Category1ObjectionComponent {
               ? 'Draft saved successfully.'
               : 'Application submitted successfully. The form has been cleared — you can start a new filing.'
           );
-
-          if (status === 'SUBMITTED') {
-            this.resetAfterFinalSubmit();
-            return;
-          }
-
-          if (resp?.applicationId != null && resp.applicationId > 0) {
-            this.serverApplicationId.set(resp.applicationId);
-          }
+          if (status === 'SUBMITTED') { this.resetAfterFinalSubmit(); return; }
+          if (resp?.applicationId != null && resp.applicationId > 0) this.serverApplicationId.set(resp.applicationId);
           if (resp?.applicantIdByClientRowKey && typeof resp.applicantIdByClientRowKey === 'object') {
             this.applicantIdByClientRowKeySig.set(resp.applicantIdByClientRowKey as Record<string, number>);
           }
@@ -3049,14 +2699,8 @@ export class Category1ObjectionComponent {
   protected addCustomSection(): void {
     const actId = this.form.controls.actId.getRawValue();
     const name = this.form.controls.customSectionName.getRawValue().trim();
-    if (!actId || actId < 1) {
-      this.apiError.set('Please select Act first.');
-      return;
-    }
-    if (name.length < 2) {
-      this.apiError.set('Please enter a section name/number.');
-      return;
-    }
+    if (!actId || actId < 1) { this.apiError.set('Please select Act first.'); return; }
+    if (name.length < 2) { this.apiError.set('Please enter a section name/number.'); return; }
     this.apiError.set(null);
     const existing = this.sections();
     if (!existing.some((s) => s.sectionName.toLowerCase() === name.toLowerCase() || s.sectionCode.toLowerCase() === name.toLowerCase())) {
@@ -3065,14 +2709,8 @@ export class Category1ObjectionComponent {
       this.sections.set([
         ...existing,
         {
-          id: nextId,
-          actId,
-          actCode: act?.actCode || '',
-          actName: act?.actName || '',
-          actNameLocal: act?.actNameLocal || null,
-          sectionCode: name,
-          sectionName: name,
-          sectionNameLocal: null
+          id: nextId, actId, actCode: act?.actCode || '', actName: act?.actName || '',
+          actNameLocal: act?.actNameLocal || null, sectionCode: name, sectionName: name, sectionNameLocal: null
         }
       ]);
       this.form.controls.sectionId.setValue(nextId);
@@ -3084,29 +2722,349 @@ export class Category1ObjectionComponent {
     this.schedulePersist();
   }
 
+  // ─── Translation helpers ────────────────────────────────────────────────────
+
+  /** Maps English control names → paired Marathi control names. */
+  private readonly marathiFieldMap: Record<string, string> = {
+    firstName:  'firstNameMr',
+    middleName: 'middleNameMr',
+    lastName:   'lastNameMr',
+    address:    'addressMr',
+    occupation: 'occupationMr',
+  };
+
+  /**
+   * Static map for occupation dropdown values — known at build time,
+   * no HTTP request needed. Keys are lowercase substrings; first match wins.
+   */
+  private readonly occupationMarathiMap: Record<string, string> = {
+    'doctor':        'डॉक्टर',
+    'engineer':      'अभियंता',
+    'farmer':        'शेतकरी',
+    'teacher':       'शिक्षक',
+    'business':      'व्यापारी',
+    'student':       'विद्यार्थी',
+    'retired':       'निवृत्त',
+    'unemployed':    'बेरोजगार',
+    'self employed': 'स्वयंरोजगार',
+    'self-employed': 'स्वयंरोजगार',
+    'lawyer':        'वकील',
+    'advocate':      'अधिवक्ता',
+    'accountant':    'लेखापाल',
+    'clerk':         'लिपिक',
+    'officer':       'अधिकारी',
+    'government':    'सरकारी कर्मचारी',
+    'housewife':     'गृहिणी',
+    'labour':        'मजूर',
+    'laborer':       'मजूर',
+    'labourer':      'मजूर',
+    'police':        'पोलीस',
+    'army':          'सैनिक',
+    'nurse':         'परिचारिका',
+    'driver':        'चालक',
+    'carpenter':     'सुतार',
+    'electrician':   'विद्युत तंत्रज्ञ',
+    'plumber':       'नलसाज',
+    'tailor':        'शिंपी',
+    'shopkeeper':    'दुकानदार',
+    'contractor':    'कंत्राटदार',
+    'professor':     'प्राध्यापक',
+    'principal':     'मुख्याध्यापक',
+    'journalist':    'पत्रकार',
+    'artist':        'कलाकार',
+    'architect':     'वास्तुविशारद',
+    'banker':        'बँकर',
+    'manager':       'व्यवस्थापक',
+    'director':      'संचालक',
+    'trader':        'व्यापारी',
+    'agriculture':   'शेतकरी',
+  };
+
+  /**
+   * Set of field keys currently awaiting a translation API response.
+   * Public so the template can call `.has()` directly without going through a
+   * method (passing $index into a method triggers the strict template checker).
+   *
+   * Key format: `{role}-{index}-{fieldName}`  e.g. `applicant-0-firstName`
+   * Template: `translatingFields().has('applicant-' + i + '-firstName')`
+   */
+  public readonly translatingFields = signal<Set<string>>(new Set());
+
+  /**
+   * Tracks which Marathi fields have been manually edited by the user.
+   * Format: `{role}-{index}-{marathiFieldName}` e.g. `applicant-0-firstNameMr`
+   * When a Marathi field is manually edited, we don't auto-overwrite it unless
+   * the English field changes to a different value.
+   */
+  public readonly manuallyEditedMarathiFields = signal<Set<string>>(new Set());
+
+  /**
+   * Called when user manually edits a Marathi field.
+   * Marks the field as manually edited so we don't auto-overwrite it.
+   */
+  protected onMarathiFieldManualEdit(role: 'applicant' | 'respondent', index: number, marathiFieldName: string): void {
+    const key = `${role}-${index}-${marathiFieldName}`;
+    this.manuallyEditedMarathiFields.update((s) => {
+      const next = new Set(s);
+      next.add(key);
+      return next;
+    });
+  }
+
+  private saveTranslation(
+  role: string,
+  index: number,
+  fieldName: string
+): void {
+
+  const array =
+    role === 'applicant'
+      ? this.applicants
+      : this.respondents;
+
+  const group = array.at(index);
+
+  const marathiMap: Record<string, string> = {
+    firstName: 'firstNameMr',
+    middleName: 'middleNameMr',
+    lastName: 'lastNameMr',
+    address: 'addressMr',
+    occupation: 'occupationMr'
+  };
+
+  const marathiFieldName = marathiMap[fieldName];
+
+  if (!marathiFieldName) return;
+
+  const englishText =
+    group.get(fieldName)?.value ?? '';
+
+  this.transliterateToMarathi(
+    englishText,
+    marathiFieldName,
+    group as any,
+    role,
+    index,
+    fieldName
+  );
+}
+
+  private lookupOccupationMarathi(text: string): string {
+    const lower = text.toLowerCase();
+    for (const [key, mr] of Object.entries(this.occupationMarathiMap)) {
+      if (lower.includes(key)) return mr;
+    }
+    return '';
+  }
+
+private transliterateToMarathi(
+  englishText: string,
+  marathiFieldName: string,
+  group: ReturnType<Category1ObjectionComponent['createPartyGroup']>,
+  role: string,
+  index: number,
+  fieldName: string
+): void {
+
+  const text = englishText?.trim();
+
+  if (!text) {
+    return;
+  }
+
+  const key = `${role}-${index}-${fieldName}`;
+
+  // loading state
+  this.translatingFields.update((s) => {
+    const next = new Set(s);
+    next.add(key);
+    return next;
+  });
+
+  const url =
+    `https://translate.googleapis.com/translate_a/single` +
+    `?client=gtx&sl=en&tl=mr&dt=t&q=${encodeURIComponent(text)}`;
+
+  this.http
+    .get<any>(url)
+    .pipe(
+      takeUntilDestroyed(this.destroyRef),
+      finalize(() => {
+        this.translatingFields.update((s) => {
+          const next = new Set(s);
+          next.delete(key);
+          return next;
+        });
+      })
+    )
+    .subscribe({
+      next: (resp) => {
+        try {
+
+          const translated =
+            resp?.[0]
+              ?.map((x: any) => x[0])
+              ?.join('')
+              ?.trim() ?? '';
+
+          if (!translated) return;
+
+          const currentMr =
+            group.get(marathiFieldName)?.value?.trim();
+
+          // don't overwrite manually entered Marathi
+          if (currentMr) return;
+
+          group.patchValue(
+            {
+              [marathiFieldName]: translated
+            },
+            { emitEvent: false }
+          );
+
+          this.schedulePersist();
+
+        } catch (e) {
+          console.error('Translation parse failed', e);
+        }
+      },
+
+      error: (err) => {
+        console.error('Translation failed', err);
+      }
+    });
+}
+private setupAutoTranslation(
+  role: 'applicant' | 'respondent',
+  index: number,
+  group: ReturnType<Category1ObjectionComponent['createPartyGroup']>
+): void {
+
+  Object.entries(this.marathiFieldMap).forEach(
+    ([englishField, marathiField]) => {
+
+      const englishControl = group.get(englishField);
+      if (!englishControl) return;
+
+      englishControl.valueChanges
+        .pipe(
+          takeUntilDestroyed(this.destroyRef),
+          debounceTime(1500),
+          distinctUntilChanged()
+        )
+        .subscribe((value) => {
+
+          const englishValue = String(value || '').trim();
+          const key = `${role}-${index}-${marathiField}`;
+
+          if (!englishValue) {
+            // Clear Marathi field when English is cleared to allow re-translation
+            group.patchValue(
+              { [marathiField]: '' },
+              { emitEvent: false }
+            );
+            // Also clear the "manually edited" flag
+            this.manuallyEditedMarathiFields.update((s) => {
+              const next = new Set(s);
+              next.delete(key);
+              return next;
+            });
+            return;
+          }
+
+          // Check if Marathi field was manually edited
+          const wasManuallyEdited = this.manuallyEditedMarathiFields().has(key);
+          const marathiValue = group.get(marathiField)?.value?.trim() || '';
+
+          // Skip if manually edited, but allow re-translation if Marathi is empty or auto-generated
+          if (marathiValue && wasManuallyEdited) {
+            return;
+          }
+
+          // If Marathi has auto-generated value, clear it before re-translating
+          if (marathiValue && !wasManuallyEdited) {
+            group.patchValue(
+              { [marathiField]: '' },
+              { emitEvent: false }
+            );
+          }
+
+          // Occupation → static map
+          if (englishField === 'occupation') {
+            const translated =
+              this.lookupOccupationMarathi(englishValue);
+
+            if (translated) {
+              group.patchValue(
+                { [marathiField]: translated },
+                { emitEvent: false }
+              );
+            }
+
+            return;
+          }
+
+          this.transliterateToMarathi(
+            englishValue,
+            marathiField,
+            group,
+            role,
+            index,
+            englishField
+          );
+        });
+
+      // AUTO TRANSLATE PREFILLED VALUE
+      const existingValue = String(
+        englishControl.getRawValue() || ''
+      ).trim();
+
+      const marathiExisting = String(
+        group.get(marathiField)?.getRawValue() || ''
+      ).trim();
+
+      if (existingValue && !marathiExisting) {
+
+        if (englishField === 'occupation') {
+          const translated =
+            this.lookupOccupationMarathi(existingValue);
+
+          if (translated) {
+            group.patchValue(
+              { [marathiField]: translated },
+              { emitEvent: false }
+            );
+          }
+        } else {
+          this.transliterateToMarathi(
+            existingValue,
+            marathiField,
+            group,
+            role,
+            index,
+            englishField
+          );
+        }
+      }
+    }
+  );
+}
+
   private formatError(err: unknown): string {
     if (err instanceof HttpErrorResponse) {
       const body = err.error;
       if (typeof body === 'string' && body.trim()) return body.trim();
       if (body && typeof body === 'object') {
         const o = body as Record<string, unknown>;
-        const e = o['error'];
-        const m = o['message'];
-        const detail = o['detail'];
+        const e = o['error']; const m = o['message']; const detail = o['detail'];
         if (typeof e === 'string') return e;
         if (typeof m === 'string') return m;
         if (typeof detail === 'string') return detail;
         if (Array.isArray(o['errors'])) return JSON.stringify(o['errors']);
-        try {
-          return JSON.stringify(o);
-        } catch {
-          //
-        }
+        try { return JSON.stringify(o); } catch { /**/ }
       }
       return `Request failed (${err.status}).`;
     }
     return 'Request failed.';
   }
-
 }
-
