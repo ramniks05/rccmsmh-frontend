@@ -1,161 +1,247 @@
 <div class="portal-home">
 
-  <!-- Hero Header -->
-  <div class="hero-header">
+  <!-- ── Hero header ──────────────────────────────────────────────── -->
+  <header class="hero-header">
     <div class="hero-content">
-      <div>
-        <h1>Welcome back, {{ displayName }}</h1>
-        <p class="hero-subtitle">{{ role === 'PARTY_IN_PERSON' ? 'Party Representative' : role === 'ADVOCATE' ? 'Legal Advocate' : 'Administrator' }} | RCCMS Portal</p>
-      </div>
-      <button type="button" class="btn-logout" (click)="logout()" [disabled]="isLoggingOut">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-        </svg>
-        {{ isLoggingOut ? 'Signing out...' : 'Sign Out' }}
-      </button>
-    </div>
-  </div>
 
-  <!-- Statistics Cards -->
-  <section class="stats-section">
-    <div class="stats-grid">
-      @for (stat of statCards(); track stat.label) {
-        <div class="stat-card" [class]="'stat-' + stat.color">
-          <div class="stat-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="stat.icon"/>
-            </svg>
+      <div class="hero-left">
+        <!-- Avatar initials -->
+        <div class="hero-avatar" aria-hidden="true">{{ getInitials(displayName) }}</div>
+
+        <div class="hero-text-wrap">
+          <div class="hero-eyebrow">
+            <span class="hero-eyebrow-dot" aria-hidden="true"></span>
+            Portal Active
           </div>
-          <div class="stat-content">
-            <p class="stat-label">{{ stat.label }}</p>
-            <p class="stat-value">{{ stat.value }}</p>
-          </div>
+          <h1>Welcome back, {{ displayName }}</h1>
+          <p class="hero-subtitle">
+            <span>{{ roleLabel }}</span>
+            <span class="hero-subtitle-sep">·</span>
+            <span>RCCMS Maharashtra</span>
+          </p>
         </div>
-      }
+      </div>
+
+      <div class="hero-right">
+        <div class="hero-date" aria-live="polite">
+          <span>{{ today | date:'EEEE' }}</span>
+          <span>{{ today | date:'d MMM yyyy' }}</span>
+        </div>
+
+        <button type="button" class="btn-logout" (click)="logout()" [disabled]="isLoggingOut">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+          </svg>
+          {{ isLoggingOut ? 'Signing out…' : 'Sign Out' }}
+        </button>
+      </div>
+
     </div>
+  </header>
+
+  <!-- ── Stat cards ────────────────────────────────────────────────── -->
+  <section class="stats-grid" aria-label="Dashboard statistics">
+    @for (stat of statCards(); track stat.label) {
+      <div class="stat-card" [class]="'stat-' + stat.color" role="region" [attr.aria-label]="stat.label">
+        <div class="stat-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path [attr.d]="stat.icon"/>
+          </svg>
+        </div>
+        <div class="stat-content">
+          <p class="stat-label">{{ stat.label }}</p>
+          <p class="stat-value">{{ stat.value }}</p>
+          @if (stat.trend) {
+            <p class="stat-trend" [class]="'trend-' + stat.trendDir">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11" aria-hidden="true">
+                @if (stat.trendDir === 'up') {
+                  <path d="M8 4l4 4H4l4-4z"/>
+                } @else if (stat.trendDir === 'down') {
+                  <path d="M8 12L4 8h8l-4 4z"/>
+                }
+              </svg>
+              {{ stat.trend }}
+            </p>
+          }
+        </div>
+      </div>
+    }
   </section>
 
-  <!-- Quick Actions -->
-  <section class="quick-actions">
-    <h2 class="section-title">Quick Actions</h2>
+  <!-- ── Quick actions ─────────────────────────────────────────────── -->
+  <section aria-labelledby="actions-heading">
+    <div class="section-eyebrow" aria-hidden="true">
+      <svg viewBox="0 0 16 16" fill="currentColor" width="10" height="10"><path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM0 8a8 8 0 1116 0A8 8 0 010 8zm9 3a1 1 0 11-2 0 1 1 0 012 0zm-.25-6.25a.75.75 0 00-1.5 0v3.5a.75.75 0 001.5 0v-3.5z"/></svg>
+      Quick Actions
+    </div>
+    <h2 class="section-title" id="actions-heading">What would you like to do?</h2>
+
     <div class="actions-grid">
       @if (isAdvocate) {
-        <a class="action-tile" routerLink="/cases/new">
-          <div class="action-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        <a class="action-tile" routerLink="/cases/new" aria-label="File a new case">
+          <div class="action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 4v16m8-8H4"/>
             </svg>
           </div>
           <div class="action-content">
             <h3>File New Case</h3>
-            <p>Start a fresh case application</p>
+            <p>Start a fresh revenue case application</p>
           </div>
-          <svg class="action-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-          </svg>
+          <div class="action-arrow" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13">
+              <path fill-rule="evenodd" d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z" clip-rule="evenodd"/>
+            </svg>
+          </div>
         </a>
       }
+
       @if (role === 'ADMIN') {
-        <a class="action-tile" routerLink="/admin/masters">
-          <div class="action-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        <a class="action-tile" routerLink="/admin/masters" aria-label="Open master management">
+          <div class="action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
             </svg>
           </div>
           <div class="action-content">
             <h3>Master Management</h3>
-            <p>Configure system masters</p>
+            <p>Configure system-wide masters and settings</p>
           </div>
-          <svg class="action-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-          </svg>
+          <div class="action-arrow" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13">
+              <path fill-rule="evenodd" d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z" clip-rule="evenodd"/>
+            </svg>
+          </div>
         </a>
       }
-      <a class="action-tile" routerLink="/applications">
-        <div class="action-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+
+      <a class="action-tile" routerLink="/applications" aria-label="Browse all applications">
+        <div class="action-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
           </svg>
         </div>
         <div class="action-content">
           <h3>View Applications</h3>
-          <p>Browse all your applications</p>
+          <p>Browse and manage all your case applications</p>
         </div>
-        <svg class="action-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-        </svg>
+        <div class="action-arrow" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13">
+            <path fill-rule="evenodd" d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z" clip-rule="evenodd"/>
+          </svg>
+        </div>
       </a>
     </div>
   </section>
 
-  <!-- My Applications -->
-  <section class="applications-section">
+  <!-- ── Recent applications ───────────────────────────────────────── -->
+  <section class="applications-section" aria-labelledby="apps-heading">
+
     <div class="section-head">
-      <div>
-        <h2 class="section-title">Recent Applications</h2>
+      <div class="section-head-left">
+        <div class="section-eyebrow" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="currentColor" width="10" height="10"><path d="M0 1.75A.75.75 0 01.75 1h4.253c1.227 0 2.317.59 3 1.501A3.744 3.744 0 0111 1h4.25a.75.75 0 01.75.75v10.5a.75.75 0 01-.75.75H11a2 2 0 00-2 2 .75.75 0 01-1.5 0 2 2 0 00-2-2H.75a.75.75 0 01-.75-.75V1.75z"/></svg>
+          Recent Activity
+        </div>
+        <h2 class="section-title" id="apps-heading">Recent Applications</h2>
         <p class="section-subtitle">Track your case filings and status updates</p>
       </div>
+
       <button type="button" class="btn-refresh" (click)="loadApplications()" [disabled]="applicationsLoading()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" [class.spinning]="applicationsLoading()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" [class.spinning]="applicationsLoading()" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
         </svg>
-        {{ applicationsLoading() ? 'Loading...' : 'Refresh' }}
+        {{ applicationsLoading() ? 'Loading…' : 'Refresh' }}
       </button>
     </div>
 
+    <!-- Error -->
     @if (applicationsError()) {
-      <div class="error-state">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      <div class="error-state" role="alert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4v.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
         </svg>
         <p>{{ applicationsError() }}</p>
       </div>
-    } @else if (applicationsLoading()) {
-      <div class="loading-state">
+    }
+
+    <!-- Loading -->
+    @else if (applicationsLoading()) {
+      <div class="loading-state" aria-busy="true" aria-label="Loading applications">
         <div class="spinner"></div>
-        <p>Loading your applications...</p>
+        <p>Loading your applications…</p>
       </div>
-    } @else if (applications().length === 0) {
+    }
+
+    <!-- Empty -->
+    @else if (applications().length === 0) {
       <div class="empty-state">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        <svg viewBox="0 0 48 48" fill="none" width="52" height="52">
+          <rect x="8" y="6" width="32" height="36" rx="4" stroke="currentColor" stroke-width="2"/>
+          <path d="M16 16h16M16 22h16M16 28h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
-        <p>No applications yet</p>
+        <p>No applications yet.<br>File your first case to get started.</p>
         @if (isAdvocate) {
-          <a routerLink="/cases/new" class="btn-empty-action">File your first case →</a>
+          <a routerLink="/cases/new" class="btn-empty-action">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>
+            File your first case
+          </a>
         }
       </div>
-    } @else {
+    }
+
+    <!-- Table -->
+    @else {
       <div class="app-table-wrap">
         <table class="app-table">
           <thead>
             <tr>
-              <th>Application No</th>
-              <th>Subject</th>
-              <th>Office</th>
-              <th>Filing Status</th>
-              <th>Case No / Case Status</th>
-              <th>Filed On</th>
-              <th>Action</th>
+              <th scope="col">Application No</th>
+              <th scope="col">Subject</th>
+              <th scope="col">Office</th>
+              <th scope="col">Filing Status</th>
+              <th scope="col">Case No / Status</th>
+              <th scope="col">Filed On</th>
+              <th scope="col"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
             @for (app of applications(); track app.applicationId) {
               <tr>
-                <td><strong class="app-no">{{ app.applicationNo }}</strong></td>
-                <td>{{ app.subjectName || app.caseCategoryName || '-' }}</td>
-                <td class="office-cell">{{ app.officeName || '-' }}</td>
-                <td><span class="app-status app-status-{{ app.status.toLowerCase() }}">{{ app.status }}</span></td>
+                <td>
+                  <strong class="app-no">{{ app.applicationNo }}</strong>
+                </td>
+                <td>
+                  <div class="subject-main">{{ app.subjectName || app.caseCategoryName || '—' }}</div>
+                  @if (app.subjectName && app.caseCategoryName) {
+                    <div class="subject-sub">{{ app.caseCategoryName }}</div>
+                  }
+                </td>
+                <td class="office-cell">{{ app.officeName || '—' }}</td>
+                <td>
+                  <span class="app-status app-status-{{ app.status.toLowerCase() }}">
+                    {{ app.status }}
+                  </span>
+                </td>
                 <td>
                   @if (app.caseNo) {
-                    <div>{{ app.caseNo }}</div>
-                    <span class="app-status app-status-{{ (app.caseStatus || '').toLowerCase() }}">{{ app.caseStatus }}</span>
-                  } @else { <span class="status-pending">Pending</span> }
+                    <div class="app-no" style="font-size:0.82rem">{{ app.caseNo }}</div>
+                    <span class="app-status app-status-{{ (app.caseStatus || '').toLowerCase() }}" style="margin-top:4px;display:inline-flex">
+                      {{ app.caseStatus }}
+                    </span>
+                  } @else {
+                    <span class="status-pending">Awaiting</span>
+                  }
                 </td>
-                <td class="date-cell">{{ app.submittedAt ? (app.submittedAt | slice:0:10) : '-' }}</td>
+                <td class="date-cell">{{ app.submittedAt ? (app.submittedAt | slice:0:10) : '—' }}</td>
                 <td>
-                  <a [routerLink]="['/applications', app.applicationId]" class="btn-view">View</a>
+                  <a [routerLink]="['/applications', app.applicationId]" class="btn-view">
+                    View
+                    <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11" aria-hidden="true">
+                      <path fill-rule="evenodd" d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z" clip-rule="evenodd"/>
+                    </svg>
+                  </a>
                 </td>
               </tr>
             }
@@ -163,6 +249,7 @@
         </table>
       </div>
     }
+
   </section>
 
 </div>

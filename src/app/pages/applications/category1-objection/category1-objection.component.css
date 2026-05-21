@@ -1,86 +1,778 @@
-/* ─── Input pair: two-column layout for English + Marathi field pairs ─────── */
+/* ═══════════════════════════════════════════════════════════════
+   RCCMS — New Application / Category-1 Objection
+   Design tokens pulled from the live portal screenshots:
+     Navy primary  : #0b3d91 → #1a56c4
+     Orange accent : #f97316
+     Page bg       : #f0f4fa
+     Card bg       : #ffffff
+     Border        : #e8edf5
+     Text primary  : #0f172a
+     Text secondary: #64748b
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Shell ───────────────────────────────────────────────────── */
+.rccms-app {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: #0f172a;
+}
+
+/* ── Main card ───────────────────────────────────────────────── */
+.card {
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px rgba(11, 61, 145, 0.09), 0 1px 4px rgba(11, 61, 145, 0.06);
+  border: 1px solid #e8edf5;
+  overflow: hidden;
+}
+
+/* ── Card header ─────────────────────────────────────────────── */
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 1.75rem 1.25rem;
+  border-bottom: 1px solid #f1f5f9;
+  background: linear-gradient(135deg, #fafbfe 0%, #f0f5ff 100%);
+}
+
+.card-head h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.card-head .sub {
+  margin: 0.3rem 0 0;
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.step-meta {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #0b3d91;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  white-space: nowrap;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   STEPPER — horizontal progress bar with numbered pills
+   ═══════════════════════════════════════════════════════════════ */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 1.1rem 1.75rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e8edf5;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.stepper::-webkit-scrollbar { display: none; }
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.45rem 0.6rem;
+  border-radius: 10px;
+  transition: background 150ms;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: inherit;
+  position: relative;
+}
+
+.step:hover:not(.active) {
+  background: #f0f5ff;
+}
+
+/* connector line between steps */
+.step + .step::before {
+  content: '';
+  display: block;
+  width: 28px;
+  height: 1.5px;
+  background: #dde4ef;
+  flex-shrink: 0;
+  position: relative;
+  margin-right: 0.35rem;
+}
+
+.step .num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #94a3b8;
+  transition: background 200ms, color 200ms, box-shadow 200ms;
+  flex-shrink: 0;
+}
+
+.step .label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #94a3b8;
+  transition: color 200ms;
+}
+
+/* Active step */
+.step.active .num {
+  background: linear-gradient(135deg, #0b3d91 0%, #1a56c4 100%);
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(11, 61, 145, 0.35);
+}
+
+.step.active .label {
+  color: #0b3d91;
+}
+
+/* Completed step (all steps before active — achieved via JS or just style active) */
+.step.done .num {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.step.done .label {
+  color: #64748b;
+}
+
+/* ── API messages ────────────────────────────────────────────── */
+.api-message {
+  margin: 0.9rem 1.75rem 0;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  line-height: 1.4;
+}
+
+.api-message.error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+.api-message.success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.api-message.tight {
+  margin: 0.5rem 0 0;
+}
+
+/* ── Section wrapper ─────────────────────────────────────────── */
+.section {
+  padding: 1.25rem 1.75rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ── Mini-card (nested card inside section) ──────────────────── */
+.mini-card {
+  background: #f8fafc;
+  border: 1px solid #e8edf5;
+  border-radius: 14px;
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+/* nested mini-card (e.g. inside isRural712Subject block) */
+.mini-card .mini-card {
+  background: #f1f5fb;
+  border-color: #dde6f5;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+}
+
+.mini-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.mini-head strong {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #374151;
+}
+
+/* ── Grid ────────────────────────────────────────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.85rem 1rem;
+  align-items: start;
+}
+
+.grid > .span-2 {
+  grid-column: 1 / -1;
+}
+
+/* ── Labels & inputs (base) ──────────────────────────────────── */
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+label input,
+label select,
+label textarea {
+  padding: 0.58rem 0.75rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9px;
+  font-size: 0.88rem;
+  font-family: inherit;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+  transition: border-color 120ms, box-shadow 120ms;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+label input::placeholder,
+label textarea::placeholder { color: #c8d0e0; }
+
+label input:focus,
+label select:focus,
+label textarea:focus {
+  border-color: #0b3d91;
+  box-shadow: 0 0 0 3px rgba(11, 61, 145, 0.1);
+}
+
+label input[readonly],
+label textarea[readonly] {
+  background: #f1f5fb;
+  color: #64748b;
+  cursor: default;
+}
+
+label input:disabled,
+label select:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* ── Input pair: English + Marathi side-by-side ──────────────── */
 .input-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
+  gap: 0.65rem;
   align-items: start;
 }
 
 .input-pair label {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  font-size: 0.875rem;
+  gap: 0.35rem;
+  font-size: 0.82rem;
 }
 
 .input-pair input,
 .input-pair select {
-  font-size: 0.9rem;
-  padding: 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  padding: 0.55rem 0.7rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9px;
+  font-size: 0.88rem;
   font-family: inherit;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+  transition: border-color 120ms, box-shadow 120ms;
   width: 100%;
   box-sizing: border-box;
 }
 
 .input-pair input:focus,
 .input-pair select:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: #0b3d91;
+  box-shadow: 0 0 0 3px rgba(11, 61, 145, 0.1);
 }
 
-/* ─── Grid: auto-fit columns for the repeat-card sections ─────────────────── */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
+/* Marathi field — slightly tinted to distinguish */
+.input-pair label:nth-child(2) input,
+.input-pair label:nth-child(2) select {
+  background: #fdfaf5;
+  border-color: #e8dfc8;
 }
 
-/*
- * span-2: make a direct .grid child span both columns.
- * Targets <label class="span-2">, <div class="span-2">,
- * and <div class="input-pair span-2"> that are direct children of .grid.
- *
- * FIX: was incorrectly written as `.input-pair.span-2` which targeted
- * `.input-pair` elements *also* carrying `.span-2` — a selector that matched
- * the element itself rather than its column span in the parent grid.
- */
-.grid > .span-2 {
+.input-pair label:nth-child(2) input:focus,
+.input-pair label:nth-child(2) select:focus {
+  border-color: #d97706;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
+}
+
+.input-pair.span-2 {
   grid-column: 1 / -1;
 }
 
-/* ─── Transliteration loading state ──────────────────────────────────────── */
-/*
- * Applied to Marathi input fields while the Anthropic API call is in flight.
- * Uses a subtle animated border so the user knows the field will be filled.
- */
+/* Translating pulse */
 @keyframes translating-pulse {
-  0%, 100% { border-color: #93c5fd; }
-  50%       { border-color: #3b82f6; }
+  0%, 100% { border-color: #93c5fd; background: #eff6ff; }
+  50%       { border-color: #3b82f6; background: #dbeafe; }
 }
 
 .input-pair input.translating,
 .input-pair select.translating {
-  border-color: #93c5fd;
-  animation: translating-pulse 1.2s ease-in-out infinite;
-  background-color: #eff6ff;
+  animation: translating-pulse 1.1s ease-in-out infinite;
   cursor: wait;
 }
+
+/* ── Row actions (button row inside mini-card) ───────────────── */
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: none;
+  border-radius: 9px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0.6rem 1.15rem;
+  transition: opacity 140ms, transform 120ms, box-shadow 140ms;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.btn:hover:not(:disabled) {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #0b3d91 0%, #1a56c4 100%);
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(11, 61, 145, 0.28);
+}
+
+.btn-secondary {
+  background: #ffffff;
+  color: #0b3d91;
+  border: 1.5px solid #dde4ef;
+  box-shadow: 0 1px 3px rgba(11, 61, 145, 0.08);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: #bfdbfe;
+  background: #f0f5ff;
+}
+
+.btn-compact {
+  padding: 0.42rem 0.85rem;
+  font-size: 0.8rem;
+  border-radius: 7px;
+}
+
+.btn.danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+/* ── Sub text ────────────────────────────────────────────────── */
+.sub {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.sub-tight {
+  margin-top: 0.25rem;
+}
+
+.sub-tight-top {
+  margin-top: 0.5rem;
+}
+
+.muted {
+  color: #94a3b8;
+}
+
+/* ── KV pairs (key-value read-only display) ──────────────────── */
+.kv {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.kv .k {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+}
+
+.kv .v {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1e293b;
+  word-break: break-word;
+}
+
+/* ── Radio options ───────────────────────────────────────────── */
+.radio-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.role-option {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #374151;
+  transition: border-color 120ms, background 120ms;
+  user-select: none;
+}
+
+.role-option:has(input:checked) {
+  border-color: #0b3d91;
+  background: #eff6ff;
+  color: #0b3d91;
+}
+
+.role-option input[type="radio"] {
+  accent-color: #0b3d91;
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.role-option.compact {
+  padding: 0.3rem 0.5rem;
+}
+
+/* ── Repeat list & cards (applicants / respondents) ──────────── */
+.repeat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.repeat-card {
+  background: #ffffff;
+  border: 1.5px solid #e8edf5;
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.repeat-card .mini-head strong {
+  font-size: 0.8rem;
+  color: #1e293b;
+}
+
+/* ── Suggestion panel ────────────────────────────────────────── */
+.suggestion-panel {
+  background: linear-gradient(135deg, #fefce8 0%, #fffbeb 100%);
+  border-color: #fde68a;
+}
+
+.suggestion-panel-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.suggestion-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.suggestion-sub {
+  font-size: 0.76rem;
+  color: #a16207;
+}
+
+.suggestion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.suggestion-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+  background: #ffffff;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  flex-wrap: wrap;
+}
+
+.suggestion-card.sug-applied {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.sug-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.sug-name {
+  font-size: 0.88rem;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.sug-detail {
+  font-size: 0.77rem;
+  color: #64748b;
+}
+
+.sug-address {
+  font-size: 0.75rem;
+  word-break: break-word;
+}
+
+.sug-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.sug-applied-badge {
+  font-size: 0.77rem;
+  font-weight: 700;
+  color: #166534;
+  background: #dcfce7;
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
+}
+
+.sug-applied-hint {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+/* ── Table ───────────────────────────────────────────────────── */
+.table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid #e8edf5;
+}
+
+.simple-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.simple-table thead {
+  background: #f1f5fb;
+}
+
+.simple-table th {
+  padding: 0.55rem 0.85rem;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  border-bottom: 1px solid #e8edf5;
+  white-space: nowrap;
+}
+
+.simple-table td {
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.simple-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.simple-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.simple-table tr.primary-row {
+  background: #eff6ff;
+}
+
+.simple-table tr.primary-row td {
+  color: #0b3d91;
+}
+
+/* ── PDF / document panel ────────────────────────────────────── */
+.pdf-panel {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e8edf5;
+}
+
+.pdf-doc-links {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+/* ── Footer actions (Back / Next) ────────────────────────────── */
+.footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  padding: 1.25rem 1.75rem;
+  border-top: 1px solid #f1f5f9;
+  background: #f8fafc;
+  margin-top: 0.5rem;
+}
+
+.footer-actions .btn-primary {
+  padding: 0.65rem 1.5rem;
+  font-size: 0.9rem;
+}
+
+.footer-actions .btn-secondary {
+  padding: 0.65rem 1.25rem;
+  font-size: 0.9rem;
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
 @media (max-width: 768px) {
+  .rccms-app {
+    padding: 0.75rem 0.75rem 2.5rem;
+  }
+
+  .card { border-radius: 14px; }
+
+  .card-head {
+    padding: 1.1rem 1.1rem 0.9rem;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .stepper {
+    padding: 0.85rem 1rem;
+    gap: 0;
+  }
+
+  .step .label { display: none; }
+
+  .step + .step::before { width: 16px; }
+
+  .section {
+    padding: 1rem 1rem 0.5rem;
+  }
+
+  .mini-card {
+    padding: 0.85rem 0.9rem;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .grid > .span-2 {
+    grid-column: 1 / -1;
+  }
+
   .input-pair {
     grid-template-columns: 1fr;
     gap: 0.5rem;
   }
 
-  .grid {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
+  .footer-actions {
+    padding: 1rem;
   }
 
-  /* span-2 is a no-op on single-column grids but kept for consistency */
-  .grid > .span-2 {
-    grid-column: 1 / -1;
+  .suggestion-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sug-actions {
+    flex-direction: row;
+    align-items: center;
   }
 }

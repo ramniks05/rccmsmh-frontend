@@ -1,50 +1,127 @@
-<section class="page">
+<div class="page">
+
+  <!-- ── Page header ──────────────────────────────────────────── -->
   <header class="page-head">
-    <div>
+    <div class="page-head-copy">
+      <div class="page-eyebrow">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="12" height="12" aria-hidden="true">
+          <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/>
+        </svg>
+        Case Filing
+      </div>
       <h2>{{ title() }}</h2>
       <p class="sub">Select application type and fill details</p>
     </div>
-    <a routerLink="/portal-home" class="btn btn-secondary">Back</a>
+
+    <a routerLink="/cases/new" class="btn-back">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15" aria-hidden="true">
+        <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"/>
+      </svg>
+      Back
+    </a>
   </header>
 
+  <!-- ── Breadcrumb ────────────────────────────────────────────── -->
+  <nav class="breadcrumb" aria-label="Filing progress">
+    <a routerLink="/cases/new" class="breadcrumb-item">Choose Category</a>
+    <span class="breadcrumb-sep" aria-hidden="true">›</span>
+    <span class="breadcrumb-item active">Fill Application</span>
+    <span class="breadcrumb-sep" aria-hidden="true">›</span>
+    <span class="breadcrumb-item" style="color:#cbd5e1">Submit</span>
+  </nav>
+
+  <!-- ── Error ─────────────────────────────────────────────────── -->
   @if (error()) {
-    <p class="api-message error">{{ error() }}</p>
+    <div class="error-banner" role="alert">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true">
+        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+      </svg>
+      {{ error() }}
+    </div>
   }
 
+  <!-- ── Loading ───────────────────────────────────────────────── -->
   @if (loading()) {
-    <article class="card">
-      <p class="sub">Loading case category...</p>
-    </article>
-  } @else if (selectedCaseCategory()) {
-    <article class="card">
-      <header class="card-head">
-        <div>
-          <h3>{{ selectedCaseCategory()!.name }}</h3>
-          <p class="sub">{{ selectedCaseCategory()!.code }} @if (selectedCaseCategory()!.localName) { — {{ selectedCaseCategory()!.localName }} }</p>
-        </div>
-        <button type="button" class="btn btn-secondary" (click)="backToCategorySelect()">
-          Change
-        </button>
-      </header>
-    </article>
+    <div class="loading-card" aria-busy="true" aria-label="Loading case category">
+      <div class="spinner"></div>
+      <p>Loading case category…</p>
+    </div>
+  }
 
+  <!-- ── Category selected ─────────────────────────────────────── -->
+  @else if (selectedCaseCategory()) {
+
+    <!-- Category context strip -->
+    <div class="category-card">
+      <div class="category-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+      </div>
+
+      <div class="category-info">
+        <h3>{{ selectedCaseCategory()!.name }}</h3>
+        <div class="category-meta">
+          <span class="category-code">{{ selectedCaseCategory()!.code }}</span>
+          @if (selectedCaseCategory()!.localName) {
+            <span class="category-local">— {{ selectedCaseCategory()!.localName }}</span>
+          }
+        </div>
+      </div>
+
+      <button type="button" class="btn-change" (click)="backToCategorySelect()">
+        <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12" aria-hidden="true">
+          <path fill-rule="evenodd" d="M11.013 2.513a1.75 1.75 0 012.475 2.474L6.226 12.25a2.751 2.751 0 01-.892.596l-2.047.848a.75.75 0 01-.98-.98l.848-2.047a2.75 2.75 0 01.596-.892l7.262-7.262z" clip-rule="evenodd"/>
+        </svg>
+        Change
+      </button>
+    </div>
+
+    <!-- Routed form components -->
     @if (selectedCaseCategory()!.id === 2) {
       <app-category1-objection [caseCategoryId]="selectedCaseCategory()!.id" />
     } @else if (selectedType() === 'ORIGINAL_FILE_MUTATION') {
       <app-original-file-mutation />
     } @else {
-      <article class="card">
-        <h3>Form not available</h3>
-        <p class="sub">This case category form is not implemented in frontend yet.</p>
-        <button type="button" class="btn btn-primary" (click)="backToCategorySelect()">Choose another category</button>
-      </article>
+      <!-- Not yet implemented -->
+      <div class="state-card">
+        <div class="state-icon state-icon-orange" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="28" height="28">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
+        <h3>Form not available yet</h3>
+        <p>The filing form for this case category hasn't been implemented yet. Please choose another category or contact support.</p>
+        <button type="button" class="btn-primary" (click)="backToCategorySelect()">
+          <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13" aria-hidden="true">
+            <path fill-rule="evenodd" d="M9.78 12.78a.75.75 0 01-1.06 0L4.47 8.53a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 1.06L6.06 8l3.72 3.72a.75.75 0 010 1.06z" clip-rule="evenodd"/>
+          </svg>
+          Choose another category
+        </button>
+      </div>
     }
-  } @else {
-    <article class="card">
-      <h3>Start filing</h3>
-      <p class="sub">Select a case category first.</p>
-      <a class="btn btn-primary" routerLink="/cases/new">Choose case category</a>
-    </article>
-  }
-</section>
 
+  }
+
+  <!-- ── No category selected ──────────────────────────────────── -->
+  @else {
+    <div class="state-card">
+      <div class="state-icon state-icon-blue" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="28" height="28">
+          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+      </div>
+      <h3>No category selected</h3>
+      <p>Start by choosing a case category to file your revenue application under the correct hearing office.</p>
+      <a class="btn-primary" routerLink="/cases/new">
+        <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13" aria-hidden="true">
+          <path fill-rule="evenodd" d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z" clip-rule="evenodd"/>
+        </svg>
+        Choose case category
+      </a>
+    </div>
+  }
+
+</div>
