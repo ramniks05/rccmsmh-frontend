@@ -2,11 +2,139 @@
   box-sizing: border-box;
 }
 
+:root {
+  --app-page-max: 1400px;
+  --app-page-pad-x: 2rem;
+  --app-page-pad-y: 1.75rem;
+  --app-page-gap: 1.5rem;
+}
+
 html,
 body {
   margin: 0;
   min-height: 100%;
   background: #eef4ff;
+}
+
+/* ── Uniform page container (all authenticated / workflow screens) ── */
+.app-page,
+.page,
+.portal-home,
+.admin-masters,
+.preview-page {
+  width: 100%;
+  max-width: var(--app-page-max);
+  margin-left: auto;
+  margin-right: auto;
+  padding: var(--app-page-pad-y) var(--app-page-pad-x);
+  box-sizing: border-box;
+}
+
+.app-page,
+.page {
+  display: grid;
+  gap: var(--app-page-gap);
+  align-content: start;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.page-head h1,
+.page-head h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.page-head .sub,
+.page .sub,
+.app-page .sub {
+  margin: 0.35rem 0 0;
+  color: #64748b;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+/* Shared card on standard pages (filing uses .rccms-app .card) */
+.page .card,
+.app-page .card,
+.admin-masters .card {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+}
+
+.page .btn,
+.app-page .btn,
+.admin-masters .btn {
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-family: inherit;
+}
+
+.page .btn-primary,
+.app-page .btn-primary,
+.admin-masters .btn-primary {
+  background: #0b3d91;
+  color: #ffffff;
+}
+
+.page .btn-secondary,
+.app-page .btn-secondary,
+.admin-masters .btn-secondary {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+.page .btn[disabled],
+.app-page .btn[disabled] {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.page .muted,
+.app-page .muted {
+  color: #64748b;
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --app-page-pad-x: 1.25rem;
+    --app-page-pad-y: 1.25rem;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --app-page-pad-x: 1rem;
+    --app-page-pad-y: 1rem;
+    --app-page-gap: 1rem;
+  }
+
+  .page-head h1,
+  .page-head h2 {
+    font-size: 1.25rem;
+  }
 }
 
 /* RCCMS application UI (global, scoped under .rccms-app) */
@@ -107,7 +235,8 @@ body {
 }
 
 .rccms-app select,
-.rccms-app input {
+.rccms-app input,
+.rccms-app textarea {
   border-radius: 12px;
   border: 1px solid rgba(15, 23, 42, 0.16);
   padding: 10px 12px;
@@ -116,22 +245,46 @@ body {
   outline: none;
   font-size: 0.95rem;
   line-height: 1.25;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.rccms-app textarea {
+  resize: vertical;
+  min-height: 6rem;
 }
 
 .rccms-app select:focus,
-.rccms-app input:focus {
+.rccms-app input:focus,
+.rccms-app textarea:focus {
   border-color: rgba(37, 99, 235, 0.55);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
 
 .rccms-app select:disabled,
-.rccms-app input:disabled {
+.rccms-app input:disabled,
+.rccms-app textarea:disabled,
+.rccms-app textarea[readonly] {
   background: #f8fafc;
   color: #64748b;
 }
 
 .rccms-app .span-2 {
   grid-column: 1 / -1;
+}
+
+.rccms-app .preview-text {
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  padding: 10px 12px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.95rem;
+  font-weight: 400;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  min-height: 4rem;
 }
 
 .rccms-app .mini-card {

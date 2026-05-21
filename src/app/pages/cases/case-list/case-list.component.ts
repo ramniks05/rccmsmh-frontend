@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Component, inject, OnInit, signal } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
 import {
@@ -9,6 +9,8 @@ import {
   OfficerFilingService,
   OfficerInboxItem
 } from '../../../services/officer-filing.service';
+import { ApplicationHistoryResponse } from '../../../services/filing-application.service';
+import { ApplicationHistoryTimelineComponent } from '../../applications/application-history-timeline/application-history-timeline.component';
 import {
   CaseHearingResponse,
   CaseJudgmentWorkflowResponse,
@@ -27,8 +29,11 @@ import {
 import { LandRecordsService, NoticeNineViewResponse, RuralSubSurveyRow, UrbanCtsRow } from '../../../services/land-records.service';
 import { TokenStorageService } from '../../../services/token-storage.service';
 import {
+  buildDefaultJudgmentBodyText,
+  buildMarathiJudgmentPreviewHtml,
   buildMarathiRoznamaPreviewHtml,
   buildMarathiSunvaniNoticeHtml,
+  JudgmentPreviewVars,
   parseRoznamaContent,
   RoznamaEntryRow,
   RoznamaPreviewVars,
@@ -39,15 +44,16 @@ import {
 
 @Component({
   selector: 'app-case-list',
-  imports: [NgTemplateOutlet, RouterLink],
+  imports: [NgTemplateOutlet, RouterLink, ApplicationHistoryTimelineComponent],
   templateUrl: './case-list.component.html',
   styleUrl: './case-list.component.css'
 })
-export class CaseListComponent {
+export class CaseListComponent implements OnInit {
   private readonly officerFilings = inject(OfficerFilingService);
   private readonly officerCaseStage = inject(OfficerCaseStageService);
   private readonly landRecords = inject(LandRecordsService);
   private readonly tokenStorage = inject(TokenStorageService);
+  private readonly router = inject(Router);
 
   protected readonly role = this.tokenStorage.getRole() || '-';
   protected readonly isAdvocate = this.tokenStorage.isAdvocate();
@@ -86,6 +92,9 @@ export class CaseListComponent {
   protected readonly loadingOfficerDetail = signal(false);
   protected readonly officerDetailError = signal<string | null>(null);
   protected readonly officerDetail = signal<OfficerApplicationDetail | null>(null);
+  protected readonly applicationHistory = signal<ApplicationHistoryResponse | null>(null);
+  protected readonly applicationHistoryLoading = signal(false);
+  protected readonly applicationHistoryError = signal<string | null>(null);
   protected readonly generatedCase = signal<OfficerApproveResponse | null>(null);
   /** Two-tab view: Action (context-specific form) | Details (read-only summary) */
   protected readonly officerTab = signal<'action' | 'details'>('action');
@@ -176,6 +185,12 @@ export class CaseListComponent {
   protected readonly landDetailTitle = signal<string>('');
   protected readonly landDetailPayload = signal<Record<string, unknown> | null>(null);
 
+  ngOnInit(): void {
+    if (this.isAdvocate && !this.isOfficer) {
+      void this.router.navigate(['/applications']);
+    }
+  }
+
   constructor() {
     if (this.isOfficer) {
       this.loadOfficerInbox();
@@ -209,19 +224,50 @@ export class CaseListComponent {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
-  protected roznamaHearingQuery(): { hearingId: number; hearingDate: string } | null {
+  protected roznamaOnePerCaseHint(): string {
+    return 'This case has one order sheet (roznamah). Each save updates the same register; add a new table row when a rehearing date is held.';
+  }
+
+  private latestHearingFromList(rows: CaseHearingResponse[]): CaseHearingResponse | null {
+    if (!rows.length) return null;
+    return rows.reduce((a, b) => (b.hearingNo > a.hearingNo ? b : a));
+  }
+
+  protected latestHearingRef(): { hearingId: number; hearingDate: string } | null {
     const ctx = this.selectedRoznamaHearing();
     if (ctx?.hearingId) return { hearingId: ctx.hearingId, hearingDate: ctx.hearingDate };
     const hid = Number(this.orderSheetHearingIdInput().trim());
     if (hid > 0) {
       const h = this.hearings().find((x) => x.hearingId === hid);
-      return { hearingId: hid, hearingDate: h?.hearingDate?.slice(0, 10) || this.roznamaTableDate() };
+      if (h) {
+        return { hearingId: hid, hearingDate: h.hearingDate?.slice(0, 10) || this.roznamaTableDate() };
+      }
     }
-    const first = this.hearings()[0];
-    if (first?.hearingId) {
-      return { hearingId: first.hearingId, hearingDate: first.hearingDate?.slice(0, 10) || '' };
-    }
-    return null;
+    const latest = this.latestHearingFromList(this.hearings());
+    if (!latest?.hearingId) return null;
+    return {
+      hearingId: latest.hearingId,
+      hearingDate: latest.hearingDate?.slice(0, 10) || this.roznamaTableDate()
+    };
+  }
+
+  protected roznamaHearingQuery(): { hearingId: number; hearingDate: string } | null {
+    return this.latestHearingRef();
+  }
+
+  protected latestHearingLabel(): string {
+    const h = this.latestHearingFromList(this.hearings());
+    if (!h) return '—';
+    return `Hearing #${h.hearingNo} · ${h.hearingDate?.slice(0, 10) || ''}`;
+  }
+
+  protected ensureHearingRowInRegister(hearingDate: string): void {
+    const d = (hearingDate || '').slice(0, 10);
+    if (!d) return;
+    const rows = this.roznamaEntryRows();
+    if (rows.some((r) => r.date === d)) return;
+    this.roznamaEntryRows.set([...rows, { date: d, content: '' }]);
+    this.orderSheetContentInput.set(this.roznamaContentForApi());
   }
 
   protected loadRoznamaTable(): void {
@@ -265,11 +311,7 @@ export class CaseListComponent {
       filingApplicationId: appId ?? 0
     });
     this.orderSheetHearingIdInput.set(String(hearing.hearingId));
-    this.roznamaEntryRows.update((rows) =>
-      rows.map((r, i) => (i === 0 && !r.date ? { ...r, date: hearingDate } : r))
-    );
-    this.loadCurrentOrderSheet();
-    this.loadOrderSheetHistory();
+    this.ensureHearingRowInRegister(hearingDate);
   }
 
   private upStage(v: unknown): string {
@@ -282,61 +324,29 @@ export class CaseListComponent {
     return st === 'CLERK_DRAFT' || st === 'PO_SCRUTINY' || st === 'PO_FINALIZED';
   }
 
-  /** Past hearing signed roznamah — view only from table/history. */
+  /** Signed and no newer rehearing — view only. After rehearing, same register can be updated. */
   protected isRoznamaReadOnly(): boolean {
-    const row = this.selectedRoznamaTableRow();
-    if (row) {
-      const stage = this.upStage(row.proceedingStage);
-      const rStatus = this.upStage(row.roznamaStatus);
-      if (stage === 'ROZNAMA_PO_SIGNED' || rStatus === 'PO_SIGNED') return true;
-      if (row.canEdit === false && stage !== 'ROZNAMA_NOT_STARTED') return true;
-    }
-    const hq = this.roznamaHearingQuery();
-    const os = this.currentOrderSheet();
-    if (hq && os?.hearingId && os.hearingId !== hq.hearingId) {
-      const h = this.hearings().find((x) => x.hearingId === hq.hearingId);
-      if (this.upStage(h?.status) === 'COMPLETED') return true;
-    }
-    return false;
+    if (this.upStage(this.currentOrderSheet()?.status) !== 'PO_SIGNED') return false;
+    return !this.hasNewerHearingAfterSigned();
   }
 
   protected roznamaStatusLabel(): string {
-    const row = this.selectedRoznamaTableRow();
-    if (row?.roznamaStatus) return row.roznamaStatus;
-    const os = this.currentOrderSheet();
-    const hq = this.roznamaHearingQuery();
-    if (os && hq && os.hearingId === hq.hearingId) return os.status;
-    if (this.isRoznamaReadOnly()) return 'PO_SIGNED';
-    return os?.status || '—';
+    return this.currentOrderSheet()?.status || '—';
   }
 
-  protected roznamaMatchesSelectedHearing(): boolean {
-    const hq = this.roznamaHearingQuery();
-    const os = this.currentOrderSheet();
-    if (!hq) return false;
-    if (!os?.hearingId) return true;
-    return os.hearingId === hq.hearingId;
-  }
-
-  /** Signed roznamah for the hearing currently selected in the UI. */
+  /** Case-level roznamah signed (one document per case). */
   protected isCurrentHearingRoznamaSigned(): boolean {
-    const row = this.selectedRoznamaTableRow();
-    if (row) {
-      const stage = this.upStage(row.proceedingStage);
-      const rStatus = this.upStage(row.roznamaStatus);
-      if (stage === 'ROZNAMA_PO_SIGNED' || rStatus === 'PO_SIGNED') return true;
-    }
-    const os = this.currentOrderSheet();
-    return this.upStage(os?.status) === 'PO_SIGNED' && this.roznamaMatchesSelectedHearing();
+    return this.upStage(this.currentOrderSheet()?.status) === 'PO_SIGNED';
   }
 
-  /** Rehearing already scheduled after the signed hearing. */
+  /** Rehearing scheduled after the case roznamah was signed. */
   protected hasNewerHearingAfterSigned(): boolean {
+    if (!this.isCurrentHearingRoznamaSigned()) return false;
     const os = this.currentOrderSheet();
-    if (!os?.hearingId || this.upStage(os.status) !== 'PO_SIGNED') return false;
-    const signed = this.hearings().find((h) => h.hearingId === os.hearingId);
-    if (!signed) return false;
-    return this.hearings().some((h) => h.hearingNo > signed.hearingNo);
+    const linkedId = os?.hearingId;
+    const linked = linkedId ? this.hearings().find((h) => h.hearingId === linkedId) : null;
+    const baselineNo = linked?.hearingNo ?? 0;
+    return this.hearings().some((h) => h.hearingNo > baselineNo);
   }
 
   /** Choose rehearing vs final judgment after signed roznamah. */
@@ -404,22 +414,11 @@ export class CaseListComponent {
     }
   }
 
-  /** Schedule next hearing after current roznamah is signed (rehearing). */
+  /** Schedule next hearing after case roznamah is signed (rehearing). */
   protected canScheduleRehearing(): boolean {
     if (!this.showOrderSheetSection() || this.isDisposedCase()) return false;
     if (this.hasRoznamaInProgress()) return false;
-    const row = this.selectedRoznamaTableRow();
-    if (row) {
-      const stage = this.upStage(row.proceedingStage);
-      const rStatus = this.upStage(row.roznamaStatus);
-      if (stage === 'ROZNAMA_PO_SIGNED' || rStatus === 'PO_SIGNED') return true;
-    }
-    if (this.upStage(this.currentOrderSheet()?.status) === 'PO_SIGNED' && this.roznamaMatchesSelectedHearing()) {
-      return true;
-    }
-    const hq = this.roznamaHearingQuery();
-    const h = this.hearings().find((x) => x.hearingId === hq?.hearingId);
-    return this.upStage(h?.status) === 'COMPLETED';
+    return this.isCurrentHearingRoznamaSigned();
   }
 
   protected loadCaseInbox(status?: string): void {
@@ -444,6 +443,57 @@ export class CaseListComponent {
   /** Case status for a given applicationId (from joined caseInbox). */
   protected caseStatusFor(applicationId: number): string {
     return this.caseMapByAppId().get(applicationId)?.status || '';
+  }
+
+  /** Proceeding stage within HEARING_SCHEDULED (from case inbox / detail / cause list row). */
+  protected currentProceedingStage(): string {
+    const appId = this.selectedApplicationId();
+    if (appId) {
+      const fromCase = this.caseMapByAppId().get(appId)?.proceedingStage;
+      if (fromCase) return String(fromCase).trim().toUpperCase();
+    }
+    const row = this.selectedRoznamaTableRow();
+    if (row?.proceedingStage) return String(row.proceedingStage).trim().toUpperCase();
+    const detailStage = String(
+      (this.officerDetail() as { proceedingStage?: string } | null)?.proceedingStage ||
+        this.officerDetail()?.processingStage ||
+        ''
+    ).trim();
+    return detailStage.toUpperCase();
+  }
+
+  /** Stages where order sheet / roznamah UI is active (aligned with Pending Order Sheet inbox). */
+  private isOrderSheetProceedingStage(stage: string): boolean {
+    if (!stage) return false;
+    const orderSheetStages = new Set([
+      'ORDER_SHEET_PENDING',
+      'ORDER_SHEET_IN_PROGRESS',
+      'ROZNAMA_NOT_STARTED',
+      'ROZNAMA_CLERK_DRAFT',
+      'ROZNAMA_PENDING_CLERK',
+      'ROZNAMA_PO_SCRUTINY',
+      'ROZNAMA_PO_SIGN',
+      'ROZNAMA_PO_FINALIZE',
+      'ROZNAMA_PO_SIGNED'
+    ]);
+    if (orderSheetStages.has(stage)) return true;
+    return stage.includes('ORDER_SHEET') || stage.includes('ROZNAMA');
+  }
+
+  protected orderSheetStageBlockedHint(): string | null {
+    if (!this.caseIdForActions() || this.currentCaseStatus() !== 'HEARING_SCHEDULED') return null;
+    if (this.showOrderSheetSection()) return null;
+    const stage = this.currentProceedingStage();
+    if (!stage) {
+      return 'Complete hearing notice workflow first. Order sheet appears when the case proceeding stage moves to order sheet / roznamah.';
+    }
+    if (stage === 'NOTICE_PENDING' || stage === 'NOTICE_IN_PROGRESS') {
+      return 'Finish notice draft, finalize, sign, and serve before the order sheet (roznamah) form is shown.';
+    }
+    if (stage === 'JUDGMENT_PENDING' || stage === 'JUDGMENT_IN_PROGRESS') {
+      return 'Case is in judgment stage. Use the Judgment section below.';
+    }
+    return `Order sheet is not available at proceeding stage: ${stage}.`;
   }
 
   /** Case number for a given applicationId (from joined caseInbox). */
@@ -649,6 +699,8 @@ export class CaseListComponent {
     this.noticeHearingIdInput.set('');
     this.officerTab.set('action');
     this.viewerFlowRole.set('');
+    this.applicationHistory.set(null);
+    this.applicationHistoryError.set(null);
     // Scroll to the detail card immediately so user sees the loading state
     setTimeout(() => {
       document.getElementById('application-details-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -666,6 +718,10 @@ export class CaseListComponent {
         next: (row) => {
           const detail = this.unwrapDetail(row);
           this.officerDetail.set(detail);
+          const embeddedHistory =
+            detail.applicationHistory ??
+            ((row as Record<string, unknown>)['applicationHistory'] as ApplicationHistoryResponse | undefined);
+          this.loadApplicationHistory(applicationId, embeddedHistory);
           this.viewerFlowRole.set(this.resolveAssigneeRole(detail));
           // Prefer caseId from caseInbox (most reliable), fall back to detail field
           const knownCaseId = caseEntry?.caseId;
@@ -687,6 +743,30 @@ export class CaseListComponent {
       },
         error: (err: unknown) => this.officerDetailError.set(this.formatError(err))
       });
+  }
+
+  private loadApplicationHistory(
+    applicationId: number,
+    embedded?: ApplicationHistoryResponse
+  ): void {
+    if (embedded) {
+      this.applicationHistory.set(embedded);
+      this.applicationHistoryLoading.set(false);
+      this.applicationHistoryError.set(null);
+      return;
+    }
+    this.applicationHistoryLoading.set(true);
+    this.applicationHistoryError.set(null);
+    this.officerFilings.getApplicationHistory(applicationId).subscribe({
+      next: (h) => {
+        this.applicationHistory.set(h);
+        this.applicationHistoryLoading.set(false);
+      },
+      error: (err: unknown) => {
+        this.applicationHistoryError.set(this.formatError(err));
+        this.applicationHistoryLoading.set(false);
+      }
+    });
   }
 
   protected selectOfficerTab(tab: 'action' | 'details'): void {
@@ -795,14 +875,18 @@ export class CaseListComponent {
     return s === 'ACTIVE' || s === 'HEARING_SCHEDULED';
   }
 
-  /** Notice section: visible when case is HEARING_SCHEDULED. */
+  /** Notice section: only during notice proceeding stages (default when stage unset). */
   protected showNoticeSection(): boolean {
-    return !!this.caseIdForActions() && this.currentCaseStatus() === 'HEARING_SCHEDULED';
+    if (!this.caseIdForActions() || this.currentCaseStatus() !== 'HEARING_SCHEDULED') return false;
+    const stage = this.currentProceedingStage();
+    if (!stage) return true;
+    return stage === 'NOTICE_PENDING' || stage === 'NOTICE_IN_PROGRESS';
   }
 
-  /** Order sheet section: visible when case is HEARING_SCHEDULED. */
+  /** Order sheet: only when case proceeding stage is order sheet / roznamah (not during notice). */
   protected showOrderSheetSection(): boolean {
-    return !!this.caseIdForActions() && this.currentCaseStatus() === 'HEARING_SCHEDULED';
+    if (!this.caseIdForActions() || this.currentCaseStatus() !== 'HEARING_SCHEDULED') return false;
+    return this.isOrderSheetProceedingStage(this.currentProceedingStage());
   }
 
   /** Judgment section: after path chosen, workflow started, or case disposed. */
@@ -828,11 +912,8 @@ export class CaseListComponent {
       return false;
     }
     if (this.isRoznamaReadOnly()) return false;
-    if (!this.roznamaMatchesSelectedHearing() && this.hasRoznamaInProgress()) return false;
-    const row = this.selectedRoznamaTableRow();
-    if (row && this.upStage(row.proceedingStage) === 'ROZNAMA_NOT_STARTED') return true;
     const os = this.currentOrderSheet();
-    if (!os || !this.roznamaMatchesSelectedHearing()) return true;
+    if (!os) return true;
     const st = this.upStage(os.status);
     if (st === 'PO_SIGNED') return false;
     if (st === 'CLERK_DRAFT' || st === 'PO_SCRUTINY' || st === 'PO_FINALIZED') return true;
@@ -847,10 +928,9 @@ export class CaseListComponent {
   protected poRoznamaSaveLabel(): string {
     const st = this.upStage(this.currentOrderSheet()?.status);
     if (!st) return 'Save Roznama Draft';
-    if (st === 'PO_SCRUTINY') return 'Save Scrutiny Changes';
-    if (st === 'PO_FINALIZED') return 'Save before Sign';
-    if (st === 'CLERK_DRAFT') return 'Save Roznama';
-    return 'Save Roznama';
+    if (st === 'PO_SCRUTINY') return 'Update (scrutiny)';
+    if (st === 'PO_FINALIZED') return 'Update before sign';
+    return 'Update Roznama';
   }
 
   protected poRoznamaEditHint(): string | null {
@@ -871,13 +951,8 @@ export class CaseListComponent {
   protected canClerkEditRoznama(): boolean {
     if (this.viewerFlowRole() !== 'CLERK' || this.isDisposedCase() || !this.showOrderSheetSection()) return false;
     if (this.isRoznamaReadOnly()) return false;
-    if (!this.roznamaMatchesSelectedHearing() && this.hasRoznamaInProgress()) return false;
     const os = this.currentOrderSheet();
-    if (os && this.roznamaMatchesSelectedHearing()) {
-      return os.status === 'CLERK_DRAFT';
-    }
-    const row = this.selectedRoznamaTableRow();
-    return this.upStage(row?.proceedingStage) === 'ROZNAMA_NOT_STARTED';
+    return !os || os.status === 'CLERK_DRAFT';
   }
 
   /** Clerk submits to PO after editing. */
@@ -1059,25 +1134,24 @@ export class CaseListComponent {
       .pipe(finalize(() => this.rehearingScheduling.set(false)))
       .subscribe({
         next: (resp) => {
+          const hd = resp.hearingDate?.slice(0, 10) || hearingDate;
           this.actionMessage.set(
-            `Rehearing #${resp.hearingNo} scheduled for ${hearingDate}. Open Cause List on that date and start roznamah with the new hearing.`
+            `Rehearing #${resp.hearingNo} scheduled for ${hd}. Add proceedings for this date in the case roznamah register below (same document).`
           );
           this.rehearingDateInput.set('');
           this.rehearingRemarksInput.set('Rehearing');
-          this.loadHearings();
-          this.loadRoznamaTable();
-          this.loadCaseInbox();
           this.selectedRoznamaTableRow.set(null);
           this.selectedRoznamaHearing.set({
             hearingId: resp.hearingId,
-            hearingDate: resp.hearingDate?.slice(0, 10) || hearingDate,
+            hearingDate: hd,
             filingApplicationId: this.selectedApplicationId() ?? 0
           });
           this.orderSheetHearingIdInput.set(String(resp.hearingId));
           this.roznamaPanelTab.set('roznama');
           this.postRoznamaPath.set('rehearing');
-          this.currentOrderSheet.set(null);
-          this.roznamaEntryRows.set([{ date: resp.hearingDate?.slice(0, 10) || hearingDate, content: '' }]);
+          this.loadHearings();
+          this.loadRoznamaTable();
+          this.loadCaseInbox();
         },
         error: (err: unknown) => this.actionError.set(this.formatError(err))
       });
@@ -1123,8 +1197,16 @@ export class CaseListComponent {
     this.officerCaseStage.listHearings(caseId).subscribe({
       next: (rows) => {
         this.hearings.set(rows || []);
-        if (!this.selectedRoznamaHearing() && rows?.[0]?.hearingId) {
-          this.orderSheetHearingIdInput.set(String(rows[0].hearingId));
+        const latest = this.latestHearingFromList(rows || []);
+        if (latest?.hearingId) {
+          this.orderSheetHearingIdInput.set(String(latest.hearingId));
+          if (!this.selectedRoznamaHearing()) {
+            this.selectedRoznamaHearing.set({
+              hearingId: latest.hearingId,
+              hearingDate: latest.hearingDate?.slice(0, 10) || '',
+              filingApplicationId: this.selectedApplicationId() ?? 0
+            });
+          }
         }
         this.loadCurrentOrderSheet();
         this.loadOrderSheetHistory();
@@ -1145,13 +1227,9 @@ export class CaseListComponent {
 
   protected saveOrderSheet(): void {
     const caseId = this.caseIdForActions();
-    const hq = this.roznamaHearingQuery();
+    const ref = this.latestHearingRef();
     if (!caseId) {
       this.actionError.set('Approve application first to get case ID.');
-      return;
-    }
-    if (!hq) {
-      this.actionError.set('Select a hearing from Cause List or enter Hearing ID.');
       return;
     }
     const content = this.roznamaContentForApi().trim();
@@ -1159,19 +1237,20 @@ export class CaseListComponent {
       this.actionError.set('Roznama content is required in at least one table row.');
       return;
     }
+    const hadExisting = !!this.currentOrderSheet()?.id;
     this.orderSheetSaving.set(true);
     this.actionError.set(null);
     this.officerCaseStage
       .draftRoznama(caseId, {
-        hearingId: hq.hearingId,
-        hearingDate: hq.hearingDate,
+        hearingId: ref?.hearingId,
+        hearingDate: ref?.hearingDate,
         content,
         remarks: this.orderSheetRemarksInput().trim() || undefined
       })
       .subscribe({
         next: (resp) => {
           this.currentOrderSheet.set(resp as CaseOrderSheetResponse);
-          this.actionMessage.set('Roznama saved.');
+          this.actionMessage.set(hadExisting ? 'Roznama updated.' : 'Roznama saved.');
           this.loadOrderSheetHistory();
           this.loadRoznamaTable();
           this.loadCaseInbox();
@@ -1183,54 +1262,31 @@ export class CaseListComponent {
 
   protected loadCurrentOrderSheet(): void {
     const caseId = this.caseIdForActions();
-    const hq = this.roznamaHearingQuery();
-    if (!caseId || !hq) return;
+    if (!caseId) return;
 
-    const row = this.selectedRoznamaTableRow();
-    if (this.isRoznamaReadOnly()) {
-      const archived =
-        row?.finalContent || row?.draftContent || this.roznamaReadOnlyContent() || '';
-      this.syncRoznamaRowsFromContent(archived, hq.hearingDate);
-      this.roznamaReadOnlyContent.set(archived);
-      this.officerCaseStage.getRoznamaHistory(caseId, { hearingId: hq.hearingId }).subscribe({
-        next: (rows) => {
-          this.orderSheetHistory.set(rows || []);
-          const signed = [...(rows || [])]
-            .reverse()
-            .find((r) => this.upStage(r.status) === 'PO_SIGNED' || r.content?.trim());
-          if (signed?.content) {
-            this.syncRoznamaRowsFromContent(signed.content, (signed.hearingDate || hq.hearingDate).slice(0, 10));
-            this.roznamaReadOnlyContent.set(signed.content);
-          }
-          this.syncRoznamaRowsFromHistory();
-        },
-        error: () => this.orderSheetHistory.set([])
-      });
-      return;
-    }
+    const ref = this.latestHearingRef();
+    const defaultDate = ref?.hearingDate || this.todayIsoDate();
 
-    this.officerCaseStage.getRoznama(caseId, hq).subscribe({
+    this.officerCaseStage.getRoznama(caseId).subscribe({
       next: (resp) => {
         const sheet = resp as CaseOrderSheetResponse;
         this.currentOrderSheet.set(sheet);
-        const content = sheet.content || sheet.draftContent || '';
-        this.syncRoznamaRowsFromContent(content, hq.hearingDate);
-        this.roznamaReadOnlyContent.set('');
-        if (this.upStage(sheet.status) === 'PO_SIGNED' && sheet.hearingId === hq.hearingId) {
-          this.loadJudgmentWorkflow();
+        const content = sheet.content || sheet.draftContent || sheet.finalContent || '';
+        this.syncRoznamaRowsFromContent(content, defaultDate);
+        this.roznamaReadOnlyContent.set(this.isRoznamaReadOnly() ? content : '');
+        if (ref) {
+          this.ensureHearingRowInRegister(ref.hearingDate);
         }
-        if (sheet.hearingId && sheet.hearingId !== hq.hearingId && this.hasRoznamaInProgress()) {
-          this.actionError.set(
-            'Another hearing\'s roznamah is in progress. Sign or revert it before drafting for this hearing.'
-          );
+        if (this.upStage(sheet.status) === 'PO_SIGNED') {
+          this.loadJudgmentWorkflow();
         }
       },
       error: () => {
         this.currentOrderSheet.set(null);
-        this.roznamaEntryRows.set([{ date: hq.hearingDate, content: '' }]);
-        const rowStage = this.upStage(row?.proceedingStage);
-        if (rowStage === 'ROZNAMA_NOT_STARTED') {
-          this.actionMessage.set('No roznamah yet for this hearing. Save draft with hearing date to start.');
+        this.roznamaEntryRows.set([{ date: defaultDate, content: '' }]);
+        this.roznamaReadOnlyContent.set('');
+        if (ref) {
+          this.actionMessage.set('No roznamah yet for this case. Save draft to create the register.');
         }
       }
     });
@@ -1238,9 +1294,8 @@ export class CaseListComponent {
 
   protected loadOrderSheetHistory(): void {
     const caseId = this.caseIdForActions();
-    const hq = this.roznamaHearingQuery();
-    if (!caseId || !hq?.hearingId) return;
-    this.officerCaseStage.getRoznamaHistory(caseId, { hearingId: hq.hearingId }).subscribe({
+    if (!caseId) return;
+    this.officerCaseStage.getRoznamaHistory(caseId).subscribe({
       next: (rows) => this.orderSheetHistory.set(rows || []),
       error: () => this.orderSheetHistory.set([])
     });
@@ -1248,11 +1303,10 @@ export class CaseListComponent {
 
   protected submitOrderSheetToPO(): void {
     const caseId = this.caseIdForActions();
-    const hq = this.roznamaHearingQuery();
-    if (!caseId || !hq) return;
+    if (!caseId) return;
     this.orderSheetSubmitting.set(true);
     this.actionError.set(null);
-    this.officerCaseStage.submitRoznamaToPO(caseId, hq)
+    this.officerCaseStage.submitRoznamaToPO(caseId)
       .pipe(finalize(() => this.orderSheetSubmitting.set(false)))
       .subscribe({
         next: (resp) => {
@@ -1267,11 +1321,10 @@ export class CaseListComponent {
 
   protected finalizeOrderSheet(): void {
     const caseId = this.caseIdForActions();
-    const hq = this.roznamaHearingQuery();
-    if (!caseId || !hq) return;
+    if (!caseId) return;
     this.orderSheetFinalizing.set(true);
     this.actionError.set(null);
-    this.officerCaseStage.finalizeRoznama(caseId, hq)
+    this.officerCaseStage.finalizeRoznama(caseId)
       .pipe(finalize(() => this.orderSheetFinalizing.set(false)))
       .subscribe({
         next: (resp) => {
@@ -1285,13 +1338,17 @@ export class CaseListComponent {
 
   protected signOrderSheet(): void {
     const caseId = this.caseIdForActions();
-    const hq = this.roznamaHearingQuery();
-    if (!caseId || !hq) return;
+    if (!caseId) return;
     const ref = this.orderSheetSignRef().trim();
     if (!ref) { this.actionError.set('Digital signature reference is required.'); return; }
     this.orderSheetSigning.set(true);
     this.actionError.set(null);
-    this.officerCaseStage.signRoznama(caseId, { digitalSignatureRef: ref, ...hq })
+    const hearingRef = this.latestHearingRef();
+    this.officerCaseStage.signRoznama(caseId, {
+      digitalSignatureRef: ref,
+      hearingId: hearingRef?.hearingId,
+      hearingDate: hearingRef?.hearingDate
+    })
       .pipe(finalize(() => this.orderSheetSigning.set(false)))
       .subscribe({
         next: (resp) => {
@@ -1311,12 +1368,11 @@ export class CaseListComponent {
 
   protected revertOrderSheet(): void {
     const caseId = this.caseIdForActions();
-    const hq = this.roznamaHearingQuery();
-    if (!caseId || !hq) return;
+    if (!caseId) return;
     const reason = this.orderSheetRevertReason().trim();
     if (!reason) { this.actionError.set('Please enter remarks before reverting.'); return; }
     this.actionError.set(null);
-    this.officerCaseStage.revertRoznamaToClerk(caseId, reason, hq)
+    this.officerCaseStage.revertRoznamaToClerk(caseId, reason)
       .subscribe({
         next: (resp) => {
           this.currentOrderSheet.set(resp as CaseOrderSheetResponse);
@@ -1543,6 +1599,88 @@ export class CaseListComponent {
 
   protected previewRoznama(): void {
     const html = this.buildRoznamaPreviewHtml();
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+
+  /** One final judgment document per case (unlike roznamah per hearing). */
+  protected judgmentOnePerCaseHint(): string {
+    return 'This case has a single final judgment document. Roznamah remains per hearing; judgment is created once when disposing the case.';
+  }
+
+  protected hasJudgmentContent(): boolean {
+    return !!this.judgmentSummaryInput().trim();
+  }
+
+  protected canGenerateJudgmentTemplate(): boolean {
+    if (!this.canDraftJudgment()) return false;
+    return judgmentWorkflowStatus(this.judgmentWorkflow()) !== 'PUBLISHED';
+  }
+
+  protected generateJudgmentTemplate(): void {
+    if (!this.canGenerateJudgmentTemplate()) return;
+    if (this.hasJudgmentContent()) {
+      if (!confirm('Replace current judgment text with a fresh template? This cannot be undone without re-editing.')) {
+        return;
+      }
+    }
+    const caseNo = String(
+      this.judgmentWorkflow()?.caseNo ??
+        this.generatedCase()?.caseNo ??
+        this.caseNoFor(this.selectedApplicationId()!) ??
+        ''
+    );
+    const body = buildDefaultJudgmentBodyText({
+      caseNo,
+      applicantNames: this.detailApplicants().map((a) => String(a['name'] || '')),
+      respondentNames: this.detailRespondents().map((r) => String(r['name'] || ''))
+    });
+    this.judgmentSummaryInput.set(body);
+    this.actionMessage.set('Judgment template generated. Review, edit, preview, then save draft.');
+  }
+
+  private buildJudgmentPreviewHtml(): string {
+    const land = this.detailDisputedLands()[0] ?? null;
+    const form = this.detailForm() ?? {};
+    const caseEntry = this.generatedCase();
+    const today = new Date();
+    const marathiMonth = ['जानेवारी','फेब्रुवारी','मार्च','एप्रिल','मे','जून','जुलै','ऑगस्ट','सप्टेंबर','ऑक्टोबर','नोव्हेंबर','डिसेंबर'];
+    const caseNo = String(
+      this.judgmentWorkflow()?.caseNo ??
+        caseEntry?.caseNo ??
+        this.caseNoFor(this.selectedApplicationId()!) ??
+        ''
+    );
+    const body =
+      this.judgmentSummaryInput().trim() ||
+      judgmentTextFromResponse(this.judgmentWorkflow());
+
+    const vars: JudgmentPreviewVars = {
+      phoneNumber: '',
+      emailId: '',
+      referenceNumber: caseNo,
+      referenceYearTwoDigits: toDevanagariDigits(String(today.getFullYear()).slice(-2)),
+      noticeDateDay: toDevanagariDigits(String(today.getDate())),
+      noticeDateMonth: marathiMonth[today.getMonth()] ?? '',
+      noticeDateYear: toDevanagariDigits(String(today.getFullYear()).slice(-2)),
+      caseNo,
+      actSection: String(form['sectionCustomText'] ?? form['customSectionName'] ?? form['actId'] ?? ''),
+      villageNameMoje: String(land?.['villageName'] ?? land?.['villageLgdCode'] ?? ''),
+      taluka: String(land?.['talukaName'] ?? land?.['talukaCode'] ?? ''),
+      district: String(land?.['districtName'] ?? land?.['districtCode'] ?? ''),
+      applicantNames: this.detailApplicants().map((a) => String(a['name'] || '')),
+      respondentNames: this.detailRespondents().map((r) => String(r['name'] || '')),
+      judgmentBody: body,
+      signatoryName: this.isPO ? (this.tokenStorage.getDisplayName() ?? '') : '',
+      signatoryDesignation: this.isPO ? (this.tokenStorage.getDesignationName() ?? '') : '',
+      signatoryOffice: String(this.tokenStorage.getOfficeName() ?? '')
+    };
+
+    return buildMarathiJudgmentPreviewHtml(vars);
+  }
+
+  protected previewJudgment(): void {
+    const html = this.buildJudgmentPreviewHtml();
     const w = window.open('', '_blank', 'width=900,height=700');
     if (w) { w.document.write(html); w.document.close(); }
   }

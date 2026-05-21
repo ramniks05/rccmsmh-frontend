@@ -22,6 +22,8 @@ export class App {
 
   // Reactive signals — update instantly on login/logout
   protected readonly isLoggedIn = this.tokenStorage.isLoggedIn;
+  protected readonly isAdvocate = this.tokenStorage.isAdvocate();
+  protected readonly isOfficer = this.tokenStorage.isOfficer();
   protected readonly displayName = this.tokenStorage.sessionDisplayName;
   protected readonly role = this.tokenStorage.sessionRole;
   protected readonly designation = this.tokenStorage.sessionDesignation;

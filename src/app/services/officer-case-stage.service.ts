@@ -157,7 +157,8 @@ export interface OfficerRoznamaTableResponse {
 }
 
 export interface RoznamaDraftRequest {
-  hearingId: number;
+  /** Latest hearing reference when saving; one roznamah document exists per case. */
+  hearingId?: number;
   hearingDate?: string;
   content: string;
   remarks?: string;
@@ -398,9 +399,12 @@ export class OfficerCaseStageService {
     );
   }
 
-  getRoznamaHistory(caseId: number, query: { hearingId: number }): Observable<RoznamaHistoryRow[]> {
+  /** Audit trail for the single case roznamah (optional hearingId filter). */
+  getRoznamaHistory(caseId: number, query?: { hearingId?: number }): Observable<RoznamaHistoryRow[]> {
+    const params: Record<string, string> = {};
+    if (query?.hearingId) params['hearingId'] = String(query.hearingId);
     return this.http.get<RoznamaHistoryRow[]>(`${this.base}/api/cases/officer/${caseId}/roznama/history`, {
-      params: { hearingId: String(query.hearingId) }
+      params
     });
   }
 
@@ -411,12 +415,8 @@ export class OfficerCaseStageService {
 
   /** @deprecated use draftRoznama */
   upsertOrderSheet(caseId: number, payload: { hearingId?: number | null; content: string; remarks: string }): Observable<CaseOrderSheetResponse> {
-    const hearingId = payload.hearingId;
-    if (!hearingId) {
-      throw new Error('hearingId is required for roznamah');
-    }
     return this.draftRoznama(caseId, {
-      hearingId,
+      hearingId: payload.hearingId ?? undefined,
       content: payload.content,
       remarks: payload.remarks
     }) as Observable<CaseOrderSheetResponse>;

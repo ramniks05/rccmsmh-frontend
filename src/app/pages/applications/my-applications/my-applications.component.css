@@ -1,0 +1,80 @@
+/* Layout: global .app-page in styles.css */
+
+.head-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.state {
+  padding: 2rem;
+  text-align: center;
+  color: #64748b;
+}
+
+.state.error {
+  color: #dc2626;
+}
+
+.state.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.app-table-wrap {
+  overflow-x: auto;
+}
+
+.app-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.app-table thead {
+  background: #f8fafc;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.app-table th,
+.app-table td {
+  padding: 0.85rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.app-table th {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+}
+
+.app-no {
+  color: #0b3d91;
+}
+
+.app-status {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.app-status-draft {
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
+}
+
+.app-status-submitted {
+  background: rgba(3, 102, 214, 0.12);
+  color: #0366d6;
+}
+
+.muted {
+  color: #94a3b8;
+}

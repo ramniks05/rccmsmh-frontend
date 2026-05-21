@@ -5,15 +5,9 @@
   font-family: 'DM Sans', 'Segoe UI', sans-serif;
 }
 
-/* ── Page shell ─────────────────────────────────────────────────── */
+/* Page shell: width/padding from global styles.css (.app-page / .page) */
 .page {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem 3rem;
-  display: grid;
-  gap: 1.5rem;
   min-height: calc(100vh - 120px);
-  align-content: start;
 }
 
 /* ── Page header ────────────────────────────────────────────────── */

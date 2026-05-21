@@ -1,0 +1,72 @@
+<section class="app-page my-applications-page">
+  <header class="page-head">
+    <div>
+      <h2>Application History</h2>
+      <p class="sub">Your filed and draft applications</p>
+    </div>
+    <div class="head-actions">
+      <button type="button" class="btn btn-secondary" (click)="load()" [disabled]="loading()">
+        {{ loading() ? 'Loading…' : 'Refresh' }}
+      </button>
+      @if (isAdvocate) {
+        <a routerLink="/cases/new" class="btn btn-primary">File New Case</a>
+      }
+      <a routerLink="/portal-home" class="btn btn-secondary">Back to Home</a>
+    </div>
+  </header>
+
+  <article class="card">
+    @if (error()) {
+      <div class="state error">{{ error() }}</div>
+    } @else if (loading()) {
+      <div class="state">Loading application history…</div>
+    } @else if (applications().length === 0) {
+      <div class="state empty">
+        <p>No applications yet.</p>
+        @if (isAdvocate) {
+          <a routerLink="/cases/new" class="btn btn-primary">File your first case</a>
+        }
+      </div>
+    } @else {
+      <div class="app-table-wrap">
+        <table class="app-table">
+          <thead>
+            <tr>
+              <th>Application No</th>
+              <th>Subject</th>
+              <th>Office</th>
+              <th>Filing Status</th>
+              <th>Processing Stage</th>
+              <th>Case No / Case Status</th>
+              <th>Filed On</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (app of applications(); track app.applicationId) {
+              <tr>
+                <td><strong class="app-no">{{ app.applicationNo }}</strong></td>
+                <td>{{ app.subjectName || app.caseCategoryName || '-' }}</td>
+                <td>{{ app.officeName || '-' }}</td>
+                <td><span class="app-status app-status-{{ app.status.toLowerCase() }}">{{ app.status }}</span></td>
+                <td>{{ app.processingStageLabel || app.processingStage || '-' }}</td>
+                <td>
+                  @if (app.caseNo) {
+                    <div>{{ app.caseNo }}</div>
+                    <span class="app-status app-status-{{ (app.caseStatus || '').toLowerCase() }}">{{ app.caseStatus }}</span>
+                  } @else {
+                    <span class="muted">Pending</span>
+                  }
+                </td>
+                <td>{{ app.submittedAt ? (app.submittedAt | slice:0:10) : '-' }}</td>
+                <td>
+                  <a [routerLink]="['/applications', app.applicationId]" class="btn btn-secondary btn-xs">View</a>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </article>
+</section>

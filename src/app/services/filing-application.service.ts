@@ -57,6 +57,57 @@ export interface ApplicationPreviewOrderSheetEntry {
   stage?: string;
 }
 
+export type ApplicationHistoryPhase = 'FILING' | 'PROCEEDING';
+
+export type ApplicationHistoryReferenceType = 'HEARING' | 'NOTICE' | 'ORDER_SHEET' | 'JUDGMENT';
+
+/** GET …/history — unified filing + proceeding timeline entry */
+export interface ApplicationHistoryEntry {
+  historyId?: number;
+  applicationId?: number;
+  sequence: number;
+  phase: ApplicationHistoryPhase;
+  action: string;
+  actionLabel?: string;
+  remarks?: string | null;
+  actorRole?: string;
+  actorRoleLabel?: string;
+  actorLoginId?: string;
+  applicationNo?: string;
+  status?: string;
+  caseId?: number | null;
+  caseNo?: string | null;
+  processingStage?: string;
+  processingStageLabel?: string;
+  createdAt?: string;
+  synthetic?: boolean;
+  referenceType?: ApplicationHistoryReferenceType;
+  referenceId?: number;
+  hearingNo?: number;
+  hearingDate?: string;
+  noticeType?: string;
+}
+
+/** GET …/history — full unified timeline (filing through proceedings) */
+export interface ApplicationHistoryResponse {
+  applicationId: number;
+  applicationNo: string;
+  caseId?: number | null;
+  caseNo?: string | null;
+  status?: string;
+  processingStage?: string;
+  processingStageLabel?: string;
+  currentAssigneeRole?: string | null;
+  filingCount?: number;
+  proceedingCount?: number;
+  totalCount: number;
+  synthetic?: boolean;
+  entries: ApplicationHistoryEntry[];
+}
+
+/** Alias used in API docs */
+export type ApplicationHistoryListResponse = ApplicationHistoryResponse;
+
 export interface ApplicationPreviewResponse {
   application: {
     applicationId: number;
@@ -76,6 +127,7 @@ export interface ApplicationPreviewResponse {
   orderSheetHistory: ApplicationPreviewOrderSheetEntry[];
   judgmentWorkflowStatus?: string | null;
   judgmentSummary?: string | null;
+  applicationHistory?: ApplicationHistoryResponse;
 }
 
 export interface MyApplicationItem {
@@ -92,6 +144,9 @@ export interface MyApplicationItem {
   officeName?: string;
   /** DRAFT | SUBMITTED */
   status: string;
+  processingStage?: string;
+  processingStageLabel?: string;
+  currentAssigneeRole?: string | null;
   filedByRole?: string;
   submittedAt?: string | null;
   createdAt?: string;
@@ -117,5 +172,12 @@ export class FilingApplicationService {
   /** GET /api/filing-applications/{id}/preview — full read-only view for party/advocate */
   getApplicationPreview(applicationId: number): Observable<ApplicationPreviewResponse> {
     return this.http.get<ApplicationPreviewResponse>(`${this.apiBaseUrl}/api/filing-applications/${applicationId}/preview`);
+  }
+
+  /** GET /api/filing-applications/{applicationId}/history — filer timeline (advocate / party) */
+  getApplicationHistory(applicationId: number): Observable<ApplicationHistoryResponse> {
+    return this.http.get<ApplicationHistoryResponse>(
+      `${this.apiBaseUrl}/api/filing-applications/${applicationId}/history`
+    );
   }
 }

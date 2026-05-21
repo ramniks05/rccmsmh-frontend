@@ -9,6 +9,7 @@ import { NewApplicationComponent } from './pages/applications/new-application/ne
 import { CaseListComponent } from './pages/cases/case-list/case-list.component';
 import { NewCaseComponent } from './pages/cases/new-case/new-case.component';
 import { ApplicationPreviewComponent } from './pages/applications/application-preview/application-preview.component';
+import { MyApplicationsComponent } from './pages/applications/my-applications/my-applications.component';
 
 import { authGuard } from './guards/auth.guard';
 import { adminGuard } from './guards/admin.guard';
@@ -20,6 +21,7 @@ export const routes: Routes = [
   { path: 'portal-home', component: PortalHomeComponent, canActivate: [authGuard] },
   { path: 'cases', component: CaseListComponent, canActivate: [authGuard] },
   { path: 'cases/new', component: NewCaseComponent, canActivate: [authGuard, advocateGuard] },
+  { path: 'applications', component: MyApplicationsComponent, canActivate: [authGuard] },
   { path: 'applications/new', component: NewApplicationComponent, canActivate: [authGuard, advocateGuard] },
   { path: 'applications/:id', component: ApplicationPreviewComponent, canActivate: [authGuard] },
   { path: 'admin/masters', component: AdminMastersComponent, canActivate: [adminGuard] },

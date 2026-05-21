@@ -25,7 +25,14 @@
 
       @if (isLoggedIn()) {
         <a routerLink="/portal-home" class="nav-home-link">Home</a>
-        <a routerLink="/cases" class="nav-home-link">My Cases</a>
+        @if (isAdvocate) {
+          <a routerLink="/applications" class="nav-home-link">My Applications</a>
+        } @else if (isOfficer) {
+          <a routerLink="/cases" class="nav-home-link">My Cases</a>
+        } @else {
+          <a routerLink="/applications" class="nav-home-link">My Applications</a>
+          <a routerLink="/cases" class="nav-home-link">My Cases</a>
+        }
 
         <div class="nav-divider" aria-hidden="true"></div>
 

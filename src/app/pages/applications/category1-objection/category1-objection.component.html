@@ -1195,8 +1195,8 @@
                 <input type="text" [value]="selectedSectionLabel()" readonly />
               </label>
               <label class="span-2">
-                Application description
-                <textarea [value]="form.controls.applicationDescription.getRawValue() || ''" rows="4" readonly></textarea>
+                Application description (preview)
+                <div class="preview-text">{{ form.controls.applicationDescription.value || '—' }}</div>
               </label>
             </div>
 

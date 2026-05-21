@@ -1,0 +1,103 @@
+@if (loading()) {
+  <p class="muted state-msg">Loading history…</p>
+} @else if (error()) {
+  <p class="error state-msg">{{ error() }}</p>
+} @else if (!history() || sortedEntries().length === 0) {
+  <p class="muted state-msg">No history recorded yet.</p>
+} @else {
+  @if (history()!.synthetic) {
+    <p class="synthetic-banner">
+      Timeline reconstructed from legacy data — full audit trail may be incomplete.
+    </p>
+  }
+
+  <div class="current-stage-card">
+    <div class="current-stage-main">
+      <span class="stage-label">Current stage</span>
+      <strong>{{ history()!.processingStageLabel || history()!.processingStage || '—' }}</strong>
+      @if (history()!.caseNo) {
+        <span class="case-ref">Case: {{ history()!.caseNo }}</span>
+      }
+    </div>
+    @if (history()!.currentAssigneeRole) {
+      <span class="assignee-chip">{{ assigneeLabel(history()!.currentAssigneeRole) }}</span>
+    }
+  </div>
+
+  <div class="history-counts">
+    <span class="count-chip filing">Filing {{ history()!.filingCount ?? 0 }}</span>
+    <span class="count-chip proceeding">Proceedings {{ history()!.proceedingCount ?? 0 }}</span>
+    <span class="count-chip total">{{ history()!.totalCount }} total</span>
+  </div>
+
+  <ol class="history-timeline">
+    @for (entry of sortedEntries(); track entryTrack(entry)) {
+      <li
+        class="history-entry"
+        [class.phase-filing]="entry.phase === 'FILING'"
+        [class.phase-proceeding]="entry.phase === 'PROCEEDING'"
+        [class.synthetic-entry]="entry.synthetic"
+        [class.linkable]="isLinkable(entry)"
+      >
+        <div
+          class="history-marker"
+          [class.marker-filing]="entry.phase === 'FILING'"
+          [class.marker-proceeding]="entry.phase === 'PROCEEDING'"
+          aria-hidden="true"
+        ></div>
+        <div
+          class="history-body"
+          [class.clickable]="isLinkable(entry)"
+          [attr.role]="isLinkable(entry) ? 'button' : null"
+          [attr.tabindex]="isLinkable(entry) ? 0 : null"
+          (click)="onEntryClick(entry)"
+          (keydown.enter)="onEntryClick(entry)"
+        >
+          <div class="history-head">
+            <div class="title-row">
+              <span class="phase-chip" [class.chip-filing]="entry.phase === 'FILING'" [class.chip-proceeding]="entry.phase === 'PROCEEDING'">
+                {{ entry.phase === 'FILING' ? 'Filing' : 'Proceedings' }}
+              </span>
+              <strong>{{ entryTitle(entry) }}</strong>
+            </div>
+            <time>{{ formatDate(entry.createdAt) }}</time>
+          </div>
+
+          @if (entry.actorRoleLabel || entry.actorLoginId) {
+            <div class="history-meta">
+              @if (entry.actorRoleLabel) {
+                <span>{{ entry.actorRoleLabel }}</span>
+              }
+              @if (entry.actorLoginId) {
+                <span class="meta-sep">·</span>
+                <span>{{ entry.actorLoginId }}</span>
+              }
+            </div>
+          }
+
+          @if (entry.processingStageLabel || entry.processingStage) {
+            <div class="history-stage">
+              Stage after action: {{ entry.processingStageLabel || entry.processingStage }}
+            </div>
+          }
+
+          @if (proceedingDetail(entry); as detail) {
+            <p class="history-detail">{{ detail }}</p>
+          }
+
+          @if (entry.remarks) {
+            <p class="history-remarks">{{ entry.remarks }}</p>
+          }
+
+          @if (entry.caseNo && entry.action === 'CASE_REGISTERED') {
+            <p class="history-case">Case registered: <strong>{{ entry.caseNo }}</strong></p>
+          }
+
+          @if (isLinkable(entry)) {
+            <span class="view-detail">View {{ entry.referenceType!.replace('_', ' ').toLowerCase() }} →</span>
+          }
+        </div>
+      </li>
+    }
+  </ol>
+}

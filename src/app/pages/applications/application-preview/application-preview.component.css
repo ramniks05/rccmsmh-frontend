@@ -3,10 +3,8 @@
    Tokens: Navy #0b3d91→#1a56c4 | Orange #f97316 | Bg #f0f4fa
    ═══════════════════════════════════════════════════════════════ */
 
+/* Layout: global .app-page / .preview-page in styles.css */
 .preview-page {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 1.5rem 1.25rem 3rem;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   color: #0f172a;
 }
@@ -66,6 +64,16 @@
   margin: 0;
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.72);
+}
+
+.stage-line {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+}
+
+.history-hint {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
 }
 
 .status-badge {

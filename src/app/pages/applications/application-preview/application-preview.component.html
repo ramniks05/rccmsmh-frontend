@@ -1,8 +1,8 @@
-<section class="preview-page">
+<section class="app-page preview-page">
 
   <!-- Back -->
   <div class="back-row">
-    <a routerLink="/portal-home" class="back-link">← Back to Dashboard</a>
+    <a [routerLink]="backLink" class="back-link">← Back</a>
   </div>
 
   @if (loading()) {
@@ -15,7 +15,10 @@
     <div class="preview-header">
       <div>
         <h2>{{ app()?.applicationNo }}</h2>
-        @if (app()?.caseNo) { <p class="case-no">Case: {{ app()?.caseNo }}</p> }
+        @if (caseNoDisplay()) { <p class="case-no">Case: {{ caseNoDisplay() }}</p> }
+        @if (processingStageLabel()) {
+          <p class="case-no stage-line">{{ processingStageLabel() }}</p>
+        }
       </div>
       <span class="status-badge">{{ app()?.status }}</span>
     </div>
@@ -23,6 +26,12 @@
     <!-- Tabs -->
     <nav class="preview-tabs">
       <button [class.active]="activeTab()==='application'" (click)="setTab('application')">Application</button>
+      <button [class.active]="activeTab()==='history'" (click)="setTab('history')">
+        History
+        @if (history()) {
+          <span class="tab-count">{{ history()!.totalCount }}</span>
+        }
+      </button>
       <button [class.active]="activeTab()==='notices'" (click)="setTab('notices')">
         Notices <span class="tab-count">{{ data()!.notices.length }}</span>
       </button>
@@ -32,7 +41,7 @@
       <button [class.active]="activeTab()==='ordersheet'" (click)="setTab('ordersheet')">
         Order Sheet <span class="tab-count">{{ data()!.orderSheetHistory.length }}</span>
       </button>
-      @if (data()!.judgmentSummary) {
+      @if (showJudgmentTab()) {
         <button [class.active]="activeTab()==='judgment'" (click)="setTab('judgment')">Judgment</button>
       }
     </nav>
@@ -115,6 +124,19 @@
       </div>
     }
 
+    <!-- ── UNIFIED HISTORY TAB ── -->
+    @if (activeTab() === 'history') {
+      <div class="tab-content">
+        <p class="history-hint muted">Filing and case proceedings in one timeline. Click an event to open hearings, notices, order sheet, or judgment details.</p>
+        <app-application-history-timeline
+          [history]="history()"
+          [loading]="historyLoading()"
+          [error]="historyError()"
+          (entrySelect)="onHistoryEntry($event)"
+        />
+      </div>
+    }
+
     <!-- ── NOTICES TAB ── -->
     @if (activeTab() === 'notices') {
       <div class="tab-content">
@@ -193,6 +215,9 @@
           <div class="judgment-block">
             <div class="judgment-status">
               <span class="status-badge">{{ data()!.judgmentWorkflowStatus }}</span>
+              <button type="button" class="btn btn-secondary btn-xs" style="margin-left:8px" (click)="previewPublishedJudgment()">
+                Preview Judgment (Marathi)
+              </button>
             </div>
             <div class="judgment-text">{{ data()!.judgmentSummary }}</div>
           </div>

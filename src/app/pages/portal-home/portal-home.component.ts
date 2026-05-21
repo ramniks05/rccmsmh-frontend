@@ -59,38 +59,10 @@ export class PortalHomeComponent implements OnInit {
   protected readonly applicationsError   = signal<string | null>(null);
 
   protected readonly statCards = signal<StatCard[]>([
-    {
-      label: 'Active Cases',
-      value: 12,
-      icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-      color: 'blue',
-      trend: '+2 this month',
-      trendDir: 'up'
-    },
-    {
-      label: 'Pending Hearings',
-      value: 3,
-      icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
-      color: 'orange',
-      trend: 'Next: Tomorrow',
-      trendDir: 'flat'
-    },
-    {
-      label: 'Applications',
-      value: 28,
-      icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
-      color: 'green',
-      trend: '+5 this week',
-      trendDir: 'up'
-    },
-    {
-      label: 'Total Filed',
-      value: 45,
-      icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4',
-      color: 'purple',
-      trend: 'All time',
-      trendDir: 'flat'
-    }
+    { label: 'Total Applications', value: 0, icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', color: 'green' },
+    { label: 'Submitted', value: 0, icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', color: 'blue' },
+    { label: 'Drafts', value: 0, icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', color: 'orange' },
+    { label: 'With Case No', value: 0, icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4', color: 'purple' }
   ]);
 
   constructor() {
@@ -113,9 +85,25 @@ export class PortalHomeComponent implements OnInit {
     this.filingService.getMyApplications()
       .pipe(finalize(() => this.applicationsLoading.set(false)))
       .subscribe({
-        next:  (list) => this.applications.set(list),
-        error: ()     => this.applicationsError.set('Could not load applications. Please try again.')
+        next: (list) => {
+          this.applications.set(list);
+          this.updateStatCards(list);
+        },
+        error: () => this.applicationsError.set('Could not load applications. Please try again.')
       });
+  }
+
+  private updateStatCards(list: MyApplicationItem[]): void {
+    const total = list.length;
+    const submitted = list.filter((a) => (a.status || '').toUpperCase() === 'SUBMITTED').length;
+    const drafts = list.filter((a) => (a.status || '').toUpperCase() === 'DRAFT').length;
+    const withCase = list.filter((a) => !!a.caseNo).length;
+    this.statCards.set([
+      { label: 'Total Applications', value: total, icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', color: 'green' },
+      { label: 'Submitted', value: submitted, icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', color: 'blue' },
+      { label: 'Drafts', value: drafts, icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', color: 'orange' },
+      { label: 'With Case No', value: withCase, icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4', color: 'purple' }
+    ]);
   }
 
   protected logout(): void {

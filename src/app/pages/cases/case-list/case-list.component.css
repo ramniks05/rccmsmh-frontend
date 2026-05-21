@@ -1,26 +1,4 @@
-.page {
-  max-width: none;
-  width: 100%;
-  margin: 0;
-  display: grid;
-  gap: 16px;
-}
-
-.page-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.page-head h2 {
-  margin: 0;
-}
-
-.sub {
-  margin: 6px 0 0 0;
-  color: #4b5563;
-}
+/* Layout: global .app-page / .page in styles.css */
 
 .card {
   border: 1px solid rgba(31, 41, 55, 0.12);

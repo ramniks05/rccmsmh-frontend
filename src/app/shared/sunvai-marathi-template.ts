@@ -672,3 +672,241 @@ export function buildMarathiRoznamaPreviewHtml(v: RoznamaPreviewVars): string {
 </body>
 </html>`;
 }
+
+// ─── Judgment (one final order per case) ───────────────────────────────────────
+
+/** Header + case context for judgment preview (same letterhead as roznama / notice). */
+export interface JudgmentPreviewVars {
+  phoneNumber: string;
+  emailId: string;
+  referenceNumber: string;
+  referenceYearTwoDigits: string;
+  noticeDateDay: string;
+  noticeDateMonth: string;
+  noticeDateYear: string;
+  caseNo: string;
+  actSection: string;
+  villageNameMoje: string;
+  taluka: string;
+  district: string;
+  applicantNames: string[];
+  respondentNames: string[];
+  /** Main judgment / disposal order text (plain text; one document per case). */
+  judgmentBody: string;
+  signatoryName: string;
+  signatoryDesignation: string;
+  signatoryOffice: string;
+}
+
+const judgmentListNums = ['१', '२', '३', '४', '५', '६', '७', '८', '९'];
+
+function buildJudgmentPartyListHtml(names: string[], label: string): string {
+  const rows = names.length > 0 ? names : [''];
+  const items = rows
+    .map((name, i) => {
+      const num = judgmentListNums[i] ?? `${i + 1}`;
+      return `<div class="party-row">${num}. ${name ? `<strong>${escDev(name)}</strong>` : ''}</div>`;
+    })
+    .join('\n');
+  return `<div class="party-block"><strong>${label} :</strong>${items}</div>`;
+}
+
+function buildJudgmentBodyHtml(body: string): string {
+  const text = (body || '').trim();
+  if (!text) {
+    return '<p class="muted-body">( निर्णय / आदेश मजकूर भरा )</p>';
+  }
+  return text
+    .split(/\n{2,}|\n/)
+    .map((para) => para.trim())
+    .filter(Boolean)
+    .map((para) => `<p class="judgment-para">${escapeHtml(para).replace(/\n/g, '<br>')}</p>`)
+    .join('\n');
+}
+
+/** Default Marathi judgment body for a new case-level judgment (editable before save). */
+export function buildDefaultJudgmentBodyText(opts: {
+  caseNo: string;
+  applicantNames?: string[];
+  respondentNames?: string[];
+}): string {
+  const caseNo = (opts.caseNo || '').trim();
+  const applicants = (opts.applicantNames || []).filter(Boolean);
+  const respondents = (opts.respondentNames || []).filter(Boolean);
+  const appLine = applicants.length ? applicants.join(', ') : '_______________';
+  const resLine = respondents.length ? respondents.join(', ') : '_______________';
+
+  return `प्रस्तुत प्रकरणात सुनावणी पूर्ण झाली. सादर केलेली कागदपत्रे, रोजनामा व पक्षकारांचे विचारणे विचारात घेऊन —
+
+विषय : प्रकरण क्र. ${caseNo || '_______________'} — अंतिम निर्णय.
+
+अर्जदार / वादी : ${appLine}
+प्रतिवादी / जाबदार : ${resLine}
+
+आदेश :
+
+वरील विचाराने, सादर अर्जावर निर्णय देण्यात येत आहे की —
+
+( येथे निर्णयाचा मुख्य मजकूर लिहा — अर्ज मान्य / नामंजूर, शर्ती, आदेश इ. )
+
+प्रकरण या आदेशानुसार निर्गतीसाठी खुले ठेवण्यात येते.`;
+}
+
+/** Judgment preview: notice letterhead + parties + single order body (one per case). */
+export function buildMarathiJudgmentPreviewHtml(v: JudgmentPreviewVars): string {
+  const phone = orBlank(v.phoneNumber);
+  const email = orBlank(v.emailId);
+  const refNo = orBlank(v.referenceNumber);
+  const refYy = orBlank(v.referenceYearTwoDigits);
+  const noticeDay = orBlank(v.noticeDateDay);
+  const noticeMonth = orBlank(v.noticeDateMonth);
+  const noticeYear = orBlank(v.noticeDateYear);
+  const caseNo = orBlank(v.caseNo);
+  const actSection = orBlank(v.actSection);
+  const village = orBlank(v.villageNameMoje);
+  const taluka = orBlank(v.taluka);
+  const district = orBlank(v.district);
+  const sigName = orBlank(v.signatoryName);
+  const sigDesig = orBlank(v.signatoryDesignation);
+  const sigOffice = orBlank(v.signatoryOffice);
+
+  const noticeDateFull = [noticeDay, noticeMonth, noticeYear ? `२०${toDevanagariDigits(noticeYear)}` : '']
+    .filter(Boolean)
+    .join(' / ');
+  const refYyFull = refYy ? toDevanagariDigits(refYy) : '';
+  const bodyHtml = buildJudgmentBodyHtml(v.judgmentBody || '');
+
+  return `<!DOCTYPE html>
+<html lang="mr">
+<head>
+    <meta charset="UTF-8">
+    <title>अंतिम निर्णय</title>
+    <style>
+        @page { size: A4; margin: 10mm 12mm; }
+        html, body { margin: 0; padding: 0; background: #fff; }
+        body {
+            font-family: 'Noto Serif Devanagari', 'Mangal', serif;
+            font-size: 12pt;
+            line-height: 1.6;
+            color: #000;
+        }
+        .container {
+            width: 182mm;
+            margin: 0 auto;
+            border: 1px solid #000;
+            padding: 6mm 8mm;
+            box-sizing: border-box;
+        }
+        @media screen { .container { margin: 10px auto; } }
+        .gov-header {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+        }
+        .dept-name { font-size: 18pt; font-weight: bold; margin-bottom: 2px; }
+        .dept-sub { font-size: 12pt; }
+        .office-name { font-size: 14pt; font-weight: bold; margin: 8px auto; }
+        .office-address { font-size: 11pt; line-height: 1.4; }
+        .contact-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10pt;
+            border-top: 1px solid #ccc;
+            padding-top: 4px;
+            margin-bottom: 6px;
+        }
+        .ref-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 12pt;
+        }
+        .notice-title {
+            text-align: center;
+            font-size: 18pt;
+            font-weight: bold;
+            text-decoration: underline;
+            margin: 14px 0;
+        }
+        .subject-box {
+            background-color: #f2f2f2;
+            border: 1px solid #333;
+            padding: 10px 12px;
+            margin: 12px 0;
+            font-size: 12pt;
+            line-height: 1.8;
+        }
+        .party-block { margin-top: 8px; }
+        .party-row { margin: 4px 0 4px 12px; }
+        .main-content {
+            margin: 16px 0 24px;
+            font-size: 12pt;
+            line-height: 1.85;
+            min-height: 50mm;
+            text-align: justify;
+        }
+        .judgment-para { margin: 0 0 10px; text-indent: 8mm; }
+        .order-heading {
+            font-weight: bold;
+            text-decoration: underline;
+            margin: 12px 0 8px;
+        }
+        .muted-body { color: #666; font-style: italic; }
+        .footer-row {
+            display: flex;
+            justify-content: flex-end;
+            align-items: flex-end;
+            margin-top: 30px;
+        }
+        .sig-block { text-align: center; min-width: 200px; }
+        .sig-name {
+            border-top: 1px solid #000;
+            padding-top: 4px;
+            font-weight: bold;
+            font-size: 12pt;
+            margin-bottom: 4px;
+        }
+        .sig-detail { font-size: 11pt; text-align: left; line-height: 1.8; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="gov-header">
+        <div class="dept-name">महाराष्ट्र शासन</div>
+        <div class="dept-sub">महसूल व वन विभाग</div>
+        <div class="office-name">जमाबंदी आयुक्त आणि संचालक भूमी अभिलेख (म.राज्य), पुणे</div>
+        <div class="office-address">दूसरा व तिसरा मजला, नवीन प्रशासकीय इमारत, विधान भवन समोर, कॅम्प, पुणे - ४११००१</div>
+    </div>
+    <div class="contact-info">
+        <div>दूरध्वनी क्र. : ${phone ? `<strong>${escapeHtml(phone)}</strong>` : ''}</div>
+        <div>Email ID : ${email ? `<strong>${escapeHtml(email)}</strong>` : ''}</div>
+    </div>
+    <div class="ref-row">
+        <div>प्रकरण क्र. ${caseNo ? `<strong>${escDev(caseNo)}</strong>` : ''} / क्र. ${refNo ? `<strong>${escapeHtml(refNo)}</strong>` : ''} / २०${refYyFull}</div>
+        <div>दिनांक : ${noticeDateFull ? `<strong>${noticeDateFull}</strong>` : ''}</div>
+    </div>
+    <div class="notice-title">अंतिम निर्णय</div>
+    <div class="subject-box">
+        <strong>विषय :</strong> महाराष्ट्र जमीन महसूल अधिनियम, १९६६ चे कलम ${actSection ? `<strong>${escDev(actSection)}</strong>` : ''} अन्वये दाखल अर्जाबाबत अंतिम निर्णय.<br>
+        मिळकत : मौजे ${village ? `<strong>${escDev(village)}</strong>` : ''}, ता. ${taluka ? `<strong>${escDev(taluka)}</strong>` : ''}, जि. ${district ? `<strong>${escDev(district)}</strong>` : ''}.
+        ${buildJudgmentPartyListHtml(v.applicantNames || [], 'अर्जदार / वादी')}
+        ${buildJudgmentPartyListHtml(v.respondentNames || [], 'प्रतिवादी / जाबदार')}
+    </div>
+    <div class="main-content">
+        <div class="order-heading">आदेश</div>
+        ${bodyHtml}
+    </div>
+    <div class="footer-row">
+        <div class="sig-block">
+            <div class="sig-name">( ${sigName ? escDev(sigName) : ''} )</div>
+            <div class="sig-detail">
+                पदनाम : ${sigDesig ? `<strong>${escDev(sigDesig)}</strong>` : ''}<br>
+                कार्यालय : ${sigOffice ? `<strong>${escDev(sigOffice)}</strong>` : ''}
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>`;
+}

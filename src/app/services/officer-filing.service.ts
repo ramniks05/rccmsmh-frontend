@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
+import { ApplicationHistoryResponse } from './filing-application.service';
 
 export interface OfficerInboxItem {
   applicationId: number;
@@ -51,7 +52,9 @@ export interface OfficerApplicationDetail {
   disputedLands?: unknown[];
   attachments?: unknown[];
   processingStage?: string;
+  processingStageLabel?: string;
   currentAssigneeRole?: 'CLERK' | 'PRESIDING_OFFICER' | string;
+  applicationHistory?: ApplicationHistoryResponse;
 }
 
 @Injectable({
@@ -68,6 +71,13 @@ export class OfficerFilingService {
   getApplicationDetail(applicationId: number): Observable<OfficerApplicationDetail> {
     return this.http.get<OfficerApplicationDetail>(
       `${this.apiBaseUrl}/api/filing-applications/officer/${applicationId}`
+    );
+  }
+
+  /** GET /api/filing-applications/officer/{applicationId}/history */
+  getApplicationHistory(applicationId: number): Observable<ApplicationHistoryResponse> {
+    return this.http.get<ApplicationHistoryResponse>(
+      `${this.apiBaseUrl}/api/filing-applications/officer/${applicationId}/history`
     );
   }
 }
