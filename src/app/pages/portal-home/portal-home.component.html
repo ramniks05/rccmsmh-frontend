@@ -1,49 +1,131 @@
-<section class="portal-home">
+<div class="portal-home">
 
-  <!-- Welcome card -->
-  <article class="welcome-card">
-    <div>
-      <h2>Welcome, {{ displayName }}</h2>
-      <p class="role-text">{{ role }}</p>
+  <!-- Hero Header -->
+  <div class="hero-header">
+    <div class="hero-content">
+      <div>
+        <h1>Welcome back, {{ displayName }}</h1>
+        <p class="hero-subtitle">{{ role === 'PARTY_IN_PERSON' ? 'Party Representative' : role === 'ADVOCATE' ? 'Legal Advocate' : 'Administrator' }} | RCCMS Portal</p>
+      </div>
+      <button type="button" class="btn-logout" (click)="logout()" [disabled]="isLoggingOut">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+        </svg>
+        {{ isLoggingOut ? 'Signing out...' : 'Sign Out' }}
+      </button>
     </div>
-    <button type="button" class="btn btn-secondary" (click)="logout()" [disabled]="isLoggingOut">
-      {{ isLoggingOut ? 'Logging out…' : 'Logout' }}
-    </button>
-  </article>
+  </div>
 
-  <!-- Quick actions -->
-  <section class="grid">
-    @if (isAdvocate) {
-      <a class="tile tile-link" routerLink="/cases/new">
-        <span class="tile-icon">📁</span>
-        <h3>File New Case</h3>
-        <p>Select category and start filing.</p>
+  <!-- Statistics Cards -->
+  <section class="stats-section">
+    <div class="stats-grid">
+      @for (stat of statCards(); track stat.label) {
+        <div class="stat-card" [class]="'stat-' + stat.color">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="stat.icon"/>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <p class="stat-label">{{ stat.label }}</p>
+            <p class="stat-value">{{ stat.value }}</p>
+          </div>
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- Quick Actions -->
+  <section class="quick-actions">
+    <h2 class="section-title">Quick Actions</h2>
+    <div class="actions-grid">
+      @if (isAdvocate) {
+        <a class="action-tile" routerLink="/cases/new">
+          <div class="action-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+            </svg>
+          </div>
+          <div class="action-content">
+            <h3>File New Case</h3>
+            <p>Start a fresh case application</p>
+          </div>
+          <svg class="action-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+          </svg>
+        </a>
+      }
+      @if (role === 'ADMIN') {
+        <a class="action-tile" routerLink="/admin/masters">
+          <div class="action-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </div>
+          <div class="action-content">
+            <h3>Master Management</h3>
+            <p>Configure system masters</p>
+          </div>
+          <svg class="action-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+          </svg>
+        </a>
+      }
+      <a class="action-tile" routerLink="/applications">
+        <div class="action-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+        </div>
+        <div class="action-content">
+          <h3>View Applications</h3>
+          <p>Browse all your applications</p>
+        </div>
+        <svg class="action-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+        </svg>
       </a>
-    }
-    @if (role === 'ADMIN') {
-      <a class="tile tile-link" routerLink="/admin/masters">
-        <span class="tile-icon">⚙️</span>
-        <h3>Master Management</h3>
-        <p>Create and maintain master data.</p>
-      </a>
-    }
+    </div>
   </section>
 
   <!-- My Applications -->
   <section class="applications-section">
     <div class="section-head">
-      <h3>My Applications</h3>
-      <button type="button" class="btn btn-secondary btn-xs" (click)="loadApplications()" [disabled]="applicationsLoading()">
-        {{ applicationsLoading() ? 'Loading…' : 'Refresh' }}
+      <div>
+        <h2 class="section-title">Recent Applications</h2>
+        <p class="section-subtitle">Track your case filings and status updates</p>
+      </div>
+      <button type="button" class="btn-refresh" (click)="loadApplications()" [disabled]="applicationsLoading()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" [class.spinning]="applicationsLoading()">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        {{ applicationsLoading() ? 'Loading...' : 'Refresh' }}
       </button>
     </div>
 
     @if (applicationsError()) {
-      <p class="error">{{ applicationsError() }}</p>
+      <div class="error-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <p>{{ applicationsError() }}</p>
+      </div>
     } @else if (applicationsLoading()) {
-      <p class="muted">Loading applications…</p>
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading your applications...</p>
+      </div>
     } @else if (applications().length === 0) {
-      <p class="muted empty-hint">No applications found. @if (isAdvocate) { <a routerLink="/cases/new">File your first case →</a> }</p>
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <p>No applications yet</p>
+        @if (isAdvocate) {
+          <a routerLink="/cases/new" class="btn-empty-action">File your first case →</a>
+        }
+      </div>
     } @else {
       <div class="app-table-wrap">
         <table class="app-table">
@@ -55,13 +137,13 @@
               <th>Filing Status</th>
               <th>Case No / Case Status</th>
               <th>Filed On</th>
-              <th></th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
             @for (app of applications(); track app.applicationId) {
               <tr>
-                <td><strong>{{ app.applicationNo }}</strong></td>
+                <td><strong class="app-no">{{ app.applicationNo }}</strong></td>
                 <td>{{ app.subjectName || app.caseCategoryName || '-' }}</td>
                 <td class="office-cell">{{ app.officeName || '-' }}</td>
                 <td><span class="app-status app-status-{{ app.status.toLowerCase() }}">{{ app.status }}</span></td>
@@ -69,11 +151,11 @@
                   @if (app.caseNo) {
                     <div>{{ app.caseNo }}</div>
                     <span class="app-status app-status-{{ (app.caseStatus || '').toLowerCase() }}">{{ app.caseStatus }}</span>
-                  } @else { <span class="muted-sm">Pending</span> }
+                  } @else { <span class="status-pending">Pending</span> }
                 </td>
                 <td class="date-cell">{{ app.submittedAt ? (app.submittedAt | slice:0:10) : '-' }}</td>
                 <td>
-                  <a [routerLink]="['/applications', app.applicationId]" class="btn btn-primary btn-xs">View</a>
+                  <a [routerLink]="['/applications', app.applicationId]" class="btn-view">View</a>
                 </td>
               </tr>
             }
@@ -83,4 +165,4 @@
     }
   </section>
 
-</section>
+</div>

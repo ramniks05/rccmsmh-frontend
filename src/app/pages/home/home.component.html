@@ -1,15 +1,13 @@
-<!-- Announcement strip -->
-<div class="announcement-bar">
-  <span class="announce-dot"></span>
-  <span>RCCMS 2.0 is now live — faster case filing, real-time tracking and Marathi vakalatnama</span>
-</div>
-
-<!-- ── HERO ─────────────────────────────────────────────────── -->
+<!-- ── HERO ─────────────────────────────────────────────────────── -->
 <section class="hero">
   <div class="hero-inner">
+
+    <!-- Left copy -->
     <div class="hero-copy">
       <div class="hero-badge">
-        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clip-rule="evenodd"/></svg>
+        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clip-rule="evenodd"/>
+        </svg>
         Official Government of Maharashtra Portal
       </div>
 
@@ -18,29 +16,73 @@
       </h1>
       <h2 class="hero-subtitle">Revenue Case &amp; Citizen Management System</h2>
       <p class="hero-desc">
-        Digitising revenue administration for transparent, fast and accessible governance across all 36 districts of Maharashtra.
+        Digitising revenue administration for transparent, fast and accessible
+        governance across all 36 districts of Maharashtra.
       </p>
 
       <div class="hero-actions">
-        <a routerLink="/register/advocate" class="btn btn-hero-primary">Register as Advocate</a>
-        <a routerLink="/register/party" class="btn btn-hero-outline">Register as Party</a>
+        <a routerLink="/register/advocate" class="btn btn-hero-primary">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true">
+            <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
+          </svg>
+          Register as Advocate
+        </a>
+        <a routerLink="/register/party" class="btn btn-hero-outline">
+          Register as Party
+          <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-hidden="true">
+            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+          </svg>
+        </a>
+      </div>
+
+      <!-- Trust indicators -->
+      <div class="hero-trust">
+        <div class="trust-item">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15" aria-hidden="true">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+          </svg>
+          100% Secure &amp; Encrypted
+        </div>
+        <div class="trust-divider" aria-hidden="true"></div>
+        <div class="trust-item">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15" aria-hidden="true">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+          </svg>
+          24/7 Online Access
+        </div>
+        <div class="trust-divider" aria-hidden="true"></div>
+        <div class="trust-item">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15" aria-hidden="true">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+          </svg>
+          36 Districts Covered
+        </div>
       </div>
     </div>
 
-    <div class="hero-visual">
-      <img src="mh-portal-hero.png" alt="RCCMS Maharashtra Portal" class="hero-img" />
+    <!-- Right visual -->
+    <div class="hero-visual" aria-hidden="true">
+      <!-- Floating stat chip -->
+      <div class="hero-float-chip">
+        <strong>358</strong>
+        Talukas Online
+      </div>
+      <div class="hero-img-wrapper">
+        <img src="mh-portal-hero.png" alt="RCCMS Maharashtra Portal illustration" class="hero-img" />
+      </div>
       <div class="hero-visual-card">
         <div class="hvc-dot"></div>
         <span>Portal is Live</span>
       </div>
     </div>
+
   </div>
 </section>
 
-<!-- ── STATS BAR ───────────────────────────────────────────── -->
-<div class="stats-bar">
+<!-- ── STATS BAR ─────────────────────────────────────────────────── -->
+<div class="stats-bar" role="list" aria-label="Key statistics">
   @for (s of stats; track s.label) {
-    <div class="stat-item">
+    <div class="stat-item reveal" role="listitem">
       <strong class="stat-val">{{ s.value }}</strong>
       <span class="stat-label">{{ s.label }}</span>
       <span class="stat-label-mr">{{ s.labelMr }}</span>
@@ -48,67 +90,87 @@
   }
 </div>
 
-<!-- ── SERVICES ───────────────────────────────────────────── -->
-<section class="section-block services-section">
-  <div class="section-header">
-    <h2>Our <span class="accent">Services</span></h2>
-    <p>End-to-end digital services for citizens, advocates and government officers</p>
-  </div>
-  <div class="services-grid">
-    @for (s of services; track s.title) {
-      <article class="service-card">
-        <div class="sc-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <path [attr.d]="s.icon"/>
-          </svg>
-        </div>
-        <div class="sc-body">
-          <h3>{{ s.title }}</h3>
-          <p class="sc-mr">{{ s.titleMr }}</p>
-          <p class="sc-desc">{{ s.desc }}</p>
-        </div>
-      </article>
-    }
+<!-- ── SERVICES ──────────────────────────────────────────────────── -->
+<section class="services-section">
+  <div class="section-block">
+    <div class="section-header reveal">
+      <div class="section-eyebrow">What We Offer</div>
+      <h2>Our <span class="accent">Services</span></h2>
+      <p>End-to-end digital services for citizens, advocates and government officers</p>
+    </div>
+
+    <div class="services-grid">
+      @for (s of services; track s.title; let i = $index) {
+        <article class="service-card reveal" [class]="'reveal-delay-' + ((i % 3) + 1)">
+          <div class="sc-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path [attr.d]="s.icon"/>
+            </svg>
+          </div>
+          <div class="sc-body">
+            <h3>{{ s.title }}</h3>
+            <p class="sc-mr">{{ s.titleMr }}</p>
+            <p class="sc-desc">{{ s.desc }}</p>
+          </div>
+        </article>
+      }
+    </div>
   </div>
 </section>
 
-<!-- ── HOW IT WORKS ───────────────────────────────────────── -->
-<section class="section-block how-section">
-  <div class="section-header">
+<!-- ── HOW IT WORKS ──────────────────────────────────────────────── -->
+<section class="how-section">
+  <div class="section-header reveal">
+    <div class="section-eyebrow">Simple Process</div>
     <h2>How It <span class="accent">Works</span></h2>
     <p>Simple three-step process to file and track your revenue case</p>
   </div>
+
   <div class="how-grid">
-    <div class="how-step">
-      <div class="how-num">१</div>
+    <div class="how-step reveal reveal-delay-1">
+      <div class="how-num" aria-hidden="true">१</div>
       <h3>Register &amp; Login</h3>
       <p>Create your account as an advocate, party or representative and log in securely.</p>
     </div>
-    <div class="how-arrow">→</div>
-    <div class="how-step">
-      <div class="how-num">२</div>
+
+    <div class="how-arrow" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <div class="how-step reveal reveal-delay-2">
+      <div class="how-num" aria-hidden="true">२</div>
       <h3>File Your Case</h3>
       <p>Fill in case details, upload vakalatnama and attach disputed land documents.</p>
     </div>
-    <div class="how-arrow">→</div>
-    <div class="how-step">
-      <div class="how-num">३</div>
+
+    <div class="how-arrow" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <div class="how-step reveal reveal-delay-3">
+      <div class="how-num" aria-hidden="true">३</div>
       <h3>Track &amp; Resolve</h3>
       <p>Monitor status, receive hearing dates and download orders — all online.</p>
     </div>
   </div>
 </section>
 
-<!-- ── DEPARTMENTS ───────────────────────────────────────── -->
+<!-- ── DEPARTMENTS ───────────────────────────────────────────────── -->
 <section class="section-block dept-section">
-  <div class="section-header">
+  <div class="section-header reveal">
+    <div class="section-eyebrow">Ecosystem</div>
     <h2>Integrated <span class="accent">Departments</span></h2>
     <p>Connected departments under the Maharashtra Revenue ecosystem</p>
   </div>
+
   <div class="dept-grid">
-    @for (d of departments; track d.name) {
-      <article class="dept-card">
-        <span class="dept-icon">{{ d.icon }}</span>
+    @for (d of departments; track d.name; let i = $index) {
+      <article class="dept-card reveal" [class]="'reveal-delay-' + ((i % 2) + 1)">
+        <div class="dept-icon-wrap" aria-hidden="true">{{ d.icon }}</div>
         <div>
           <h3>{{ d.name }}</h3>
           <p class="dept-mr">{{ d.nameMr }}</p>
@@ -119,16 +181,30 @@
   </div>
 </section>
 
-<!-- ── CTA BANNER ─────────────────────────────────────────── -->
+<!-- ── CTA BANNER ────────────────────────────────────────────────── -->
 <section class="cta-banner">
-  <div class="cta-inner">
-    <div>
-      <h2>Ready to get started?</h2>
-      <p>Register as an advocate or party and start filing cases on RCCMS Maharashtra today.</p>
+  <div class="cta-inner reveal">
+    <div class="cta-copy">
+      <div class="cta-eyebrow">Get Started Today</div>
+      <h2>Ready to file your case?</h2>
+      <p>
+        Register as an advocate or party and start managing revenue cases on
+        RCCMS Maharashtra — the official government digital platform.
+      </p>
     </div>
     <div class="cta-actions">
-      <a routerLink="/register/advocate" class="btn btn-cta-primary">Register as Advocate</a>
-      <a routerLink="/register/party" class="btn btn-cta-outline">Register as Party</a>
+      <a routerLink="/register/advocate" class="btn-cta-primary">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true">
+          <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
+        </svg>
+        Register as Advocate
+      </a>
+      <a routerLink="/register/party" class="btn-cta-outline">
+        Register as Party
+        <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-hidden="true">
+          <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+        </svg>
+      </a>
     </div>
   </div>
 </section>
