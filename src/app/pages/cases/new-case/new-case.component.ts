@@ -18,6 +18,9 @@ export class NewCaseComponent {
   protected readonly error = signal<string | null>(null);
   protected readonly categories = signal<CaseCategoryRecord[]>([]);
 
+  /** Used to render a fixed number of shimmer skeleton tiles while loading. */
+  protected readonly skeletons = Array.from({ length: 6 });
+
   constructor() {
     this.load();
   }
@@ -49,4 +52,3 @@ export class NewCaseComponent {
     return 'Request failed.';
   }
 }
-
