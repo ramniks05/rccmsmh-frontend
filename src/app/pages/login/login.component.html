@@ -94,9 +94,11 @@
       <form [formGroup]="loginForm" (ngSubmit)="loginUser()" class="login-form" autocomplete="on">
 
         <div class="field">
-          <label for="loginId">
-            <span class="field-label">Login ID</span>
-          </label>
+          <div class="field-header">
+            <label for="loginId">
+              <span class="field-label">Login ID<span class="field-required">*</span></span>
+            </label>
+          </div>
           <div class="input-wrap">
             <svg class="input-icon" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
@@ -105,20 +107,33 @@
               id="loginId"
               type="text"
               formControlName="loginId"
-              placeholder="Enter your login ID"
+              placeholder="Enter your login ID or email"
               autocomplete="username"
-              [class.has-error]="loginForm.controls.loginId.invalid && loginForm.controls.loginId.touched"
+              [class.is-valid]="isFieldValid('loginId')"
+              [class.has-error]="isFieldInvalid('loginId')"
             />
+            @if (isFieldValid('loginId')) {
+              <svg class="field-icon valid" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+            }
+            @if (isFieldInvalid('loginId')) {
+              <svg class="field-icon error" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+            }
           </div>
-          @if (loginForm.controls.loginId.invalid && loginForm.controls.loginId.touched) {
-            <span class="field-error">Login ID is required</span>
+          @if (isFieldInvalid('loginId')) {
+            <span class="field-error">{{ getFieldError('loginId') }}</span>
           }
         </div>
 
         <div class="field">
-          <label for="password">
-            <span class="field-label">Password</span>
-          </label>
+          <div class="field-header">
+            <label for="password">
+              <span class="field-label">Password<span class="field-required">*</span></span>
+            </label>
+          </div>
           <div class="input-wrap">
             <svg class="input-icon" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
@@ -129,8 +144,19 @@
               formControlName="password"
               placeholder="Enter your password"
               autocomplete="current-password"
-              [class.has-error]="loginForm.controls.password.invalid && loginForm.controls.password.touched"
+              [class.is-valid]="isFieldValid('password')"
+              [class.has-error]="isFieldInvalid('password')"
             />
+            @if (isFieldValid('password')) {
+              <svg class="field-icon valid" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+            }
+            @if (isFieldInvalid('password')) {
+              <svg class="field-icon error" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+            }
             <button type="button" class="toggle-pw" (click)="togglePassword()" tabindex="-1">
               @if (showPassword) {
                 <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/></svg>
@@ -139,8 +165,8 @@
               }
             </button>
           </div>
-          @if (loginForm.controls.password.invalid && loginForm.controls.password.touched) {
-            <span class="field-error">Password is required</span>
+          @if (isFieldInvalid('password')) {
+            <span class="field-error">{{ getFieldError('password') }}</span>
           }
         </div>
 

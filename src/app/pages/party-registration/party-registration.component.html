@@ -1,62 +1,520 @@
-<section class="register-shell">
-  <article class="card">
-    <h2>Party in Person Registration</h2>
+<div class="register-page">
+  <!-- Left branding panel -->
+  <aside class="register-brand">
+    <div class="brand-inner">
+      <div class="gov-emblem">
+        <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle
+            cx="40"
+            cy="40"
+            r="38"
+            fill="rgba(255,255,255,0.12)"
+            stroke="rgba(255,255,255,0.3)"
+            stroke-width="1.5"
+          />
+          <circle cx="40" cy="40" r="6" fill="#f97316" />
+          <line
+            x1="40"
+            y1="10"
+            x2="40"
+            y2="34"
+            stroke="#f97316"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+          <line
+            x1="40"
+            y1="46"
+            x2="40"
+            y2="70"
+            stroke="#f97316"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+          <line
+            x1="10"
+            y1="40"
+            x2="34"
+            y2="40"
+            stroke="#f97316"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+          <line
+            x1="46"
+            y1="40"
+            x2="70"
+            y2="40"
+            stroke="#f97316"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </svg>
+      </div>
 
-    <div class="radio-row">
-      <label>
-        <input
-          type="radio"
-          name="partyRole"
-          [checked]="selectedRole === 'PARTY_IN_PERSON'"
-          (change)="selectedRole = 'PARTY_IN_PERSON'"
-        />
-        Party in Person
-      </label>
-      <label>
-        <input
-          type="radio"
-          name="partyRole"
-          [checked]="selectedRole === 'PARTY_IN_PERSON_REPRESENTATIVE'"
-          (change)="selectedRole = 'PARTY_IN_PERSON_REPRESENTATIVE'"
-        />
-        Party in Person Representative
-      </label>
+      <div class="brand-text">
+        <p class="brand-gov">Government of Maharashtra</p>
+
+        <p class="brand-gov-mr">महाराष्ट्र शासन</p>
+
+        <h1 class="brand-title">RCCMS</h1>
+
+        <p class="brand-subtitle">
+          Revenue Case & Citizen<br />
+          Management System
+        </p>
+      </div>
+
+      <div class="brand-divider"></div>
+
+      <ul class="brand-features">
+        <li>
+          <svg viewBox="0 0 20 20" fill="currentColor">
+            <path
+              fill-rule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+              clip-rule="evenodd"
+            />
+          </svg>
+          Secure citizen registration
+        </li>
+
+        <li>
+          <svg viewBox="0 0 20 20" fill="currentColor">
+            <path
+              fill-rule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+              clip-rule="evenodd"
+            />
+          </svg>
+          Online hearing participation
+        </li>
+
+        <li>
+          <svg viewBox="0 0 20 20" fill="currentColor">
+            <path
+              fill-rule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+              clip-rule="evenodd"
+            />
+          </svg>
+          Representative access support
+        </li>
+
+        <li>
+          <svg viewBox="0 0 20 20" fill="currentColor">
+            <path
+              fill-rule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+              clip-rule="evenodd"
+            />
+          </svg>
+          Real-time case notifications
+        </li>
+      </ul>
     </div>
 
-    <form [formGroup]="form" (ngSubmit)="submit()" class="form-grid">
-      <label>
-        Full Name
-        <input type="text" formControlName="fullName" />
-      </label>
-      <label>
-        Email
-        <input type="email" formControlName="email" />
-      </label>
-      <label>
-        Mobile Number
-        <input type="text" formControlName="mobileNumber" />
-      </label>
-      <label>
-        Address
-        <input type="text" formControlName="address" />
-      </label>
-      <label class="full-width">
-        Password
-        <input type="password" formControlName="password" />
-      </label>
+    <p class="brand-footer">© 2026 Maharashtra Revenue Department</p>
+  </aside>
 
-      <button type="submit" [disabled]="submitInProgress" class="full-width">
-        {{ submitInProgress ? 'Submitting...' : 'Register Party in Person' }}
-      </button>
-    </form>
+  <!-- Right panel -->
+  <main class="register-form-panel">
+    <div class="form-card">
+      <!-- Back -->
+      <a routerLink="/login" class="back-link">
+        <svg viewBox="0 0 20 20" fill="currentColor">
+          <path
+            fill-rule="evenodd"
+            d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+            clip-rule="evenodd"
+          />
+        </svg>
 
-    @if (successMessage) {
-      <p class="success">{{ successMessage }}</p>
-    }
-    @if (errorMessage) {
-      <p class="error">{{ errorMessage }}</p>
-    }
+        Back to Login
+      </a>
 
-    <a routerLink="/" class="back">Back to Home</a>
-  </article>
-</section>
+      <!-- Header -->
+      <div class="form-head">
+        <div class="form-head-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"
+            />
+            <circle cx="9" cy="7" r="4" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M23 21v-2a4 4 0 00-3-3.87" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16 3.13a4 4 0 010 7.75" />
+          </svg>
+        </div>
+
+        <div>
+          <h2>Party Registration</h2>
+          <p>Create your RCCMS account</p>
+        </div>
+      </div>
+
+      <!-- Role Selection -->
+      <div class="role-section">
+        <p class="role-label">Select Registration Type</p>
+
+        <div class="role-grid">
+          <!-- Party -->
+          <button
+            type="button"
+            class="role-btn"
+            [class.active]="selectedRole === 'PARTY_IN_PERSON'"
+            (click)="selectRole('PARTY_IN_PERSON')"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" class="role-icon">
+              <path
+                d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.418 0-8 2.239-8 5v1h16v-1c0-2.761-3.582-5-8-5z"
+              />
+            </svg>
+
+            <span class="role-name"> Party in Person </span>
+
+            <span class="role-name-mr"> पक्षकार </span>
+          </button>
+
+          <!-- Representative -->
+          <button
+            type="button"
+            class="role-btn"
+            [class.active]="selectedRole === 'PARTY_IN_PERSON_REPRESENTATIVE'"
+            (click)="selectRole('PARTY_IN_PERSON_REPRESENTATIVE')"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" class="role-icon">
+              <path
+                d="M16 11c1.657 0 3-1.79 3-4s-1.343-4-3-4-3 1.79-3 4 1.343 4 3 4zm-8 0c1.657 0 3-1.79 3-4S9.657 3 8 3 5 4.79 5 7s1.343 4 3 4zm0 2c-2.67 0-8 1.34-8 4v2h10v-2c0-1.537.793-2.876 2.008-3.844C10.78 13.052 9.227 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 2.03 1.97 3.45v2h7v-2c0-2.66-5.33-4-8-4z"
+              />
+            </svg>
+
+            <span class="role-name"> Representative </span>
+
+            <span class="role-name-mr"> प्रतिनिधी </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Form -->
+      <form [formGroup]="form" (ngSubmit)="submit()" class="register-form" autocomplete="on">
+        <div class="form-grid">
+          <!-- Full Name -->
+          <div class="field">
+            <div class="field-header">
+              <label for="fullName">
+                <span class="field-label"> Full Name </span>
+                <span class="field-required">*</span>
+              </label>
+              <span class="field-count">{{ getFieldCharCount('fullName') }}</span>
+            </div>
+
+            <div class="input-wrap">
+              <input
+                id="fullName"
+                type="text"
+                formControlName="fullName"
+                placeholder="e.g., John Doe"
+                autocomplete="name"
+                maxlength="50"
+                [class.has-error]="isFieldInvalid('fullName')"
+                [class.is-valid]="isFieldValid('fullName')"
+              />
+              @if (isFieldValid('fullName')) {
+                <svg class="field-icon valid" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                </svg>
+              }
+              @if (isFieldInvalid('fullName')) {
+                <svg class="field-icon error" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                </svg>
+              }
+            </div>
+
+            @if (isFieldInvalid('fullName')) {
+              <span class="field-error">{{ getFieldError('fullName') }}</span>
+            } @else if (!controls.fullName.touched) {
+              <span class="field-hint">Minimum 3 characters, maximum 50</span>
+            }
+          </div>
+
+          <!-- Email -->
+          <div class="field">
+            <label for="email">
+              <span class="field-label"> Email Address </span>
+              <span class="field-required">*</span>
+            </label>
+
+            <div class="input-wrap">
+              <input
+                id="email"
+                type="email"
+                formControlName="email"
+                placeholder="user@example.com"
+                autocomplete="email"
+                [class.has-error]="isFieldInvalid('email')"
+                [class.is-valid]="isFieldValid('email')"
+              />
+              @if (isFieldValid('email')) {
+                <svg class="field-icon valid" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                </svg>
+              }
+              @if (isFieldInvalid('email')) {
+                <svg class="field-icon error" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                </svg>
+              }
+            </div>
+
+            @if (isFieldInvalid('email')) {
+              <span class="field-error">{{ getFieldError('email') }}</span>
+            } @else if (!controls.email.touched) {
+              <span class="field-hint">We'll use this to sign you in</span>
+            }
+          </div>
+
+          <!-- Mobile -->
+          <div class="field">
+            <label for="mobileNumber">
+              <span class="field-label"> Mobile Number </span>
+              <span class="field-required">*</span>
+            </label>
+
+            <div class="input-wrap">
+              <input
+                id="mobileNumber"
+                type="tel"
+                formControlName="mobileNumber"
+                placeholder="10-digit mobile"
+                maxlength="10"
+                inputmode="numeric"
+                autocomplete="tel"
+                [class.has-error]="isFieldInvalid('mobileNumber')"
+                [class.is-valid]="isFieldValid('mobileNumber')"
+              />
+              @if (isFieldValid('mobileNumber')) {
+                <svg class="field-icon valid" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                </svg>
+              }
+              @if (isFieldInvalid('mobileNumber')) {
+                <svg class="field-icon error" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                </svg>
+              }
+            </div>
+
+            @if (isFieldInvalid('mobileNumber')) {
+              <span class="field-error">{{ getFieldError('mobileNumber') }}</span>
+            } @else if (!controls.mobileNumber.touched) {
+              <span class="field-hint">10 digits starting with 6, 7, 8, or 9</span>
+            }
+          </div>
+
+          <!-- Address -->
+          <div class="field full-width">
+            <div class="field-header">
+              <label for="address">
+                <span class="field-label"> Address </span>
+                <span class="field-required">*</span>
+              </label>
+              <span class="field-count">{{ getFieldCharCount('address') }}</span>
+            </div>
+
+            <div class="input-wrap">
+              <input
+                id="address"
+                type="text"
+                formControlName="address"
+                placeholder="e.g., Plot 123, Lane 4, Pune"
+                autocomplete="street-address"
+                maxlength="200"
+                [class.has-error]="isFieldInvalid('address')"
+                [class.is-valid]="isFieldValid('address')"
+              />
+              @if (isFieldValid('address')) {
+                <svg class="field-icon valid" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                </svg>
+              }
+              @if (isFieldInvalid('address')) {
+                <svg class="field-icon error" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                </svg>
+              }
+            </div>
+
+            @if (isFieldInvalid('address')) {
+              <span class="field-error">{{ getFieldError('address') }}</span>
+            } @else if (!controls.address.touched) {
+              <span class="field-hint">Minimum 10 characters, maximum 200</span>
+            }
+          </div>
+
+          <!-- Password -->
+          <div class="field full-width">
+            <div class="field-header">
+              <label for="password">
+                <span class="field-label"> Password </span>
+                <span class="field-required">*</span>
+              </label>
+              @if (controls.password.value) {
+                <span class="password-strength" [class]="getPasswordStrength().level">
+                  {{ getPasswordStrength().level.toUpperCase() }}
+                </span>
+              }
+            </div>
+
+            <div class="input-wrap">
+              <input
+                id="password"
+                [type]="showPassword ? 'text' : 'password'"
+                formControlName="password"
+                placeholder="Minimum 8 characters"
+                autocomplete="new-password"
+                [class.has-error]="isFieldInvalid('password')"
+                [class.is-valid]="isFieldValid('password')"
+              />
+
+              <button type="button" class="toggle-pw" (click)="togglePassword()" tabindex="-1" title="Toggle password visibility">
+                @if (showPassword) {
+                  <svg viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                    <path
+                      fill-rule="evenodd"
+                      d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                } @else {
+                  <svg viewBox="0 0 20 20" fill="currentColor">
+                    <path
+                      fill-rule="evenodd"
+                      d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z"
+                      clip-rule="evenodd"
+                    />
+                    <path
+                      d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.064 7 9.542 7 .847 0 1.669-.105 2.454-.303z"
+                    />
+                  </svg>
+                }
+              </button>
+            </div>
+
+            <!-- Password strength bar -->
+            @if (controls.password.value) {
+              <div class="password-meter">
+                <div class="password-meter-bar" [style.width.%]="getPasswordStrength().percentage" [class]="getPasswordStrength().level"></div>
+              </div>
+            }
+
+            <!-- Password requirements -->
+            @if (controls.password.value || controls.password.touched) {
+              <div class="password-requirements">
+                <p class="req-title">Password must contain:</p>
+                <ul>
+                  <li [class.met]="/[a-z]/.test(controls.password.value)">
+                    <svg viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 11-1.06-1.06l7.25-7.25a.75.75 0 011.06 0z"/>
+                    </svg>
+                    Lowercase letter (a-z)
+                  </li>
+                  <li [class.met]="/[A-Z]/.test(controls.password.value)">
+                    <svg viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 11-1.06-1.06l7.25-7.25a.75.75 0 011.06 0z"/>
+                    </svg>
+                    Uppercase letter (A-Z)
+                  </li>
+                  <li [class.met]="/\d/.test(controls.password.value)">
+                    <svg viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 11-1.06-1.06l7.25-7.25a.75.75 0 011.06 0z"/>
+                    </svg>
+                    Number (0-9)
+                  </li>
+                  <li [class.met]="/@\$!%\*\?&/.test(controls.password.value)">
+                    <svg viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 11-1.06-1.06l7.25-7.25a.75.75 0 011.06 0z"/>
+                    </svg>
+                    Special character (@$!%*?&)
+                  </li>
+                  <li [class.met]="controls.password.value.length >= 8">
+                    <svg viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 11-1.06-1.06l7.25-7.25a.75.75 0 011.06 0z"/>
+                    </svg>
+                    Minimum 8 characters
+                  </li>
+                </ul>
+              </div>
+            }
+
+            @if (isFieldInvalid('password')) {
+              <span class="field-error">{{ getFieldError('password') }}</span>
+            }
+          </div>
+        </div>
+
+        <!-- Success -->
+        @if (successMessage) {
+          <div class="success-banner">
+            {{ successMessage }}
+          </div>
+        }
+
+        <!-- Error -->
+        @if (errorMessage) {
+          <div class="error-banner">
+            {{ errorMessage }}
+          </div>
+        }
+
+        <!-- Submit -->
+        <button
+  type="submit"
+  class="btn-submit"
+  [disabled]="submitInProgress"
+>
+
+  @if (submitInProgress) {
+
+    <svg
+      class="spin"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+      />
+    </svg>
+
+    Registering...
+
+  } @else {
+
+    {{
+      selectedRole === 'PARTY_IN_PERSON'
+        ? 'Register Party in Person'
+        : 'Register Representative'
+    }}
+
+  }
+
+</button>
+      </form>
+
+      <!-- Footer -->
+      <div class="form-footer">
+        <p>
+          Already registered?
+          <a routerLink="/login">Sign In</a>
+        </p>
+      </div>
+    </div>
+  </main>
+</div>

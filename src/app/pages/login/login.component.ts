@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
+import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
@@ -9,7 +10,7 @@ import { TokenStorageService } from '../../services/token-storage.service';
 
 @Component({
   selector: 'app-login',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, CommonModule],
   templateUrl: './login.component.html',
   styleUrl: './login.component.css'
 })
@@ -100,5 +101,28 @@ export class LoginComponent {
       return error.message || 'Request failed.';
     }
     return 'Unexpected error occurred.';
+  }
+
+  protected getFieldError(fieldName: string): string {
+    const control = this.loginForm.get(fieldName);
+    if (!control || !control.errors) {
+      return '';
+    }
+
+    const errors = control.errors;
+    if (errors['required']) {
+      return fieldName === 'loginId' ? 'Login ID is required' : 'Password is required';
+    }
+    return 'Invalid input';
+  }
+
+  protected isFieldValid(fieldName: string): boolean {
+    const control = this.loginForm.get(fieldName);
+    return !!(control && control.valid && control.touched);
+  }
+
+  protected isFieldInvalid(fieldName: string): boolean {
+    const control = this.loginForm.get(fieldName);
+    return !!(control && control.invalid && control.touched);
   }
 }
