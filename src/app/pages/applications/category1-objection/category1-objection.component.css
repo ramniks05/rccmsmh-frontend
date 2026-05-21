@@ -1,0 +1,86 @@
+/* ─── Input pair: two-column layout for English + Marathi field pairs ─────── */
+.input-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.input-pair label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+}
+
+.input-pair input,
+.input-pair select {
+  font-size: 0.9rem;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.input-pair input:focus,
+.input-pair select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* ─── Grid: auto-fit columns for the repeat-card sections ─────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+/*
+ * span-2: make a direct .grid child span both columns.
+ * Targets <label class="span-2">, <div class="span-2">,
+ * and <div class="input-pair span-2"> that are direct children of .grid.
+ *
+ * FIX: was incorrectly written as `.input-pair.span-2` which targeted
+ * `.input-pair` elements *also* carrying `.span-2` — a selector that matched
+ * the element itself rather than its column span in the parent grid.
+ */
+.grid > .span-2 {
+  grid-column: 1 / -1;
+}
+
+/* ─── Transliteration loading state ──────────────────────────────────────── */
+/*
+ * Applied to Marathi input fields while the Anthropic API call is in flight.
+ * Uses a subtle animated border so the user knows the field will be filled.
+ */
+@keyframes translating-pulse {
+  0%, 100% { border-color: #93c5fd; }
+  50%       { border-color: #3b82f6; }
+}
+
+.input-pair input.translating,
+.input-pair select.translating {
+  border-color: #93c5fd;
+  animation: translating-pulse 1.2s ease-in-out infinite;
+  background-color: #eff6ff;
+  cursor: wait;
+}
+@media (max-width: 768px) {
+  .input-pair {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  /* span-2 is a no-op on single-column grids but kept for consistency */
+  .grid > .span-2 {
+    grid-column: 1 / -1;
+  }
+}

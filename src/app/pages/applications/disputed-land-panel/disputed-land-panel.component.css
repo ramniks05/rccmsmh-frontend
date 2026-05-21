@@ -164,3 +164,34 @@ select {
   }
 }
 
+/* ── disputed_area column ────────────────────────────────────────────────── */
+/* Add these rules to disputed-land-panel.component.css                       */
+
+.disputed-area-col {
+  min-width: 130px;
+  background-color: #fffbeb;   /* subtle amber tint so the column stands out  */
+}
+
+th.disputed-area-col {
+  font-weight: 600;
+  color: #92400e;              /* amber-800 to match the tint */
+}
+
+.disputed-area-input {
+  width: 100%;
+  min-width: 110px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  box-sizing: border-box;
+  background: #fff;
+  transition: border-color 0.15s;
+}
+
+.disputed-area-input:focus {
+  outline: none;
+  border-color: #f59e0b;       /* amber-400 focus ring to match column tint   */
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}

@@ -20,9 +20,9 @@
     @if (apiError()) {
       <p class="api-message error">{{ apiError() }}</p>
     }
-  @if (apiMessage()) {
-    <p class="api-message success">{{ apiMessage() }}</p>
-  }
+    @if (apiMessage()) {
+      <p class="api-message success">{{ apiMessage() }}</p>
+    }
 
     @switch (activeStep().key) {
       @case ('DISPUTED_ORDER') {
@@ -302,245 +302,241 @@
               <p class="sub">Search criteria is available for ePICS (002) and Eferfar / rural 7/12 subjects.</p>
             }
 
-          @if (isRural712Subject()) {
-            <div class="mini-card">
-              <div class="mini-head">
-                <strong>Eferfar / 7/12 order details</strong>
-              </div>
+            @if (isRural712Subject()) {
+              <div class="mini-card">
+                <div class="mini-head">
+                  <strong>Eferfar / 7/12 order details</strong>
+                </div>
 
-              @if (!rural712Searched()) {
-                <p class="sub sub-tight">Complete the search above to view 7/12 record details for this disputed order.</p>
-              } @else if (rural712SubSurveyRows().length === 0) {
-                <p class="api-message error tight">No 7/12 records found for the given survey number.</p>
-              } @else {
-                <div class="grid">
-                  <div class="kv span-2">
-                    <span class="k">Location</span>
-                    <span class="v">{{ rural712LocationSummary() }}</span>
-                  </div>
-                  @if (selectedRural712Row(); as sel) {
-                    <div class="kv">
-                      <span class="k">Selected survey (pin)</span>
-                      <span class="v">{{ sel.pin }}</span>
-                    </div>
+                @if (!rural712Searched()) {
+                  <p class="sub sub-tight">Complete the search above to view 7/12 record details for this disputed order.</p>
+                } @else if (rural712SubSurveyRows().length === 0) {
+                  <p class="api-message error tight">No 7/12 records found for the given survey number.</p>
+                } @else {
+                  <div class="grid">
                     <div class="kv span-2">
-                      <span class="k">Sub-survey parts</span>
-                      <span class="v muted">{{ rural712PinLabel(sel) }}</span>
+                      <span class="k">Location</span>
+                      <span class="v">{{ rural712LocationSummary() }}</span>
+                    </div>
+                    @if (selectedRural712Row(); as sel) {
+                      <div class="kv">
+                        <span class="k">Selected survey (pin)</span>
+                        <span class="v">{{ sel.pin }}</span>
+                      </div>
+                      <div class="kv span-2">
+                        <span class="k">Sub-survey parts</span>
+                        <span class="v muted">{{ rural712PinLabel(sel) }}</span>
+                      </div>
+                    }
+                  </div>
+
+                  @if (selectedRural712Row()) {
+                    <div class="row-actions" style="margin-top: 10px">
+                      <button
+                        type="button"
+                        class="btn btn-primary btn-compact"
+                        (click)="viewRural712SatbaraPdf()"
+                        [disabled]="loadingRural712SatbaraPdf()"
+                      >
+                        {{ loadingRural712SatbaraPdf() ? 'Loading Satbara PDF…' : 'View Satbara PDF' }}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-compact"
+                        (click)="downloadRural712SatbaraPdf()"
+                        [disabled]="loadingRural712SatbaraPdf()"
+                      >
+                        {{ loadingRural712SatbaraPdf() ? 'Loading…' : 'Download Satbara PDF' }}
+                      </button>
                     </div>
                   }
-                </div>
 
-                @if (selectedRural712Row()) {
-                  <div class="row-actions" style="margin-top: 10px">
-                    <button
-                      type="button"
-                      class="btn btn-primary btn-compact"
-                      (click)="viewRural712SatbaraPdf()"
-                      [disabled]="loadingRural712SatbaraPdf()"
-                    >
-                      {{
-                        loadingRural712SatbaraPdf()
-                          ? 'Loading Satbara PDF…'
-                          : 'View Satbara PDF'
-                      }}
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-secondary btn-compact"
-                      (click)="downloadRural712SatbaraPdf()"
-                      [disabled]="loadingRural712SatbaraPdf()"
-                    >
-                      {{ loadingRural712SatbaraPdf() ? 'Loading…' : 'Download Satbara PDF' }}
-                    </button>
+                  @if (loadingRural712SatbaraCheck()) {
+                    <p class="sub sub-tight-top">Checking digitally signed Satbara (7/12)…</p>
+                  }
+                  @if (rural712SatbaraCheckError()) {
+                    <p class="api-message error tight">{{ rural712SatbaraCheckError() }}</p>
+                  } @else if (rural712SatbaraSigned() === true) {
+                    <p class="api-message success tight">
+                      Digitally signed Satbara is available for this survey row.
+                      @if (rural712SatbaraMessage()) {
+                        <span class="muted"> {{ rural712SatbaraMessage() }}</span>
+                      }
+                    </p>
+                  } @else if (rural712SatbaraSigned() === false) {
+                    <p class="sub sub-tight-top muted">
+                      Signed check reported not digitally signed.
+                      @if (rural712SatbaraMessage()) {
+                        {{ rural712SatbaraMessage() }}
+                      }
+                      Use <strong>View Satbara PDF</strong> above to try loading the document.
+                    </p>
+                  }
+
+                  @if (loadingRural712SatbaraPdf()) {
+                    <p class="sub sub-tight-top">Loading Satbara PDF…</p>
+                  }
+                  @if (rural712SatbaraPdfError()) {
+                    <p class="api-message error tight">{{ rural712SatbaraPdfError() }}</p>
+                  }
+                  @if (rural712SatbaraPdfUrl()) {
+                    <p class="sub sub-tight-top">
+                      Satbara PDF is ready. Use <strong>View Satbara PDF</strong> to open in a new tab, or
+                      <strong>Download Satbara PDF</strong> to save a copy.
+                    </p>
+                  }
+
+                  <p class="sub sub-tight-top">Select which 7/12 row is the disputed order. You may also add plots to the disputed land step.</p>
+                  <div class="table-wrap" style="margin-top: 10px">
+                    <table class="simple-table">
+                      <thead>
+                        <tr>
+                          <th></th>
+                          <th>Survey (pin)</th>
+                          <th>Sub-parts</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (r of rural712SubSurveyRows(); track $index; let i = $index) {
+                          <tr [class.primary-row]="selectedRural712Index() === i">
+                            <td>
+                              <label class="role-option compact">
+                                <input
+                                  type="radio"
+                                  name="rural712OrderPick"
+                                  [checked]="selectedRural712Index() === i"
+                                  (change)="selectRural712OrderRow(i)"
+                                />
+                              </label>
+                            </td>
+                            <td>{{ r.pin }}</td>
+                            <td class="muted">{{ rural712PinLabel(r) }}</td>
+                            <td>
+                              <button
+                                type="button"
+                                class="btn btn-secondary btn-compact"
+                                (click)="addRural712PlotToDisputedLands(r)"
+                              >
+                                Add to disputed land
+                              </button>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
                   </div>
                 }
-
-                @if (loadingRural712SatbaraCheck()) {
-                  <p class="sub sub-tight-top">Checking digitally signed Satbara (7/12)…</p>
-                }
-                @if (rural712SatbaraCheckError()) {
-                  <p class="api-message error tight">{{ rural712SatbaraCheckError() }}</p>
-                } @else if (rural712SatbaraSigned() === true) {
-                  <p class="api-message success tight">
-                    Digitally signed Satbara is available for this survey row.
-                    @if (rural712SatbaraMessage()) {
-                      <span class="muted"> {{ rural712SatbaraMessage() }}</span>
-                    }
-                  </p>
-                } @else if (rural712SatbaraSigned() === false) {
-                  <p class="sub sub-tight-top muted">
-                    Signed check reported not digitally signed.
-                    @if (rural712SatbaraMessage()) {
-                      {{ rural712SatbaraMessage() }}
-                    }
-                    Use <strong>View Satbara PDF</strong> above to try loading the document.
-                  </p>
-                }
-
-                @if (loadingRural712SatbaraPdf()) {
-                  <p class="sub sub-tight-top">Loading Satbara PDF…</p>
-                }
-                @if (rural712SatbaraPdfError()) {
-                  <p class="api-message error tight">{{ rural712SatbaraPdfError() }}</p>
-                }
-                @if (rural712SatbaraPdfUrl()) {
-                  <p class="sub sub-tight-top">
-                    Satbara PDF is ready. Use <strong>View Satbara PDF</strong> to open in a new tab, or
-                    <strong>Download Satbara PDF</strong> to save a copy.
-                  </p>
-                }
-
-                <p class="sub sub-tight-top">Select which 7/12 row is the disputed order. You may also add plots to the disputed land step.</p>
-                <div class="table-wrap" style="margin-top: 10px">
-                  <table class="simple-table">
-                    <thead>
-                      <tr>
-                        <th></th>
-                        <th>Survey (pin)</th>
-                        <th>Sub-parts</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (r of rural712SubSurveyRows(); track $index; let i = $index) {
-                        <tr [class.primary-row]="selectedRural712Index() === i">
-                          <td>
-                            <label class="role-option compact">
-                              <input
-                                type="radio"
-                                name="rural712OrderPick"
-                                [checked]="selectedRural712Index() === i"
-                                (change)="selectRural712OrderRow(i)"
-                              />
-                            </label>
-                          </td>
-                          <td>{{ r.pin }}</td>
-                          <td class="muted">{{ rural712PinLabel(r) }}</td>
-                          <td>
-                            <button
-                              type="button"
-                              class="btn btn-secondary btn-compact"
-                              (click)="addRural712PlotToDisputedLands(r)"
-                            >
-                              Add to disputed land
-                            </button>
-                          </td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              }
-            </div>
-          }
+              </div>
+            }
 
           </div>
 
           @if (isEpicsSubject()) {
             <div class="mini-card">
-            <div class="mini-head">
-              <strong>Mutation details</strong>
-            </div>
-
-            @if (mutationFound() && mutationDetails(); as details) {
-              <div class="grid">
-                <div class="kv">
-                  <span class="k">Inward number</span>
-                  <span class="v">{{ details.inwardNumber }}</span>
-                </div>
-                <div class="kv">
-                  <span class="k">Inward date</span>
-                  <span class="v">{{ details.inwardDate }}</span>
-                </div>
-                <div class="kv">
-                  <span class="k">Mutation number</span>
-                  <span class="v">{{ details.mutationNumber || '-' }}</span>
-                </div>
-                <div class="kv">
-                  <span class="k">Mutation date</span>
-                  <span class="v">{{ details.mutationDate || '-' }}</span>
-                </div>
-                <div class="kv span-2">
-                  <span class="k">Mutation type</span>
-                  <span class="v">{{ details.mutationType }}</span>
-                </div>
-                <div class="kv span-2">
-                  <span class="k">Applicant name</span>
-                  <span class="v">{{ details.applicantName }}</span>
-                </div>
-                <div class="kv">
-                  <span class="k">Village</span>
-                  <span class="v">{{ details.village }}</span>
-                </div>
-                <div class="kv">
-                  <span class="k">Status</span>
-                  <span class="v">{{ details.status }}</span>
-                </div>
-                <div class="kv">
-                  <span class="k">Notice 9 dispatch date</span>
-                  <span class="v">{{ details.notice9DispatchDate || '-' }}</span>
-                </div>
-                <div class="kv">
-                  <span class="k">Notice 9 dispatch number</span>
-                  <span class="v">{{ details.notice9DispatchNumber || '-' }}</span>
-                </div>
-                <div class="kv">
-                  <span class="k">CTS number</span>
-                  <span class="v">{{ details.ctsNumber || '-' }}</span>
-                </div>
-                <div class="kv">
-                  <span class="k">Mobile</span>
-                  <span class="v">{{ details.mobileNumber || '-' }}</span>
-                </div>
-                <div class="kv">
-                  <span class="k">Pin code</span>
-                  <span class="v">{{ details.pinCode || '-' }}</span>
-                </div>
+              <div class="mini-head">
+                <strong>Mutation details</strong>
               </div>
 
-              @if (details.attachFileUrl) {
-                <div class="pdf-doc-links" aria-label="Open PDF attachments in a new tab">
-                  <a class="btn btn-secondary btn-compact" [href]="details.attachFileUrl" target="_blank" rel="noopener noreferrer">View attachment</a>
+              @if (mutationFound() && mutationDetails(); as details) {
+                <div class="grid">
+                  <div class="kv">
+                    <span class="k">Inward number</span>
+                    <span class="v">{{ details.inwardNumber }}</span>
+                  </div>
+                  <div class="kv">
+                    <span class="k">Inward date</span>
+                    <span class="v">{{ details.inwardDate }}</span>
+                  </div>
+                  <div class="kv">
+                    <span class="k">Mutation number</span>
+                    <span class="v">{{ details.mutationNumber || '-' }}</span>
+                  </div>
+                  <div class="kv">
+                    <span class="k">Mutation date</span>
+                    <span class="v">{{ details.mutationDate || '-' }}</span>
+                  </div>
+                  <div class="kv span-2">
+                    <span class="k">Mutation type</span>
+                    <span class="v">{{ details.mutationType }}</span>
+                  </div>
+                  <div class="kv span-2">
+                    <span class="k">Applicant name</span>
+                    <span class="v">{{ details.applicantName }}</span>
+                  </div>
+                  <div class="kv">
+                    <span class="k">Village</span>
+                    <span class="v">{{ details.village }}</span>
+                  </div>
+                  <div class="kv">
+                    <span class="k">Status</span>
+                    <span class="v">{{ details.status }}</span>
+                  </div>
+                  <div class="kv">
+                    <span class="k">Notice 9 dispatch date</span>
+                    <span class="v">{{ details.notice9DispatchDate || '-' }}</span>
+                  </div>
+                  <div class="kv">
+                    <span class="k">Notice 9 dispatch number</span>
+                    <span class="v">{{ details.notice9DispatchNumber || '-' }}</span>
+                  </div>
+                  <div class="kv">
+                    <span class="k">CTS number</span>
+                    <span class="v">{{ details.ctsNumber || '-' }}</span>
+                  </div>
+                  <div class="kv">
+                    <span class="k">Mobile</span>
+                    <span class="v">{{ details.mobileNumber || '-' }}</span>
+                  </div>
+                  <div class="kv">
+                    <span class="k">Pin code</span>
+                    <span class="v">{{ details.pinCode || '-' }}</span>
+                  </div>
                 </div>
-              }
-            } @else if (searchedMutation() && !loadingSearch()) {
-              <p class="api-message error">Mutation details: Data not available.</p>
-            }
 
-            <div class="mini-head" style="margin-top: 10px">
-              <strong>Notice 9</strong>
-            </div>
-            @if (searchedMutation() && loadingNotice9()) {
-              <p class="sub">Fetching Notice 9...</p>
-            } @else if (notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
-              @if (isNotice9ImagePreview(noticeUrl)) {
-                <div class="pdf-panel">
-                  <img [src]="noticeUrl" alt="Notice 9 preview" style="max-width: 100%; border-radius: 10px" />
-                </div>
-              }
-              @if (isNotice9PdfPreview(noticeUrl)) {
-                <div class="pdf-panel">
-                  <iframe
-                    [src]="noticeUrl"
-                    title="Notice 9 PDF"
-                    style="width: 100%; min-height: 480px; border: 1px solid #ccc; border-radius: 10px"
-                  ></iframe>
-                </div>
-              }
-              <div class="row-actions">
-                <a class="btn btn-secondary btn-compact" [href]="noticeUrl" target="_blank" rel="noopener noreferrer">Open Notice 9</a>
-                @if (notice9Resolved().sourceKind === 'data') {
-                  <a class="btn btn-primary btn-compact" [href]="noticeUrl" download="notice-9">Download Notice 9</a>
+                @if (details.attachFileUrl) {
+                  <div class="pdf-doc-links" aria-label="Open PDF attachments in a new tab">
+                    <a class="btn btn-secondary btn-compact" [href]="details.attachFileUrl" target="_blank" rel="noopener noreferrer">View attachment</a>
+                  </div>
                 }
-              </div>
-              @if (isNotice9PdfPreview(noticeUrl) && !isNotice9ImagePreview(noticeUrl)) {
-                <p class="sub">PDF notice is ready. Use Open Notice 9 to view in a new tab.</p>
+              } @else if (searchedMutation() && !loadingSearch()) {
+                <p class="api-message error">Mutation details: Data not available.</p>
               }
-            } @else if (searchedMutation() && !loadingSearch()) {
-              <p class="sub">Data not available.</p>
-            } @else {
-              <p class="sub">Search mutation details first to view Notice 9.</p>
-            }
+
+              <div class="mini-head" style="margin-top: 10px">
+                <strong>Notice 9</strong>
+              </div>
+              @if (searchedMutation() && loadingNotice9()) {
+                <p class="sub">Fetching Notice 9...</p>
+              } @else if (notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
+                @if (isNotice9ImagePreview(noticeUrl)) {
+                  <div class="pdf-panel">
+                    <img [src]="noticeUrl" alt="Notice 9 preview" style="max-width: 100%; border-radius: 10px" />
+                  </div>
+                }
+                @if (isNotice9PdfPreview(noticeUrl)) {
+                  <div class="pdf-panel">
+                    <iframe
+                      [src]="noticeUrl"
+                      title="Notice 9 PDF"
+                      style="width: 100%; min-height: 480px; border: 1px solid #ccc; border-radius: 10px"
+                    ></iframe>
+                  </div>
+                }
+                <div class="row-actions">
+                  <a class="btn btn-secondary btn-compact" [href]="noticeUrl" target="_blank" rel="noopener noreferrer">Open Notice 9</a>
+                  @if (notice9Resolved().sourceKind === 'data') {
+                    <a class="btn btn-primary btn-compact" [href]="noticeUrl" download="notice-9">Download Notice 9</a>
+                  }
+                </div>
+                @if (isNotice9PdfPreview(noticeUrl) && !isNotice9ImagePreview(noticeUrl)) {
+                  <p class="sub">PDF notice is ready. Use Open Notice 9 to view in a new tab.</p>
+                }
+              } @else if (searchedMutation() && !loadingSearch()) {
+                <p class="sub">Data not available.</p>
+              } @else {
+                <p class="sub">Search mutation details first to view Notice 9.</p>
+              }
             </div>
           }
         </section>
@@ -589,7 +585,6 @@
                   }
                 </select>
               </label>
-
             </div>
           </div>
         </section>
@@ -621,9 +616,7 @@
                     </div>
                     <div class="sug-actions">
                       @if (suggestionAppliedAs(sug); as appliedRole) {
-                        <span class="sug-applied-badge">
-                          &#x2713; Added as {{ appliedRole }}
-                        </span>
+                        <span class="sug-applied-badge">&#x2713; Added as {{ appliedRole }}</span>
                         <span class="sug-applied-hint">Remove the {{ appliedRole }} row to re-enable</span>
                       } @else {
                         <button type="button" class="btn btn-primary btn-compact" (click)="applySuggestion(sug, 'applicant')">
@@ -640,6 +633,7 @@
             </div>
           }
 
+          <!-- ── Applicant details ────────────────────────────────────────── -->
           <div class="mini-card" [formGroup]="form">
             <div class="mini-head">
               <strong>Applicant details</strong>
@@ -651,114 +645,228 @@
                 <div class="repeat-card" [formGroupName]="i">
                   <div class="mini-head">
                     <strong>Applicant {{ i + 1 }}</strong>
-                    <button
-                      type="button"
-                      class="btn btn-secondary btn-compact"
-                      (click)="removeApplicant(i)"
-                      [disabled]="false"
-                    >
+                    <button type="button" class="btn btn-secondary btn-compact" (click)="removeApplicant(i)">
                       Remove
                     </button>
                   </div>
 
                   <div class="grid">
-                    <label>
-                      First Name *
-                      <input type="text" formControlName="firstName" placeholder="First name" />
-                    </label>
-                    <label>
-                      Middle Name
-                      <input type="text" formControlName="middleName" placeholder="Middle name" />
-                    </label>
-                    <label>
-                      Last Name *
-                      <input type="text" formControlName="lastName" placeholder="Last name" />
-                    </label>
-                    <label>
-                      Pin Code *
-                      <input type="text" formControlName="pincode" maxlength="6" placeholder="6-digit pincode" />
-                    </label>
-                    <div class="row-actions" style="align-items: end">
-                      <button type="button" class="btn btn-secondary btn-compact" (click)="lookupPincode('applicant', i)">
-                        Lookup Pincode
-                      </button>
+
+                    <!-- First name (English triggers translation; Marathi is plain input) -->
+                    <div class="input-pair">
+                      <label>
+                        First Name *
+                        <input
+                          type="text"
+                          formControlName="firstName"
+                          placeholder="First name"
+                        />
+                      </label>
+                      <label>
+                        प्रथम नाव
+                        <input
+                          type="text"
+                          formControlName="firstNameMr"
+                          [placeholder]="translatingFields().has('applicant-' + i + '-firstName') ? 'Transliterating…' : 'Marathi translation'"
+                          [class.translating]="translatingFields().has('applicant-' + i + '-firstName')"
+                          (input)="onMarathiFieldManualEdit('applicant', i, 'firstNameMr')"
+                        />
+                      </label>
                     </div>
+
+                    <!-- Middle name -->
+                    <div class="input-pair">
+                      <label>
+                        Middle Name
+                        <input
+                          type="text"
+                          formControlName="middleName"
+                          placeholder="Middle name"
+                        />
+                      </label>
+                      <label>
+                        मधले नाव
+                        <input
+                          type="text"
+                          formControlName="middleNameMr"
+                          [placeholder]="translatingFields().has('applicant-' + i + '-middleName') ? 'Transliterating…' : 'Marathi translation'"
+                          [class.translating]="translatingFields().has('applicant-' + i + '-middleName')"
+                          (input)="onMarathiFieldManualEdit('applicant', i, 'middleNameMr')"
+                        />
+                      </label>
+                    </div>
+
+                    <!-- Last name -->
+                    <div class="input-pair">
+                      <label>
+                        Last Name *
+                        <input
+                          type="text"
+                          formControlName="lastName"
+                          placeholder="Last name"
+                        />
+                      </label>
+                      <label>
+                        अंतिम नाव
+                        <input
+                          type="text"
+                          formControlName="lastNameMr"
+                          [placeholder]="translatingFields().has('applicant-' + i + '-lastName') ? 'Transliterating…' : 'Marathi translation'"
+                          [class.translating]="translatingFields().has('applicant-' + i + '-lastName')"
+                          (input)="onMarathiFieldManualEdit('applicant', i, 'lastNameMr')"
+                        />
+                      </label>
+                    </div>
+
+                    <!-- Pincode + lookup -->
+                    <div class="input-pair">
+                      <label>
+                        Pin Code *
+                        <input type="text" formControlName="pincode" maxlength="6" placeholder="6-digit pincode" />
+                      </label>
+                      <div style="display: flex; align-items: end;">
+                        <button type="button" class="btn btn-secondary btn-compact" (click)="lookupPincode('applicant', i)">
+                          Lookup
+                        </button>
+                      </div>
+                    </div>
+
                     @if (partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).loading) {
                       <p class="sub span-2">Fetching pincode details...</p>
                     }
                     @if (partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).error; as e) {
                       <p class="api-message error span-2">{{ e }}</p>
                     }
-                    <label>
-                      Village *
-                      <select formControlName="villageValue" (change)="onVillageSelectionChange('applicant', i)">
-                        <option [ngValue]="''">Select village</option>
-                        @for (po of partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).postOffices; track po.value) {
-                          <option [ngValue]="po.value">{{ po.name }}</option>
-                        }
-                      </select>
-                    </label>
-                    <label>
-                      Taluka *
-                      <select formControlName="taluka">
-                        <option [ngValue]="''">Select taluka</option>
-                        @for (t of partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).talukas; track t) {
-                          <option [ngValue]="t">{{ t }}</option>
-                        }
-                      </select>
-                    </label>
-                    <label>
-                      District *
-                      <select formControlName="district">
-                        <option [ngValue]="''">Select district</option>
-                        @for (d of partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).districts; track d) {
-                          <option [ngValue]="d">{{ d }}</option>
-                        }
-                      </select>
-                    </label>
-                    <label>
-                      State
-                      <input
-                        type="text"
-                        [value]="partyStateLabel('applicant', $any(applicants.at(i)).controls.tempId.value)"
-                        readonly
-                      />
-                    </label>
-                    <label class="span-2">
-                      Address *
-                      <input type="text" formControlName="address" placeholder="Address line" />
-                    </label>
-                    <label>
-                      Email ID
-                      <input type="email" formControlName="email" placeholder="Email" />
-                    </label>
-                    <label>
-                      Mobile Number *
-                      <input type="text" formControlName="mobile" placeholder="10-digit mobile" />
-                    </label>
-                    <label>
-                      Date of Birth
-                      <input type="date" formControlName="dob" />
-                    </label>
-                    <label>
-                      Age
-                      <input type="number" formControlName="age" placeholder="Enter age" min="0" max="150" />
-                    </label>
-                    <label>
-                      Occupation
-                      <select formControlName="occupation">
-                        <option [ngValue]="''">Select occupation</option>
-                        @for (opt of occupations(); track opt.id) {
-                          <option [ngValue]="opt.name">{{ opt.name }}</option>
-                        }
-                      </select>
-                    </label>
+
+                    <!-- Village -->
+                    <div class="input-pair">
+                      <label>
+                        Village *
+                        <select formControlName="villageValue" (change)="onVillageSelectionChange('applicant', i)">
+                          <option [ngValue]="''">Select village</option>
+                          @for (po of partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).postOffices; track po.value) {
+                            <option [ngValue]="po.value">{{ po.name }}</option>
+                          }
+                        </select>
+                      </label>
+                    </div>
+
+                    <!-- Taluka -->
+                    <div class="input-pair">
+                      <label>
+                        Taluka *
+                        <select formControlName="taluka">
+                          <option [ngValue]="''">Select taluka</option>
+                          @for (t of partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).talukas; track t) {
+                            <option [ngValue]="t">{{ t }}</option>
+                          }
+                        </select>
+                      </label>
+                    </div>
+
+                    <!-- District + State -->
+                    <div class="input-pair">
+                      <label>
+                        District *
+                        <select formControlName="district">
+                          <option [ngValue]="''">Select district</option>
+                          @for (d of partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).districts; track d) {
+                            <option [ngValue]="d">{{ d }}</option>
+                          }
+                        </select>
+                      </label>
+                      <label>
+                        State
+                        <input
+                          type="text"
+                          [value]="partyStateLabel('applicant', $any(applicants.at(i)).controls.tempId.value)"
+                          readonly
+                        />
+                      </label>
+                    </div>
+
+                    <!-- Address (English triggers translation; Marathi is plain input) -->
+                    <div class="input-pair span-2">
+                      <label>
+                        Address *
+                        <input
+                          type="text"
+                          formControlName="address"
+                          placeholder="Address line"
+                        />
+                      </label>
+                      <label>
+                        पता
+                        <input
+                          type="text"
+                          formControlName="addressMr"
+                          [placeholder]="translatingFields().has('applicant-' + i + '-address') ? 'Transliterating…' : 'Marathi translation'"
+                          [class.translating]="translatingFields().has('applicant-' + i + '-address')"
+                          (input)="onMarathiFieldManualEdit('applicant', i, 'addressMr')"
+                        />
+                      </label>
+                    </div>
+
+                    <!-- Email + Mobile -->
+                    <div class="input-pair">
+                      <label>
+                        Email ID
+                        <input type="email" formControlName="email" placeholder="Email" />
+                      </label>
+                      <label>
+                        Mobile Number *
+                        <input type="text" formControlName="mobile" placeholder="10-digit mobile" />
+                      </label>
+                    </div>
+
+                    <!-- DOB + Age -->
+                    <div class="input-pair">
+                      <label>
+                        Date of Birth
+                        <input type="date" formControlName="dob" />
+                      </label>
+                      <label>
+                        Age
+                        <input type="number" formControlName="age" placeholder="Enter age" min="0" max="150" />
+                      </label>
+                    </div>
+
+                    <!--
+                      Occupation: the English select triggers translation.
+                      The Marathi input is a plain editable field — no (change) handler,
+                      so the user can override the auto-filled value freely without
+                      triggering a re-entrant translation call.
+                    -->
+                    <div class="input-pair">
+                      <label>
+                        Occupation
+                        <select
+                          formControlName="occupation"
+                        >
+                          <option [ngValue]="''">Select occupation</option>
+                          @for (opt of occupations(); track opt.id) {
+                            <option [ngValue]="opt.name">{{ opt.name }}</option>
+                          }
+                        </select>
+                      </label>
+                      <label>
+                        व्यवसाय
+                        <input
+                          type="text"
+                          formControlName="occupationMr"
+                          placeholder="Marathi translation"
+                          (input)="onMarathiFieldManualEdit('applicant', i, 'occupationMr')"
+                        />
+                      </label>
+                    </div>
+
                   </div>
                 </div>
               }
             </div>
           </div>
 
+          <!-- ── Respondent details ──────────────────────────────────────── -->
           <div class="mini-card" [formGroup]="form" style="margin-top: 12px">
             <div class="mini-head">
               <strong>Respondent details</strong>
@@ -770,108 +878,217 @@
                 <div class="repeat-card" [formGroupName]="i">
                   <div class="mini-head">
                     <strong>Respondent {{ i + 1 }}</strong>
-                    <button
-                      type="button"
-                      class="btn btn-secondary btn-compact"
-                      (click)="removeRespondent(i)"
-                      [disabled]="false"
-                    >
+                    <button type="button" class="btn btn-secondary btn-compact" (click)="removeRespondent(i)">
                       Remove
                     </button>
                   </div>
 
                   <div class="grid">
-                    <label>
-                      First Name *
-                      <input type="text" formControlName="firstName" placeholder="First name" />
-                    </label>
-                    <label>
-                      Middle Name
-                      <input type="text" formControlName="middleName" placeholder="Middle name" />
-                    </label>
-                    <label>
-                      Last Name *
-                      <input type="text" formControlName="lastName" placeholder="Last name" />
-                    </label>
-                    <label>
-                      Pin Code *
-                      <input type="text" formControlName="pincode" maxlength="6" placeholder="6-digit pincode" />
-                    </label>
-                    <div class="row-actions" style="align-items: end">
-                      <button type="button" class="btn btn-secondary btn-compact" (click)="lookupPincode('respondent', i)">
-                        Lookup Pincode
-                      </button>
+
+                    <!-- First name (English triggers translation; Marathi is plain input) -->
+                    <div class="input-pair">
+                      <label>
+                        First Name *
+                        <input
+                          type="text"
+                          formControlName="firstName"
+                          placeholder="First name"
+                        />
+                      </label>
+                      <label>
+                        प्रथम नाव
+                        <input
+                          type="text"
+                          formControlName="firstNameMr"
+                          [placeholder]="translatingFields().has('respondent-' + i + '-firstName') ? 'Transliterating…' : 'Marathi translation'"
+                          [class.translating]="translatingFields().has('respondent-' + i + '-firstName')"
+                          (input)="onMarathiFieldManualEdit('respondent', i, 'firstNameMr')"
+                        />
+                      </label>
                     </div>
+
+                    <!-- Middle name -->
+                    <div class="input-pair">
+                      <label>
+                        Middle Name
+                        <input
+                          type="text"
+                          formControlName="middleName"
+                          placeholder="Middle name"
+                        />
+                      </label>
+                      <label>
+                        मधले नाव
+                        <input
+                          type="text"
+                          formControlName="middleNameMr"
+                          [placeholder]="translatingFields().has('respondent-' + i + '-middleName') ? 'Transliterating…' : 'Marathi translation'"
+                          [class.translating]="translatingFields().has('respondent-' + i + '-middleName')"
+                          (input)="onMarathiFieldManualEdit('respondent', i, 'middleNameMr')"
+                        />
+                      </label>
+                    </div>
+
+                    <!-- Last name -->
+                    <div class="input-pair">
+                      <label>
+                        Last Name *
+                        <input
+                          type="text"
+                          formControlName="lastName"
+                          placeholder="Last name"
+                        />
+                      </label>
+                      <label>
+                        अंतिम नाव
+                        <input
+                          type="text"
+                          formControlName="lastNameMr"
+                          [placeholder]="translatingFields().has('respondent-' + i + '-lastName') ? 'Transliterating…' : 'Marathi translation'"
+                          [class.translating]="translatingFields().has('respondent-' + i + '-lastName')"
+                          (input)="onMarathiFieldManualEdit('respondent', i, 'lastNameMr')"
+                        />
+                      </label>
+                    </div>
+
+                    <!-- Pincode + lookup -->
+                    <div class="input-pair">
+                      <label>
+                        Pin Code *
+                        <input type="text" formControlName="pincode" maxlength="6" placeholder="6-digit pincode" />
+                      </label>
+                      <div style="display: flex; align-items: end;">
+                        <button type="button" class="btn btn-secondary btn-compact" (click)="lookupPincode('respondent', i)">
+                          Lookup
+                        </button>
+                      </div>
+                    </div>
+
                     @if (partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).loading) {
                       <p class="sub span-2">Fetching pincode details...</p>
                     }
                     @if (partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).error; as e) {
                       <p class="api-message error span-2">{{ e }}</p>
                     }
-                    <label>
-                      Village *
-                      <select formControlName="villageValue" (change)="onVillageSelectionChange('respondent', i)">
-                        <option [ngValue]="''">Select village</option>
-                        @for (po of partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).postOffices; track po.value) {
-                          <option [ngValue]="po.value">{{ po.name }}</option>
-                        }
-                      </select>
-                    </label>
-                    <label>
-                      Taluka *
-                      <select formControlName="taluka">
-                        <option [ngValue]="''">Select taluka</option>
-                        @for (t of partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).talukas; track t) {
-                          <option [ngValue]="t">{{ t }}</option>
-                        }
-                      </select>
-                    </label>
-                    <label>
-                      District *
-                      <select formControlName="district">
-                        <option [ngValue]="''">Select district</option>
-                        @for (d of partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).districts; track d) {
-                          <option [ngValue]="d">{{ d }}</option>
-                        }
-                      </select>
-                    </label>
-                    <label>
-                      State
-                      <input
-                        type="text"
-                        [value]="partyStateLabel('respondent', $any(respondents.at(i)).controls.tempId.value)"
-                        readonly
-                      />
-                    </label>
-                    <label class="span-2">
-                      Address *
-                      <input type="text" formControlName="address" placeholder="Address line" />
-                    </label>
-                    <label>
-                      Email ID
-                      <input type="email" formControlName="email" placeholder="Email" />
-                    </label>
-                    <label>
-                      Mobile Number *
-                      <input type="text" formControlName="mobile" placeholder="10-digit mobile" />
-                    </label>
-                    <label>
-                      Date of Birth
-                      <input type="date" formControlName="dob" />
-                    </label>
-                    <label>
-                      Age
-                      <input type="number" formControlName="age" placeholder="Enter age" min="0" max="150" />
-                    </label>
-                    <label>
-                      Occupation
-                      <select formControlName="occupation">
-                        <option [ngValue]="''">Select occupation</option>
-                        @for (opt of occupations(); track opt.id) {
-                          <option [ngValue]="opt.name">{{ opt.name }}</option>
-                        }
-                      </select>
-                    </label>
+
+                    <!-- Village + Taluka -->
+                    <div class="input-pair">
+                      <label>
+                        Village *
+                        <select formControlName="villageValue" (change)="onVillageSelectionChange('respondent', i)">
+                          <option [ngValue]="''">Select village</option>
+                          @for (po of partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).postOffices; track po.value) {
+                            <option [ngValue]="po.value">{{ po.name }}</option>
+                          }
+                        </select>
+                      </label>
+                      <label>
+                        Taluka *
+                        <select formControlName="taluka">
+                          <option [ngValue]="''">Select taluka</option>
+                          @for (t of partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).talukas; track t) {
+                            <option [ngValue]="t">{{ t }}</option>
+                          }
+                        </select>
+                      </label>
+                    </div>
+
+                    <!-- District + State -->
+                    <div class="input-pair">
+                      <label>
+                        District *
+                        <select formControlName="district">
+                          <option [ngValue]="''">Select district</option>
+                          @for (d of partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).districts; track d) {
+                            <option [ngValue]="d">{{ d }}</option>
+                          }
+                        </select>
+                      </label>
+                      <label>
+                        State
+                        <input
+                          type="text"
+                          [value]="partyStateLabel('respondent', $any(respondents.at(i)).controls.tempId.value)"
+                          readonly
+                        />
+                      </label>
+                    </div>
+
+                    <!-- Address (English triggers translation; Marathi is plain input) -->
+                    <div class="input-pair span-2">
+                      <label>
+                        Address *
+                        <input
+                          type="text"
+                          formControlName="address"
+                          placeholder="Address line"
+                        />
+                      </label>
+                      <label>
+                        पता
+                        <input
+                          type="text"
+                          formControlName="addressMr"
+                          [placeholder]="translatingFields().has('respondent-' + i + '-address') ? 'Transliterating…' : 'Marathi translation'"
+                          [class.translating]="translatingFields().has('respondent-' + i + '-address')"
+                          (input)="onMarathiFieldManualEdit('respondent', i, 'addressMr')"
+                        />
+                      </label>
+                    </div>
+
+                    <!-- Email + Mobile -->
+                    <div class="input-pair">
+                      <label>
+                        Email ID
+                        <input type="email" formControlName="email" placeholder="Email" />
+                      </label>
+                      <label>
+                        Mobile Number *
+                        <input type="text" formControlName="mobile" placeholder="10-digit mobile" />
+                      </label>
+                    </div>
+
+                    <!-- DOB + Age -->
+                    <div class="input-pair">
+                      <label>
+                        Date of Birth
+                        <input type="date" formControlName="dob" />
+                      </label>
+                      <label>
+                        Age
+                        <input type="number" formControlName="age" placeholder="Enter age" min="0" max="150" />
+                      </label>
+                    </div>
+
+                    <!--
+                      Occupation: the English select triggers translation.
+                      The Marathi input is a plain editable field — no (change) handler,
+                      so the user can override the auto-filled value freely without
+                      triggering a re-entrant translation call.
+                    -->
+                    <div class="input-pair">
+                      <label>
+                        Occupation
+                        <select
+                          formControlName="occupation"
+                        >
+                          <option [ngValue]="''">Select occupation</option>
+                          @for (opt of occupations(); track opt.id) {
+                            <option [ngValue]="opt.name">{{ opt.name }}</option>
+                          }
+                        </select>
+                      </label>
+                      <label>
+                        व्यवसाय
+                        <input
+                          type="text"
+                          formControlName="occupationMr"
+                          placeholder="Marathi translation"
+                          (input)="onMarathiFieldManualEdit('respondent', i, 'occupationMr')"
+                        />
+                      </label>
+                    </div>
+
                   </div>
                 </div>
               }
@@ -899,6 +1116,12 @@
           <app-disputed-land-panel
             [disputedLands]="disputedLands()"
             (disputedLandsChange)="onDisputedLandsChange($event)"
+            [prefilledDistrictCode]="form.controls.urbanDistrictCode.getRawValue()"
+            [prefilledOfficeCode]="form.controls.urbanOfficeCode.getRawValue()"
+            [prefilledVillageCode]="form.controls.urbanVillageCode.getRawValue()"
+            [prefilledCtsNo]="form.controls.ctsNoInput.getRawValue()"
+            [prefilledSubCtsNo]="form.controls.selectedSubCtsNo.getRawValue()"
+            [isEpicsSubject]="isEpicsSubject()"
           />
         </section>
       }
@@ -910,7 +1133,7 @@
               <strong>Filing session</strong>
             </div>
             <p class="sub sub-tight">
-              Data is kept in this browser tab’s session until you clear it or successfully <strong>Submit</strong> the
+              Data is kept in this browser tab's session until you clear it or successfully <strong>Submit</strong> the
               application (submit clears the form for a new filing). Use the same client ref for draft API updates.
             </p>
             <div class="grid">

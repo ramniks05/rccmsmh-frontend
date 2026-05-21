@@ -103,15 +103,14 @@
           </tbody>
         </table>
       </div>
-
     }
   </div>
 } @else {
   <div class="mini-card">
     <div class="mini-head">
-      <strong>Search urban property card</strong>
+      <strong>Urban property card</strong>
     </div>
-    <div class="grid">
+    <!-- <div class="grid">
       <label>
         District *
         <select [value]="urbanDistrictCode()" (change)="onUrbanDistrictChange($any($event.target).value)">
@@ -176,7 +175,7 @@
       @if (loadingPropertyDetails()) {
         <span class="sub muted">Loading area details…</span>
       }
-    </div>
+    </div> -->
 
     @if (urbanPropertyDetails().length > 0) {
       <div class="table-wrap" style="margin-top: 12px">
@@ -185,6 +184,9 @@
             <tr>
               @for (col of urbanPropertyColumns(); track col) {
                 <th>{{ col }}</th>
+                @if (col === 'total_area') {
+                  <th class="disputed-area-col">disputed_area</th>
+                }
               }
               <th></th>
             </tr>
@@ -194,6 +196,18 @@
               <tr>
                 @for (col of urbanPropertyColumns(); track col) {
                   <td>{{ formatPropertyCell(row[col]) }}</td>
+                  @if (col === 'total_area') {
+                    <td class="disputed-area-col">
+                      <input
+                        type="text"
+                        class="disputed-area-input"
+                        [value]="getDisputedArea(i)"
+                        (input)="setDisputedArea(i, $any($event.target).value)"
+                        placeholder="Enter area"
+                        [attr.aria-label]="'Disputed area for row ' + (i + 1)"
+                      />
+                    </td>
+                  }
                 }
                 <td>
                   <button type="button" class="btn btn-secondary btn-compact" (click)="addUrbanPropertyRow(row, i)">
