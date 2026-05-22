@@ -49,10 +49,12 @@
           </button>
         }
 
-        <button type="button" class="menu-btn" [class.active]="officerMenu()==='PENDING_NOTICE'" (click)="setOfficerMenu('PENDING_NOTICE')">
-          {{ isClerk ? 'Pending Draft Notice' : 'Pending Finalize Notice' }}
-          <span class="menu-count">{{ menuCount('PENDING_NOTICE') }}</span>
-        </button>
+        @if (isPO) {
+          <button type="button" class="menu-btn" [class.active]="officerMenu()==='PENDING_NOTICE'" (click)="setOfficerMenu('PENDING_NOTICE')">
+            Pending Hearing Notice
+            <span class="menu-count">{{ menuCount('PENDING_NOTICE') }}</span>
+          </button>
+        }
 
         <button type="button" class="menu-btn" [class.active]="officerMenu()==='CAUSE_LIST'" (click)="setOfficerMenu('CAUSE_LIST')">
           Cause List / Roznama
@@ -82,7 +84,7 @@
                  officerMenu() === 'CLERK_DESK' ? 'Pending for Scrutiny' :
                  officerMenu() === 'PO_DESK' ? 'Pending for Approval' :
                  officerMenu() === 'ASSIGN_HEARING' ? 'Pending Hearing Date' :
-                 officerMenu() === 'PENDING_NOTICE' ? (isClerk ? 'Pending Draft Notice' : 'Pending Finalize Notice') :
+                 officerMenu() === 'PENDING_NOTICE' ? 'Pending Hearing Notice' :
                  officerMenu() === 'CAUSE_LIST' ? 'Cause List — Roznama' :
                  officerMenu() === 'PENDING_ORDER_SHEET' ? (isClerk ? 'Pending Roznama Scrutiny' : 'Pending Sign Roznama') :
                  officerMenu() === 'PENDING_JUDGMENT' ? (isClerk ? 'Pending Draft Judgment' : 'Pending Publish Judgment') : 'Disposed Cases' }}</h3>
@@ -227,6 +229,14 @@
             @if (!caseIdForActions() && canPoReviewActions()) {
               <section class="preview-section">
                 <h4>Approval Decision</h4>
+                @if (applicationHistoryLoading()) {
+                  <p class="muted" style="margin:0 0 12px">Loading clerk remarks…</p>
+                } @else if (clerkForwardRemarks()) {
+                  <div class="clerk-remarks-banner">
+                    <strong>Clerk remarks (when forwarded to you)</strong>
+                    <p>{{ clerkForwardRemarks() }}</p>
+                  </div>
+                }
                 <div class="action-row">
                   <button type="button" class="btn btn-primary" (click)="approveAndGenerateCase()" [disabled]="approving() || isDisposedCase()">
                     {{ approving() ? 'Approving…' : 'Approve & Generate Case' }}
@@ -254,53 +264,35 @@
               </section>
             }
 
-            <!-- ─ ACTIVE / HEARING_SCHEDULED: Hearing schedule ─ -->
+            <!-- ─ ACTIVE: Schedule first hearing (PO only) ─ -->
             @if (showHearingSection()) {
               <section class="preview-section">
-                <h4>Hearing</h4>
-                @if (canScheduleHearing()) {
-                  <div class="form-line">
-                    <label>Hearing Date</label>
-                    <input type="date" [value]="hearingDateInput()" (input)="hearingDateInput.set($any($event.target).value)" />
-                  </div>
-                  <div class="form-line">
-                    <label>Remarks</label>
-                    <input type="text" [value]="hearingRemarksInput()" (input)="hearingRemarksInput.set($any($event.target).value)" placeholder="Optional" />
-                  </div>
-                  <div class="form-line checkbox">
-                    <label>
-                      <input type="checkbox" [checked]="hearingNoticeGenerate()" (change)="hearingNoticeGenerate.set($any($event.target).checked)" />
-                      Generate hearing notice
-                    </label>
-                  </div>
-                  <div class="action-row">
-                    <button type="button" class="btn btn-primary" (click)="scheduleHearing()" [disabled]="hearingsLoading()">
-                      {{ hearingsLoading() ? 'Scheduling…' : 'Schedule Hearing' }}
-                    </button>
-                  </div>
-                }
-                <div class="action-row" style="margin-top:8px">
-                  <button type="button" class="btn btn-secondary btn-xs" (click)="loadHearings()" [disabled]="hearingsLoading()">Refresh Hearings</button>
-                  <button type="button" class="btn btn-secondary btn-xs" (click)="loadTodayCauseList()" [disabled]="todayCauseListLoading()">Today Cause List</button>
+                <h4>Schedule hearing</h4>
+                <div class="form-line">
+                  <label>Hearing Date</label>
+                  <input type="date" [value]="hearingDateInput()" (input)="hearingDateInput.set($any($event.target).value)" />
                 </div>
-                @if (hearings().length > 0) {
-                  <div class="table-wrap" style="margin-top:8px">
-                    <table class="table">
-                      <thead><tr><th>No</th><th>Date</th><th>Status</th><th>Notice</th><th>Remarks</th></tr></thead>
-                      <tbody>
-                        @for (h of hearings(); track h.hearingId) {
-                          <tr><td>{{ h.hearingNo }}</td><td>{{ h.hearingDate }}</td><td>{{ h.status }}</td><td>{{ h.noticeGenerated ? 'Yes' : 'No' }}</td><td>{{ h.remarks || '-' }}</td></tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                }
+                <div class="form-line">
+                  <label>Remarks</label>
+                  <input type="text" [value]="hearingRemarksInput()" (input)="hearingRemarksInput.set($any($event.target).value)" placeholder="Optional" />
+                </div>
+                <div class="form-line checkbox">
+                  <label>
+                    <input type="checkbox" [checked]="hearingNoticeGenerate()" (change)="hearingNoticeGenerate.set($any($event.target).checked)" />
+                    Generate hearing notice
+                  </label>
+                </div>
+                <div class="action-row">
+                  <button type="button" class="btn btn-primary" (click)="scheduleHearing()" [disabled]="hearingsLoading()">
+                    {{ hearingsLoading() ? 'Scheduling…' : 'Schedule Hearing' }}
+                  </button>
+                </div>
               </section>
             }
 
-            @if (orderSheetStageBlockedHint()) {
+            @if (showProceedingStageHint()) {
               <section class="preview-section">
-                <h4>Case proceedings</h4>
+                <h4>Waiting for your step</h4>
                 <p class="muted" style="margin:0">
                   Current stage: <strong>{{ currentProceedingStage() || 'Notice (default)' }}</strong>.
                   {{ orderSheetStageBlockedHint() }}
@@ -308,141 +300,110 @@
               </section>
             }
 
-            <!-- ─ HEARING_SCHEDULED: Notice workflow ─ -->
+            <!-- ─ Hearing notice (Presiding Officer only) ─ -->
             @if (showNoticeSection()) {
               <section class="preview-section">
-                <h4>Notices <span class="stage-chip">Clerk → PO → Served</span></h4>
+                <h4>Hearing Notice <span class="stage-chip">PO draft → Finalize → Sign → Serve</span></h4>
+                <p class="muted notice-workflow-hint" style="margin:0 0 10px">
+                  Presiding Officer only: draft the notice, confirm, finalize, sign, then <strong>serve</strong>.
+                  Order sheet (roznamah) starts only after notice status is <strong>SERVED</strong>.
+                </p>
 
-                <!-- ── CLERK VIEW ── -->
-                @if (viewerFlowRole() === 'CLERK') {
-                  @if (canDraftNotice()) {
-                    <!-- Draft form — shown only when no notice exists yet -->
-                    <div class="form-line">
-                      <label>Notice Type</label>
-                      <input type="text" [value]="noticeType()" (input)="noticeType.set($any($event.target).value)" placeholder="HEARING_NOTICE" />
-                    </div>
-                    <div class="form-line">
-                      <label>Hearing ID (optional)</label>
-                      <input type="number" [value]="noticeHearingIdInput()" (input)="noticeHearingIdInput.set($any($event.target).value)" />
-                    </div>
-                    <div class="form-line">
-                      <label>Select Parties to Notify</label>
-                      @if (partyOptions().length === 0) {
-                        <p class="muted" style="margin:4px 0">No parties found in application details.</p>
-                      } @else {
-                        <div class="party-check-list">
-                          @for (p of partyOptions(); track p.key) {
-                            <label class="party-check-item">
-                              <input type="checkbox"
-                                [checked]="isPartySelected(p.key)"
-                                (change)="toggleParty(p.key, $any($event.target).checked)" />
-                              {{ p.label }}
-                            </label>
-                          }
-                        </div>
-                      }
-                    </div>
-                    @if (selectedPartyKeys().size > 0) {
-                      <div class="action-row" style="gap:8px">
-                        <button type="button" class="btn btn-secondary" (click)="previewNotice()">Preview Notice (Marathi)</button>
-                        <button type="button" class="btn btn-primary" (click)="draftNotice()" [disabled]="noticeActionLoading()">
-                          {{ noticeActionLoading() ? 'Saving…' : 'Save Notice Draft' }}
-                        </button>
-                      </div>
-                    }
-                  } @else if (notices().length > 0) {
-                    @if (notices()[0].status === 'CLERK_DRAFT') {
-                      <!-- Revert banner — PO returned the notice -->
-                      @if (notices()[0].message && notices()[0].message!.toLowerCase().includes('revert')) {
-                        <div class="notice-reverted-banner">
-                          <strong>Presiding Officer returned this notice for correction.</strong>
-                          <p style="margin:4px 0 0">{{ notices()[0].message }}</p>
-                        </div>
-                      }
-                      <!-- Draft saved — Clerk must submit to PO -->
-                      <div class="notice-saved-info">
-                        <span class="badge badge-success">Draft Saved</span>
-                        <p class="muted" style="margin:4px 0 8px">Draft saved. Submit to Presiding Officer when ready.</p>
-                        <div class="action-row" style="gap:8px;margin-top:8px">
-                          <button type="button" class="btn btn-secondary btn-xs" (click)="previewNotice()">Preview Notice (Marathi)</button>
-                          <button type="button" class="btn btn-primary btn-xs"
-                            (click)="submitNoticeToPO(notices()[0].noticeId)"
-                            [disabled]="noticeSubmitting()">
-                            {{ noticeSubmitting() ? 'Submitting…' : 'Submit to Presiding Officer' }}
-                          </button>
-                        </div>
-                      </div>
+                @if (noticesLoading()) {
+                  <p class="muted">Loading notices…</p>
+                } @else if (canPoDraftNotice()) {
+                  <div class="form-line">
+                    <label>Notice Type</label>
+                    <input type="text" [value]="noticeType()" (input)="noticeType.set($any($event.target).value)" placeholder="HEARING_NOTICE" />
+                  </div>
+                  <div class="form-line">
+                    <label>Hearing ID (optional)</label>
+                    <input type="number" [value]="noticeHearingIdInput()" (input)="noticeHearingIdInput.set($any($event.target).value)" />
+                  </div>
+                  <div class="form-line">
+                    <label>Select Parties to Notify</label>
+                    @if (partyOptions().length === 0) {
+                      <p class="muted" style="margin:4px 0">No parties found in application details.</p>
                     } @else {
-                      <!-- Submitted — read-only status for Clerk -->
-                      <div class="notice-saved-info">
-                        <span class="badge badge-success">Submitted to Presiding Officer</span>
-                        <p class="muted" style="margin:4px 0 8px">Notice is under PO review. Status: <strong>{{ notices()[0].status }}</strong></p>
-                        <button type="button" class="btn btn-secondary btn-xs" (click)="previewNotice()">Preview Notice (Marathi)</button>
-                      </div>
-                    }
-                  }
-                }
-
-                <!-- ── PRESIDING OFFICER VIEW ── -->
-                @if (viewerFlowRole() === 'PRESIDING_OFFICER') {
-                  @if (noticesLoading()) {
-                    <p class="muted">Loading notices…</p>
-                  } @else if (notices().length === 0) {
-                    <p class="muted">No notice drafted by clerk yet.</p>
-                  } @else {
-                    @for (n of notices(); track n.noticeId) {
-                      <div class="notice-card">
-                        <div class="notice-card-row">
-                          <span class="notice-label">Type:</span> {{ n.noticeType }}
-                          &nbsp;&nbsp;
-                          <span class="notice-label">Status:</span> <span class="badge">{{ n.status }}</span>
-                          @if (n.hearingId) { &nbsp;&nbsp;<span class="notice-label">Hearing:</span> {{ n.hearingId }} }
-                        </div>
-                        <div class="action-row" style="gap:8px;margin-top:8px">
-                          <button type="button" class="btn btn-secondary btn-xs" (click)="previewNotice()">Preview (Marathi)</button>
-                          @if (n.status === 'PO_SCRUTINY') {
-                            <button type="button" class="btn btn-primary btn-xs" (click)="finalizeNotice(n.noticeId)" [disabled]="noticeActionLoading()">
-                              {{ noticeActionLoading() ? 'Processing…' : 'Finalize Notice' }}
-                            </button>
-                          }
-                          @if (n.status === 'PO_FINALIZED') {
-                            <div class="form-inline">
-                              <input type="text" [value]="noticeSignRef()" (input)="noticeSignRef.set($any($event.target).value)" placeholder="Digital Signature Ref" style="width:200px" />
-                              <button type="button" class="btn btn-primary btn-xs" (click)="signNotice(n.noticeId)" [disabled]="noticeActionLoading()">
-                                {{ noticeActionLoading() ? 'Signing…' : 'Sign Notice' }}
-                              </button>
-                            </div>
-                          }
-                          @if (n.status === 'PO_SIGNED') {
-                            <button type="button" class="btn btn-primary btn-xs" (click)="serveNotice(n.noticeId)" [disabled]="noticeActionLoading()">
-                              {{ noticeActionLoading() ? 'Serving…' : 'Serve Notice' }}
-                            </button>
-                          }
-                        </div>
-                        <!-- Revert to Clerk — shown from PO_SCRUTINY onwards, hidden after SERVED -->
-                        @if (n.status === 'PO_SCRUTINY' || n.status === 'PO_FINALIZED' || n.status === 'PO_SIGNED') {
-                          <div class="revert-section">
-                            <label class="revert-label">Revert to Clerk (with remarks)</label>
-                            <div class="form-inline">
-                              <input type="text" class="form-control"
-                                [value]="noticeRevertReason()"
-                                (input)="noticeRevertReason.set($any($event.target).value)"
-                                placeholder="Enter reason for returning notice…"
-                                style="flex:1" />
-                              <button type="button" class="btn btn-warning btn-xs"
-                                (click)="revertNotice(n.noticeId)"
-                                [disabled]="noticeActionLoading() || !noticeRevertReason().trim()">
-                                {{ noticeActionLoading() ? 'Sending…' : 'Revert to Clerk' }}
-                              </button>
-                            </div>
-                          </div>
+                      <div class="party-check-list">
+                        @for (p of partyOptions(); track p.key) {
+                          <label class="party-check-item">
+                            <input type="checkbox"
+                              [checked]="isPartySelected(p.key)"
+                              (change)="toggleParty(p.key, $any($event.target).checked)" />
+                            {{ p.label }}
+                          </label>
                         }
                       </div>
                     }
-                    <div class="action-row" style="margin-top:6px">
-                      <button type="button" class="btn btn-secondary btn-xs" (click)="loadNotices()" [disabled]="noticesLoading()">Refresh</button>
+                  </div>
+                  @if (selectedPartyKeys().size > 0) {
+                    <div class="action-row" style="gap:8px">
+                      <button type="button" class="btn btn-secondary" (click)="previewNotice()">Preview Notice (Marathi)</button>
+                      <button type="button" class="btn btn-primary" (click)="draftNotice()" [disabled]="noticeActionLoading()">
+                        {{ noticeActionLoading() ? 'Saving…' : 'Save Notice Draft' }}
+                      </button>
                     </div>
                   }
+                } @else {
+                  @for (n of notices(); track n.noticeId) {
+                    <div class="notice-card">
+                      <div class="notice-card-row">
+                        <span class="notice-label">Type:</span> {{ n.noticeType }}
+                        &nbsp;&nbsp;
+                        <span class="notice-label">Status:</span> <span class="badge">{{ n.status }}</span>
+                        @if (n.hearingId) { &nbsp;&nbsp;<span class="notice-label">Hearing:</span> {{ n.hearingId }} }
+                      </div>
+                      <div class="action-row" style="gap:8px;margin-top:8px">
+                        <button type="button" class="btn btn-secondary btn-xs" (click)="previewNotice()">Preview (Marathi)</button>
+                        @if (n.status === 'CLERK_DRAFT') {
+                          <button type="button" class="btn btn-primary btn-xs"
+                            (click)="submitNoticeToPO(n.noticeId)"
+                            [disabled]="noticeSubmitting()">
+                            {{ noticeSubmitting() ? 'Processing…' : 'Confirm Draft' }}
+                          </button>
+                        }
+                        @if (n.status === 'PO_SCRUTINY') {
+                          <button type="button" class="btn btn-primary btn-xs" (click)="finalizeNotice(n.noticeId)" [disabled]="noticeActionLoading()">
+                            {{ noticeActionLoading() ? 'Processing…' : 'Finalize Notice' }}
+                          </button>
+                        }
+                        @if (n.status === 'PO_FINALIZED') {
+                          <div class="form-inline">
+                            <input type="text" [value]="noticeSignRef()" (input)="noticeSignRef.set($any($event.target).value)" placeholder="Digital Signature Ref" style="width:200px" />
+                            <button type="button" class="btn btn-primary btn-xs" (click)="signNotice(n.noticeId)" [disabled]="noticeActionLoading()">
+                              {{ noticeActionLoading() ? 'Signing…' : 'Sign Notice' }}
+                            </button>
+                          </div>
+                        }
+                        @if (n.status === 'PO_SIGNED') {
+                          <button type="button" class="btn btn-primary btn-xs" (click)="serveNotice(n.noticeId)" [disabled]="noticeActionLoading()">
+                            {{ noticeActionLoading() ? 'Serving…' : 'Serve Notice' }}
+                          </button>
+                        }
+                      </div>
+                      @if (n.status === 'PO_SCRUTINY' || n.status === 'PO_FINALIZED' || n.status === 'PO_SIGNED') {
+                        <div class="revert-section">
+                          <label class="revert-label">Return to draft for correction (with remarks)</label>
+                          <div class="form-inline">
+                            <input type="text" class="form-control"
+                              [value]="noticeRevertReason()"
+                              (input)="noticeRevertReason.set($any($event.target).value)"
+                              placeholder="Enter reason…"
+                              style="flex:1" />
+                            <button type="button" class="btn btn-warning btn-xs"
+                              (click)="revertNotice(n.noticeId)"
+                              [disabled]="noticeActionLoading() || !noticeRevertReason().trim()">
+                              {{ noticeActionLoading() ? 'Processing…' : 'Return to Draft' }}
+                            </button>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+                  <div class="action-row" style="margin-top:6px">
+                    <button type="button" class="btn btn-secondary btn-xs" (click)="loadNotices()" [disabled]="noticesLoading()">Refresh</button>
+                  </div>
                 }
 
               </section>
@@ -451,8 +412,8 @@
             <!-- ─ HEARING_SCHEDULED: Roznama (PO draft → Clerk edit → PO finalize → sign) ─ -->
             @if (showOrderSheetSection()) {
               <section class="preview-section">
-                <h4>Order Sheet (Roznama) <span class="stage-chip">One per case · Draft → Clerk → PO sign</span></h4>
-                <p class="muted" style="margin:0 0 4px">Proceeding stage: <strong>{{ currentProceedingStage() }}</strong></p>
+                <h4>Order Sheet (Roznama) <span class="stage-chip">Presiding Officer only · Notice served</span></h4>
+                <p class="muted" style="margin:0 0 4px">Proceeding stage: <strong>{{ currentProceedingStage() || 'ORDER_SHEET' }}</strong></p>
                 <p class="muted" style="margin:0 0 10px">{{ roznamaOnePerCaseHint() }}</p>
                 <div class="roznama-tabs" role="tablist">
                   <button type="button" class="roznama-tab" [class.active]="roznamaPanelTab()==='roznama'" (click)="setRoznamaPanelTab('roznama')">Roznama</button>
@@ -581,59 +542,6 @@
                   }
                 }
 
-                @if (viewerFlowRole() === 'CLERK') {
-                  @if (!currentOrderSheet() && !canClerkEditRoznama() && !isRoznamaReadOnly()) {
-                    <p class="muted" style="margin-top:8px">Presiding Officer has not saved the case roznamah draft yet.</p>
-                  } @else if (canClerkEditRoznama()) {
-                    <div class="form-line" style="margin-top:8px">
-                      <label>Edit Roznama (from PO draft)</label>
-                      <ng-container *ngTemplateOutlet="roznamaEntryTable" />
-                    </div>
-                    <div class="form-line">
-                      <label>Remarks</label>
-                      <input type="text" [value]="orderSheetRemarksInput()" (input)="orderSheetRemarksInput.set($any($event.target).value)" />
-                    </div>
-                    <div class="action-row" style="gap:8px">
-                      <button type="button" class="btn btn-secondary" (click)="previewRoznama()">Preview Roznama (Marathi)</button>
-                      <button type="button" class="btn btn-secondary" (click)="saveOrderSheet()" [disabled]="orderSheetSaving()">
-                        {{ orderSheetSaving() ? 'Saving…' : 'Update Roznama' }}
-                      </button>
-                      @if (canClerkSubmitOrderSheetToPo()) {
-                        <button type="button" class="btn btn-primary" (click)="submitOrderSheetToPO()" [disabled]="orderSheetSubmitting()">
-                          {{ orderSheetSubmitting() ? 'Submitting…' : 'Submit to PO for Scrutiny' }}
-                        </button>
-                      }
-                    </div>
-                  } @else if (currentOrderSheet()?.status === 'PO_SCRUTINY') {
-                    <div class="notice-saved-info" style="margin-top:8px">
-                      <span class="badge badge-success">Submitted to PO</span>
-                      <p class="muted" style="margin:4px 0">Roznama is with Presiding Officer for finalization.</p>
-                    </div>
-                  } @else if (currentOrderSheet()?.status === 'PO_FINALIZED' || currentOrderSheet()?.status === 'PO_SIGNED') {
-                    <p class="muted" style="margin-top:8px">Roznama finalized. Status: {{ currentOrderSheet()!.status }}</p>
-                  }
-                }
-
-                <!-- PO: Revert order sheet to Clerk (on PO_FINALIZED or PO_SIGNED) -->
-                @if (viewerFlowRole() === 'PRESIDING_OFFICER' &&
-                     currentOrderSheet() && (currentOrderSheet()?.status === 'PO_SCRUTINY' || currentOrderSheet()?.status === 'PO_FINALIZED')) {
-                  <div class="revert-section">
-                    <label class="revert-label">Revert Order Sheet to Clerk (with reason)</label>
-                    <div class="form-inline">
-                      <input type="text" class="form-control"
-                        [value]="orderSheetRevertReason()"
-                        (input)="orderSheetRevertReason.set($any($event.target).value)"
-                        placeholder="Enter reason…"
-                        style="flex:1" />
-                      <button type="button" class="btn btn-warning btn-xs"
-                        (click)="revertOrderSheet()"
-                        [disabled]="!orderSheetRevertReason().trim()">
-                        Revert to Clerk
-                      </button>
-                    </div>
-                  </div>
-                }
-
                 <div class="action-row" style="margin-top:8px; gap:8px">
                   @if (currentOrderSheet() || orderSheetContentInput().trim()) {
                     <button type="button" class="btn btn-secondary btn-xs" (click)="previewRoznama()">Preview Roznama (Marathi)</button>
@@ -698,9 +606,14 @@
             <!-- ─ Judgment (order sheet PO_SIGNED → Clerk draft → PO finalize → PO publish) ─ -->
             @if (showJudgmentSection()) {
               <section class="preview-section" id="judgment-section">
-                <h4>Judgment <span class="stage-chip">One per case · Draft → Submit → Finalize → Publish</span></h4>
-                <p class="muted" style="margin:0 0 6px">{{ judgmentOnePerCaseHint() }}</p>
-                <p class="muted" style="margin:0 0 10px">{{ judgmentStepHint() }}</p>
+                <h4>Judgment <span class="stage-chip">PO draft → Clerk edit → PO finalize</span></h4>
+                @if (officerRole() === 'PRESIDING_OFFICER') {
+                  <p class="muted" style="margin:0 0 6px">{{ judgmentOnePerCaseHint() }}</p>
+                  <p class="muted" style="margin:0 0 10px">{{ judgmentStepHint() }}</p>
+                }
+                @if (officerRole() === 'CLERK') {
+                  <p class="muted" style="margin:0 0 10px">{{ judgmentStepHint() }}</p>
+                }
 
                 @if (judgmentWorkflow()) {
                   <div class="kv-grid">
@@ -715,6 +628,12 @@
                 @if (canDraftJudgment()) {
                   <div class="form-line" style="margin-top:8px">
                     <label>Judgment / Order Text (Marathi template body)</label>
+                    @if (canPoDraftJudgment()) {
+                      <p class="muted" style="margin:0 0 6px">Presiding Officer: save the initial draft. Clerk will edit this same text next.</p>
+                    }
+                    @if (canClerkEditJudgment()) {
+                      <p class="muted" style="margin:0 0 6px">Clerk: edit the PO draft, save, then submit to Presiding Officer.</p>
+                    }
                     <textarea rows="10" [value]="judgmentSummaryInput()" (input)="judgmentSummaryInput.set($any($event.target).value)" placeholder="Generate template or enter final judgment / order text…"></textarea>
                   </div>
                   <div class="action-row" style="gap:8px; flex-wrap:wrap">
@@ -727,11 +646,11 @@
                       Preview Judgment (Marathi)
                     </button>
                     <button type="button" class="btn btn-primary" (click)="saveDraftJudgment()" [disabled]="judgmentSaving()">
-                      {{ judgmentSaving() ? 'Saving…' : 'Save Judgment Draft' }}
+                      {{ judgmentSaving() ? 'Saving…' : (canPoDraftJudgment() ? 'Save Initial Draft (PO)' : 'Save Judgment Draft') }}
                     </button>
                     @if (canClerkSubmitJudgmentToPo()) {
                       <button type="button" class="btn btn-primary" (click)="submitJudgmentToPO()" [disabled]="judgmentSubmitting() || judgmentSaving()">
-                        {{ judgmentSubmitting() ? 'Submitting…' : 'Submit to PO for Scrutiny' }}
+                        {{ judgmentSubmitting() ? 'Submitting…' : 'Submit to Presiding Officer' }}
                       </button>
                     }
                   </div>
@@ -748,7 +667,10 @@
                     </button>
                   </div>
                   @if (viewerFlowRole() === 'CLERK' && judgmentStatusLabel() === 'PO_SCRUTINY') {
-                    <p class="muted" style="margin:4px 0">Submitted to Presiding Officer. Waiting for finalize and publish.</p>
+                    <p class="muted" style="margin:4px 0">Submitted to Presiding Officer. PO may revert to you for further edits, then finalize.</p>
+                  }
+                  @if (viewerFlowRole() === 'PRESIDING_OFFICER' && judgmentStatusLabel() === 'CLERK_DRAFT') {
+                    <p class="muted" style="margin:4px 0">Clerk is editing the draft. Use Revert below to send back with remarks (as many times as needed).</p>
                   }
                 }
 
@@ -765,7 +687,7 @@
 
                 @if (canRevertJudgment()) {
                   <div class="revert-section">
-                    <label class="revert-label">Revert Judgment to Clerk (with reason)</label>
+                    <label class="revert-label">Revert to Clerk for correction (with reason — may repeat)</label>
                     <div class="form-inline">
                       <input type="text" class="form-control"
                         [value]="judgmentRevertReason()"
@@ -795,9 +717,17 @@
               </section>
             }
 
-            <!-- ─ No action available ─ -->
-            @if (!canForwardToPo() && !canPoReviewActions() && !showHearingSection() && !showNoticeSection() && !showOrderSheetSection() && !showJudgmentSection()) {
-              <p class="muted">No action required for current status: <strong>{{ caseStatusFor(selectedApplicationId()!) || officerDetail()!.status }}</strong></p>
+            @if (!hasAuthorizedActionOnTab()) {
+              <section class="preview-section">
+                <h4>No action for you</h4>
+                <p class="muted" style="margin:0">
+                  Nothing is assigned to <strong>{{ officerRole() === 'CLERK' ? 'Clerk' : officerRole() === 'PRESIDING_OFFICER' ? 'Presiding Officer' : 'your role' }}</strong> at this step.
+                  Open <strong>Application Details</strong> for full history, or check again when the case is assigned to you.
+                </p>
+                @if (currentProceedingStage()) {
+                  <p class="muted" style="margin:0.5rem 0 0">Proceeding stage: <strong>{{ currentProceedingStage() }}</strong></p>
+                }
+              </section>
             }
 
           </div>

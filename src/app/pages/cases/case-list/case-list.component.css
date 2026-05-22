@@ -232,7 +232,8 @@
   gap: 8px;
 }
 
-.notice-reverted-banner {
+.notice-reverted-banner,
+.clerk-remarks-banner {
   padding: 10px 14px;
   background: #fff7ed;
   border: 1px solid #fdba74;
@@ -240,6 +241,18 @@
   margin-bottom: 12px;
   font-size: 13px;
   color: #9a3412;
+}
+
+.clerk-remarks-banner {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1e3a5f;
+}
+
+.clerk-remarks-banner p {
+  margin: 6px 0 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 .revert-section {

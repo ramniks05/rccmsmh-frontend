@@ -349,8 +349,9 @@ export class CaseListComponent implements OnInit {
     return this.hearings().some((h) => h.hearingNo > baselineNo);
   }
 
-  /** Choose rehearing vs final judgment after signed roznamah. */
+  /** Choose rehearing vs final judgment after signed roznamah (PO only). */
   protected showPostRoznamaDecisionPanel(): boolean {
+    if (this.officerRole() !== 'PRESIDING_OFFICER') return false;
     if (!this.canRunCaseActions() || !this.showOrderSheetSection()) return false;
     if (!this.isCurrentHearingRoznamaSigned()) return false;
     if (this.hasNewerHearingAfterSigned()) return false;
@@ -379,7 +380,11 @@ export class CaseListComponent implements OnInit {
   }
 
   protected showJudgmentPathOption(): boolean {
-    return !this.isDisposedCase() && this.isCurrentHearingRoznamaSigned();
+    return (
+      this.officerRole() === 'PRESIDING_OFFICER' &&
+      !this.isDisposedCase() &&
+      this.isCurrentHearingRoznamaSigned()
+    );
   }
 
   protected judgmentStatusLabel(): string {
@@ -388,14 +393,16 @@ export class CaseListComponent implements OnInit {
 
   protected judgmentStepHint(): string {
     const st = judgmentWorkflowStatus(this.judgmentWorkflow());
-    if (!st) return 'Clerk or PO: save draft → Clerk submits to PO → PO finalize → PO publish (case disposed).';
+    if (!st) {
+      return 'Presiding Officer: save the initial judgment draft. Clerk will then edit the same text and submit back to you.';
+    }
     if (st === 'CLERK_DRAFT') {
       return this.viewerFlowRole() === 'CLERK'
-        ? 'Save draft, then submit to Presiding Officer for scrutiny.'
-        : 'Clerk draft stage: you may save draft here. After clerk submits, use Finalize then Publish.';
+        ? 'Edit the PO draft, save, then submit to Presiding Officer. PO may revert with remarks any number of times.'
+        : 'Clerk is editing the judgment draft. You may revert to Clerk with remarks until you finalize.';
     }
     if (st === 'PO_SCRUTINY') {
-      return 'Submitted for scrutiny. Presiding Officer: review text, then Finalize and Publish. Revert to send back to Clerk.';
+      return 'Clerk submitted for scrutiny. Presiding Officer: review, revert to Clerk if needed, then Finalize (PO only).';
     }
     if (st === 'PO_FINALIZED') return 'Presiding Officer may publish judgment to dispose the case.';
     if (st === 'PUBLISHED') return 'Judgment published. Case is disposed.';
@@ -414,8 +421,9 @@ export class CaseListComponent implements OnInit {
     }
   }
 
-  /** Schedule next hearing after case roznamah is signed (rehearing). */
+  /** Schedule next hearing after case roznamah is signed (rehearing) — PO only. */
   protected canScheduleRehearing(): boolean {
+    if (this.viewerFlowRole() !== 'PRESIDING_OFFICER') return false;
     if (!this.showOrderSheetSection() || this.isDisposedCase()) return false;
     if (this.hasRoznamaInProgress()) return false;
     return this.isCurrentHearingRoznamaSigned();
@@ -445,7 +453,7 @@ export class CaseListComponent implements OnInit {
     return this.caseMapByAppId().get(applicationId)?.status || '';
   }
 
-  /** Proceeding stage within HEARING_SCHEDULED (from case inbox / detail / cause list row). */
+  /** Proceeding stage within HEARING_SCHEDULED (case inbox / detail only — not filing processingStage). */
   protected currentProceedingStage(): string {
     const appId = this.selectedApplicationId();
     if (appId) {
@@ -454,12 +462,38 @@ export class CaseListComponent implements OnInit {
     }
     const row = this.selectedRoznamaTableRow();
     if (row?.proceedingStage) return String(row.proceedingStage).trim().toUpperCase();
-    const detailStage = String(
-      (this.officerDetail() as { proceedingStage?: string } | null)?.proceedingStage ||
-        this.officerDetail()?.processingStage ||
-        ''
-    ).trim();
-    return detailStage.toUpperCase();
+    const detailPs = (this.officerDetail() as { proceedingStage?: string } | null)?.proceedingStage;
+    if (detailPs) return String(detailPs).trim().toUpperCase();
+    return '';
+  }
+
+  /** True when at least one hearing date exists for this case. */
+  private isHearingScheduledByHearings(): boolean {
+    return (this.hearings() || []).some((h) => !!h.hearingDate);
+  }
+
+  /** Case has a scheduled hearing (inbox status or hearings list). */
+  protected isHearingScheduledCase(): boolean {
+    return this.currentCaseStatus() === 'HEARING_SCHEDULED';
+  }
+
+  /** Notice marked served — required before order sheet / roznamah proceedings. */
+  protected isNoticeServed(): boolean {
+    return (this.notices() || []).some((n) => this.upStage(n.status) === 'SERVED');
+  }
+
+  /** Proceedings (order sheet) unlocked only after notice is served. */
+  protected canStartProceedings(): boolean {
+    return this.isHearingScheduledCase() && this.isNoticeServed();
+  }
+
+  private patchCaseInboxForApplication(
+    applicationId: number,
+    patch: Partial<Pick<OfficerCaseInboxItem, 'status' | 'proceedingStage'>>
+  ): void {
+    this.caseInbox.update((rows) =>
+      (rows || []).map((c) => (c.filingApplicationId === applicationId ? { ...c, ...patch } : c))
+    );
   }
 
   /** Stages where order sheet / roznamah UI is active (aligned with Pending Order Sheet inbox). */
@@ -481,19 +515,30 @@ export class CaseListComponent implements OnInit {
   }
 
   protected orderSheetStageBlockedHint(): string | null {
-    if (!this.caseIdForActions() || this.currentCaseStatus() !== 'HEARING_SCHEDULED') return null;
-    if (this.showOrderSheetSection()) return null;
+    if (!this.caseIdForActions() || !this.isHearingScheduledCase()) return null;
+    if (this.showOrderSheetSection() || this.showNoticeSection() || this.showJudgmentSection()) return null;
+    if (!this.isNoticeServed()) {
+      return 'Serve the hearing notice first. Order sheet (roznamah) and other proceedings start only after notice is served.';
+    }
     const stage = this.currentProceedingStage();
     if (!stage) {
-      return 'Complete hearing notice workflow first. Order sheet appears when the case proceeding stage moves to order sheet / roznamah.';
+      return 'Notice is served. Open Order Sheet when the proceeding stage is ready for roznamah.';
     }
     if (stage === 'NOTICE_PENDING' || stage === 'NOTICE_IN_PROGRESS') {
       return 'Finish notice draft, finalize, sign, and serve before the order sheet (roznamah) form is shown.';
     }
     if (stage === 'JUDGMENT_PENDING' || stage === 'JUDGMENT_IN_PROGRESS') {
-      return 'Case is in judgment stage. Use the Judgment section below.';
+      return 'Case is in judgment stage. Use the Judgment section when it is your step.';
     }
     return `Order sheet is not available at proceeding stage: ${stage}.`;
+  }
+
+  /** Stage hint only when this officer has no other authorized section to use. */
+  protected showProceedingStageHint(): boolean {
+    const hint = this.orderSheetStageBlockedHint();
+    if (!hint) return false;
+    if (this.hasAuthorizedActionOnTab()) return false;
+    return true;
   }
 
   /** Case number for a given applicationId (from joined caseInbox). */
@@ -773,31 +818,111 @@ export class CaseListComponent implements OnInit {
     this.officerTab.set(tab);
   }
 
-  /** Label shown on the Action tab button — matches the workflow step. */
+  /** Logged-in officer designation for authorization (detail assignee or login). */
+  protected officerRole(): 'CLERK' | 'PRESIDING_OFFICER' | '' {
+    const r = this.viewerFlowRole();
+    if (r === 'CLERK' || r === 'PRESIDING_OFFICER') return r;
+    return this.loginRole;
+  }
+
+  /** Notice workflow until at least one notice is served (then proceedings may start). */
+  private isNoticeProceedingStage(): boolean {
+    if (!this.isHearingScheduledCase()) return false;
+    return !this.isNoticeServed();
+  }
+
+  /** True when this officer has at least one action on the Action tab. */
+  protected hasAuthorizedActionOnTab(): boolean {
+    return (
+      this.canForwardToPo() ||
+      this.canPoReviewActions() ||
+      this.showHearingSection() ||
+      this.showNoticeSection() ||
+      this.showOrderSheetSection() ||
+      this.showPostRoznamaDecisionPanel() ||
+      this.showJudgmentSection()
+    );
+  }
+
+  /** Label shown on the Action tab — only this officer's next step. */
   protected actionTabLabel(): string {
-    const s = this.currentCaseStatus();
     if (!this.caseIdForActions()) {
-      if (this.isAssignedToClerk()) return 'Scrutiny & Forward';
-      if (this.isAssignedToPo()) return 'Approval Decision';
+      if (this.canForwardToPo()) return 'Scrutiny & Forward';
+      if (this.canPoReviewActions()) return 'Approval Decision';
       return 'Action';
     }
-    if (s === 'ACTIVE') return 'Assign Hearing Date';
-    if (s === 'HEARING_SCHEDULED') {
-      // Reflect the most relevant pending action based on sub-workflow progress
-      const noticeDone = this.notices().some((n) => String((n as unknown as Record<string,unknown>)['status'] || '').toUpperCase() === 'SERVED');
-      const osSigned = this.isCurrentHearingRoznamaSigned();
-      if (!noticeDone) return 'Pending Draft Notice';
-      if (!osSigned) return 'Pending Order Sheet';
-      if (this.showPostRoznamaDecisionPanel()) return 'Next: Rehearing or Judgment';
-      if (this.postRoznamaPath() === 'rehearing') return 'Schedule Rehearing';
-      const jStatus = judgmentWorkflowStatus(this.judgmentWorkflow());
-      if (!jStatus || jStatus === 'CLERK_DRAFT') return 'Pending Judgment';
-      if (jStatus === 'PO_SCRUTINY') return 'Finalize Judgment';
-      if (jStatus === 'PO_FINALIZED') return 'Publish Judgment';
-      return 'Case Proceedings';
+    const s = this.currentCaseStatus();
+    const role = this.officerRole();
+    if (!this.isHearingScheduledCase() && !!this.caseIdForActions() && role === 'PRESIDING_OFFICER') {
+      return 'Assign Hearing Date';
+    }
+    if (this.isHearingScheduledCase()) {
+      if (role === 'CLERK') {
+        if (this.isNoticeProceedingStage()) return 'Notice — With PO';
+        if (this.canClerkEditJudgment()) return 'Edit Judgment';
+        if (judgmentWorkflowStatus(this.judgmentWorkflow()) === 'PO_SCRUTINY') return 'Judgment with PO';
+        return 'No clerk action';
+      }
+      if (role === 'PRESIDING_OFFICER') {
+        if (this.showNoticeSection()) {
+          if (this.canPoDraftNotice()) return 'Draft Hearing Notice';
+          if (this.canPoAdvanceNoticeDraft()) return 'Confirm Notice Draft';
+          if (this.canPoFinalizeNotice()) return 'Finalize Notice';
+          if (this.canPoSignNotice()) return 'Sign Notice';
+          if (this.canPoServeNotice()) return 'Serve Notice';
+          return 'Hearing Notice';
+        }
+        if (this.showOrderSheetSection()) {
+          if (this.showPostRoznamaDecisionPanel()) return 'Next: Rehearing or Judgment';
+          if (this.postRoznamaPath() === 'rehearing') return 'Schedule Rehearing';
+          return 'Order Sheet (Roznama)';
+        }
+        const jStatus = judgmentWorkflowStatus(this.judgmentWorkflow());
+        if (!jStatus && this.isCurrentHearingRoznamaSigned()) return 'Start Judgment';
+        if (this.canPoDraftJudgment()) return 'Draft Judgment';
+        if (jStatus === 'PO_SCRUTINY') return 'Finalize Judgment';
+        if (jStatus === 'PO_FINALIZED') return 'Publish Judgment';
+        if (jStatus === 'CLERK_DRAFT') return 'Judgment with Clerk';
+      }
+      return 'Action';
     }
     if (s === 'DISPOSED') return 'Disposed';
     return 'Action';
+  }
+
+  /** @deprecated Clerk does not handle notices — PO only. */
+  protected canClerkActOnNotice(): boolean {
+    return false;
+  }
+
+  /** Presiding Officer handles the full notice workflow (draft → finalize → sign → serve). */
+  protected canPoActOnNotice(): boolean {
+    return this.showNoticeSection();
+  }
+
+  protected canPoDraftNotice(): boolean {
+    if (!this.canPoActOnNotice()) return false;
+    return this.notices().length === 0;
+  }
+
+  protected canPoAdvanceNoticeDraft(): boolean {
+    if (!this.canPoActOnNotice()) return false;
+    return this.notices().some((n) => this.upStage(n.status) === 'CLERK_DRAFT');
+  }
+
+  protected canPoFinalizeNotice(): boolean {
+    if (!this.canPoActOnNotice()) return false;
+    return this.notices().some((n) => this.upStage(n.status) === 'PO_SCRUTINY');
+  }
+
+  protected canPoSignNotice(): boolean {
+    if (!this.canPoActOnNotice()) return false;
+    return this.notices().some((n) => this.upStage(n.status) === 'PO_FINALIZED');
+  }
+
+  protected canPoServeNotice(): boolean {
+    if (!this.canPoActOnNotice()) return false;
+    return this.notices().some((n) => this.upStage(n.status) === 'PO_SIGNED');
   }
 
   protected caseIdForActions(): number | null {
@@ -846,6 +971,20 @@ export class CaseListComponent implements OnInit {
     return !this.caseIdForActions() && this.isAssignedToPo() && this.viewerFlowRole() === 'PRESIDING_OFFICER';
   }
 
+  /** Clerk remarks from the latest forward-to-PO action in application history. */
+  protected clerkForwardRemarks(): string | null {
+    const entries = this.applicationHistory()?.entries ?? [];
+    if (!entries.length) return null;
+    const forwards = entries.filter((e) => {
+      const action = (e.action || '').toUpperCase();
+      return action === 'FORWARDED_TO_PO' || (action.includes('FORWARD') && action.includes('PO'));
+    });
+    if (!forwards.length) return null;
+    const latest = forwards.reduce((a, b) => (a.sequence >= b.sequence ? a : b));
+    const text = latest.remarks?.trim();
+    return text || null;
+  }
+
   protected isDisposedCase(): boolean {
     // Judgment published → case is DISPOSED
     const judgmentStatus = judgmentWorkflowStatus(this.judgmentWorkflow());
@@ -861,49 +1000,76 @@ export class CaseListComponent implements OnInit {
     return !!this.caseIdForActions() && !this.isDisposedCase();
   }
 
-  /** Case status from caseInbox for the currently selected application. */
+  /** Case status from caseInbox, with fallback when hearings exist but inbox not refreshed yet. */
   protected currentCaseStatus(): string {
     const selectedId = this.selectedApplicationId();
     if (!selectedId) return '';
-    return String(this.caseMapByAppId().get(selectedId)?.status || '').toUpperCase();
+    const fromInbox = String(this.caseMapByAppId().get(selectedId)?.status || '').toUpperCase();
+    if (fromInbox === 'DISPOSED') return 'DISPOSED';
+    if (fromInbox === 'HEARING_SCHEDULED') return 'HEARING_SCHEDULED';
+    if (this.isHearingScheduledByHearings()) return 'HEARING_SCHEDULED';
+    return fromInbox;
   }
 
-  /** Hearing scheduling: visible for ACTIVE or HEARING_SCHEDULED cases. */
+  /** First hearing date — PO only, before case is HEARING_SCHEDULED. */
   protected showHearingSection(): boolean {
-    if (!this.caseIdForActions()) return false;
-    const s = this.currentCaseStatus();
-    return s === 'ACTIVE' || s === 'HEARING_SCHEDULED';
+    return this.canScheduleHearing();
   }
 
-  /** Notice section: only during notice proceeding stages (default when stage unset). */
+  /** Hearing notice workflow — Presiding Officer only, until notice is served. */
   protected showNoticeSection(): boolean {
-    if (!this.caseIdForActions() || this.currentCaseStatus() !== 'HEARING_SCHEDULED') return false;
+    return (
+      this.isNoticeProceedingStage() &&
+      !this.isDisposedCase() &&
+      this.officerRole() === 'PRESIDING_OFFICER'
+    );
+  }
+
+  /** Roznamah / order sheet — Presiding Officer only, after notice served. */
+  protected showOrderSheetSection(): boolean {
+    if (this.officerRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase()) return false;
+    if (!this.caseIdForActions() || !this.isHearingScheduledCase()) return false;
+    if (!this.canStartProceedings()) return false;
     const stage = this.currentProceedingStage();
     if (!stage) return true;
-    return stage === 'NOTICE_PENDING' || stage === 'NOTICE_IN_PROGRESS';
+    return this.isOrderSheetProceedingStage(stage);
   }
 
-  /** Order sheet: only when case proceeding stage is order sheet / roznamah (not during notice). */
-  protected showOrderSheetSection(): boolean {
-    if (!this.caseIdForActions() || this.currentCaseStatus() !== 'HEARING_SCHEDULED') return false;
-    return this.isOrderSheetProceedingStage(this.currentProceedingStage());
-  }
-
-  /** Judgment section: after path chosen, workflow started, or case disposed. */
+  /** Judgment — only when this officer has a judgment action now. */
   protected showJudgmentSection(): boolean {
-    if (!this.caseIdForActions()) return false;
-    const s = this.currentCaseStatus();
-    if (s === 'DISPOSED' || this.isDisposedCase()) return true;
-    if (s !== 'HEARING_SCHEDULED') return false;
-    const jStatus = judgmentWorkflowStatus(this.judgmentWorkflow());
-    if (jStatus) return true;
-    if (this.postRoznamaPath() === 'judgment') return true;
+    if (this.isDisposedCase()) {
+      return !!judgmentWorkflowStatus(this.judgmentWorkflow());
+    }
+    if (!this.caseIdForActions() || !this.isHearingScheduledCase()) return false;
+    const role = this.officerRole();
+    if (role === 'PRESIDING_OFFICER') {
+      return (
+        this.canPoDraftJudgment() ||
+        this.canFinalizeJudgment() ||
+        this.canRevertJudgment() ||
+        this.canPublishJudgment() ||
+        judgmentWorkflowStatus(this.judgmentWorkflow()) === 'CLERK_DRAFT' ||
+        (this.postRoznamaPath() === 'judgment' && this.isCurrentHearingRoznamaSigned())
+      );
+    }
+    if (role === 'CLERK') {
+      return (
+        this.canClerkEditJudgment() ||
+        this.canClerkSubmitJudgmentToPo() ||
+        judgmentWorkflowStatus(this.judgmentWorkflow()) === 'PO_SCRUTINY'
+      );
+    }
     return false;
   }
 
-  /** Can schedule hearing: ACTIVE only (HEARING_SCHEDULED = already scheduled). */
+  /** Can schedule hearing: ACTIVE only, Presiding Officer only, no hearing yet. */
   protected canScheduleHearing(): boolean {
-    return this.currentCaseStatus() === 'ACTIVE' && !this.isDisposedCase();
+    return (
+      this.viewerFlowRole() === 'PRESIDING_OFFICER' &&
+      !this.isHearingScheduledCase() &&
+      !this.isDisposedCase() &&
+      !!this.caseIdForActions()
+    );
   }
 
   /** PO always edits roznamah until signed (draft, scrutiny, pre-sign). */
@@ -935,42 +1101,36 @@ export class CaseListComponent implements OnInit {
 
   protected poRoznamaEditHint(): string | null {
     const st = this.upStage(this.currentOrderSheet()?.status);
-    if (st === 'PO_SCRUTINY') {
-      return 'Clerk submitted roznamah for scrutiny. You may edit and save changes, then finalize and sign.';
-    }
     if (st === 'PO_FINALIZED') {
       return 'Review saved text, make any last changes, save, then sign.';
     }
-    if (st === 'CLERK_DRAFT') {
-      return 'Edit roznamah here. After clerk submits for scrutiny, you can still change and save before signing.';
+    if (st === 'PO_SCRUTINY' || st === 'CLERK_DRAFT') {
+      return 'Presiding Officer only: save proceedings, finalize, then sign the roznamah register.';
     }
-    return null;
+    return 'Presiding Officer only: create and manage the case roznamah register for this case.';
   }
 
-  /** Clerk edits PO's CLERK_DRAFT roznamah and submits for scrutiny. */
+  /** Roznamah is managed by Presiding Officer only (no clerk edit). */
   protected canClerkEditRoznama(): boolean {
-    if (this.viewerFlowRole() !== 'CLERK' || this.isDisposedCase() || !this.showOrderSheetSection()) return false;
-    if (this.isRoznamaReadOnly()) return false;
-    const os = this.currentOrderSheet();
-    return !os || os.status === 'CLERK_DRAFT';
+    return false;
   }
 
-  /** Clerk submits to PO after editing. */
   protected canClerkSubmitOrderSheetToPo(): boolean {
-    return this.canClerkEditRoznama();
+    return false;
   }
 
-  /** PO optional finalize after PO_SCRUTINY. */
+  /** PO finalize roznamah (no clerk step). */
   protected canFinalizeOrderSheet(): boolean {
     if (this.viewerFlowRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase()) return false;
-    return this.currentOrderSheet()?.status === 'PO_SCRUTINY';
+    const st = this.upStage(this.currentOrderSheet()?.status);
+    return st === 'PO_SCRUTINY' || st === 'CLERK_DRAFT';
   }
 
-  /** PO sign from PO_SCRUTINY (min path) or PO_FINALIZED. */
+  /** PO sign roznamah after finalize or from draft. */
   protected canSignOrderSheet(): boolean {
     if (this.viewerFlowRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase()) return false;
-    const st = this.currentOrderSheet()?.status || '';
-    return st === 'PO_SCRUTINY' || st === 'PO_FINALIZED';
+    const st = this.upStage(this.currentOrderSheet()?.status);
+    return st === 'PO_FINALIZED' || st === 'PO_SCRUTINY' || st === 'CLERK_DRAFT';
   }
 
   protected canPoDraftOrderSheet(): boolean {
@@ -981,20 +1141,27 @@ export class CaseListComponent implements OnInit {
     return this.canClerkEditRoznama();
   }
 
-  /** Clerk can draft notice. */
+  /** @deprecated Use canPoDraftNotice — notices are PO-only. */
   protected canDraftNotice(): boolean {
-    if (this.viewerFlowRole() !== 'CLERK' || !this.showNoticeSection() || this.isDisposedCase()) return false;
-    // Show draft form only when no notice exists yet
-    return this.notices().length === 0;
+    return this.canPoDraftNotice();
   }
 
-  /** Clerk or PO can save draft when none or CLERK_DRAFT (not after submit to PO). */
+  /** PO saves the first judgment draft (no workflow status yet). */
+  protected canPoDraftJudgment(): boolean {
+    if (this.viewerFlowRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
+      return false;
+    }
+    return !judgmentWorkflowStatus(this.judgmentWorkflow());
+  }
+
+  /** Clerk edits the same draft after PO saved it (CLERK_DRAFT). */
+  protected canClerkEditJudgment(): boolean {
+    if (this.viewerFlowRole() !== 'CLERK' || this.isDisposedCase() || !this.showJudgmentSection()) return false;
+    return judgmentWorkflowStatus(this.judgmentWorkflow()) === 'CLERK_DRAFT';
+  }
+
   protected canDraftJudgment(): boolean {
-    const role = this.viewerFlowRole();
-    if (role !== 'CLERK' && role !== 'PRESIDING_OFFICER') return false;
-    if (this.isDisposedCase() || !this.showJudgmentSection()) return false;
-    const st = judgmentWorkflowStatus(this.judgmentWorkflow());
-    return !st || st === 'CLERK_DRAFT';
+    return this.canPoDraftJudgment() || this.canClerkEditJudgment();
   }
 
   /** Clerk submits draft to PO → PO_SCRUTINY. */
@@ -1004,10 +1171,17 @@ export class CaseListComponent implements OnInit {
     return !!this.judgmentSummaryInput().trim() || !!this.judgmentTextFromWorkflow(this.judgmentWorkflow());
   }
 
-  /** Read-only judgment text after clerk submit or when finalized. */
+  /** Read-only judgment when the other role is active or case is published. */
   protected showJudgmentReadOnly(): boolean {
     if (!this.showJudgmentSection() || this.canDraftJudgment()) return false;
     const st = judgmentWorkflowStatus(this.judgmentWorkflow());
+    if (!st) return false;
+    if (this.viewerFlowRole() === 'CLERK') {
+      return st === 'PO_SCRUTINY' || st === 'PO_FINALIZED' || st === 'PUBLISHED';
+    }
+    if (this.viewerFlowRole() === 'PRESIDING_OFFICER') {
+      return st === 'CLERK_DRAFT' || st === 'PUBLISHED';
+    }
     return st === 'PO_SCRUTINY' || st === 'PO_FINALIZED' || st === 'PUBLISHED';
   }
 
@@ -1032,9 +1206,11 @@ export class CaseListComponent implements OnInit {
 
   /** @deprecated kept for template backward compat */
   protected canWriteOrderSheet(): boolean {
-    return this.canPoEditRoznama() || this.canClerkEditRoznama();
+    return this.canPoEditRoznama();
   }
-  protected canPassFinalJudgment(): boolean { return this.canDraftJudgment(); }
+  protected canPassFinalJudgment(): boolean {
+    return this.canClerkEditJudgment();
+  }
 
   protected approveAndGenerateCase(): void {
     const appId = this.selectedApplicationId();
@@ -1109,6 +1285,10 @@ export class CaseListComponent implements OnInit {
   }
 
   protected scheduleRehearing(): void {
+    if (this.viewerFlowRole() !== 'PRESIDING_OFFICER') {
+      this.actionError.set('Only Presiding Officer can schedule a hearing.');
+      return;
+    }
     const caseId = this.caseIdForActions();
     if (!caseId) {
       this.actionError.set('Approve application first to get case ID.');
@@ -1158,6 +1338,10 @@ export class CaseListComponent implements OnInit {
   }
 
   protected scheduleHearing(): void {
+    if (this.viewerFlowRole() !== 'PRESIDING_OFFICER') {
+      this.actionError.set('Only Presiding Officer can schedule a hearing.');
+      return;
+    }
     const caseId = this.caseIdForActions();
     if (!caseId) {
       this.actionError.set('Approve application first to get case ID.');
@@ -1179,9 +1363,22 @@ export class CaseListComponent implements OnInit {
       })
       .subscribe({
         next: (resp) => {
-          this.actionMessage.set(`Hearing #${resp.hearingNo} scheduled.`);
+          const appId = this.selectedApplicationId();
+          const hd = resp.hearingDate?.slice(0, 10) || hearingDate;
+          if (appId) {
+            this.patchCaseInboxForApplication(appId, {
+              status: 'HEARING_SCHEDULED',
+              proceedingStage: 'NOTICE_PENDING'
+            });
+          }
+          this.noticeHearingIdInput.set(String(resp.hearingId));
+          this.actionMessage.set(
+            `Hearing #${resp.hearingNo} scheduled for ${hd}. ` +
+              'Draft, finalize, sign, and serve the hearing notice below. Proceedings start only after the notice is served.'
+          );
           this.hearingRemarksInput.set('');
           this.loadHearings();
+          this.loadNotices();
           this.loadTodayCauseList();
           this.loadCaseInbox();
         },
@@ -1686,6 +1883,10 @@ export class CaseListComponent implements OnInit {
   }
 
   protected draftNotice(): void {
+    if (this.officerRole() !== 'PRESIDING_OFFICER') {
+      this.actionError.set('Only Presiding Officer can draft the hearing notice.');
+      return;
+    }
     const caseId = this.caseIdForActions();
     if (!caseId) return;
     const hearingIdVal = this.noticeHearingIdInput().trim();
@@ -1699,12 +1900,34 @@ export class CaseListComponent implements OnInit {
       hearingId, noticeType: this.noticeType(), draftContent: content, selectedParties: parties
     }).pipe(finalize(() => this.noticeActionLoading.set(false)))
       .subscribe({
-        next: () => { this.actionMessage.set('Notice drafted.'); this.loadNotices(); },
+        next: (saved) => {
+          const noticeId = saved?.noticeId;
+          if (!noticeId) {
+            this.actionMessage.set('Notice draft saved.');
+            this.loadNotices();
+            return;
+          }
+          this.officerCaseStage.submitNoticeToPO(caseId, noticeId).subscribe({
+            next: () => {
+              this.actionMessage.set('Notice draft saved. You can finalize, sign, and serve it next.');
+              this.loadNotices();
+            },
+            error: (err: unknown) => {
+              this.actionMessage.set('Notice draft saved. Use Confirm Draft if finalize is not available yet.');
+              this.actionError.set(this.formatError(err));
+              this.loadNotices();
+            }
+          });
+        },
         error: (err: unknown) => this.actionError.set(this.formatError(err))
       });
   }
 
   protected submitNoticeToPO(noticeId: number): void {
+    if (this.officerRole() !== 'PRESIDING_OFFICER') {
+      this.actionError.set('Only Presiding Officer can process the hearing notice.');
+      return;
+    }
     const caseId = this.caseIdForActions();
     if (!caseId) return;
     this.noticeSubmitting.set(true);
@@ -1712,7 +1935,7 @@ export class CaseListComponent implements OnInit {
     this.officerCaseStage.submitNoticeToPO(caseId, noticeId)
       .pipe(finalize(() => this.noticeSubmitting.set(false)))
       .subscribe({
-        next: () => { this.actionMessage.set('Notice submitted to Presiding Officer.'); this.loadNotices(); },
+        next: () => { this.actionMessage.set('Notice draft confirmed. You can finalize it next.'); this.loadNotices(); },
         error: (err: unknown) => this.actionError.set(this.formatError(err))
       });
   }
@@ -1753,7 +1976,7 @@ export class CaseListComponent implements OnInit {
     this.officerCaseStage.revertNotice(caseId, noticeId, reason)
       .pipe(finalize(() => this.noticeActionLoading.set(false)))
       .subscribe({
-        next: () => { this.actionMessage.set('Notice reverted to Clerk.'); this.noticeRevertReason.set(''); this.loadNotices(); },
+        next: () => { this.actionMessage.set('Notice returned to draft for correction.'); this.noticeRevertReason.set(''); this.loadNotices(); },
         error: (err: unknown) => this.actionError.set(this.formatError(err))
       });
   }
@@ -1765,7 +1988,15 @@ export class CaseListComponent implements OnInit {
     this.officerCaseStage.serveNotice(caseId, noticeId)
       .pipe(finalize(() => this.noticeActionLoading.set(false)))
       .subscribe({
-        next: () => { this.actionMessage.set('Notice served.'); this.loadNotices(); },
+        next: () => {
+          const appId = this.selectedApplicationId();
+          if (appId) {
+            this.patchCaseInboxForApplication(appId, { proceedingStage: 'ORDER_SHEET_PENDING' });
+          }
+          this.actionMessage.set('Notice served. Case proceedings (order sheet / roznamah) can now begin.');
+          this.loadNotices();
+          this.loadCaseInbox();
+        },
         error: (err: unknown) => this.actionError.set(this.formatError(err))
       });
   }
