@@ -85,6 +85,10 @@ export class LookupsService {
   private readonly http = inject(HttpClient);
   private readonly apiBaseUrl = environment.apiBaseUrl;
 
+  getStates(): Observable<BoundaryMasterResponse[]> {
+    return this.http.get<BoundaryMasterResponse[]>(`${this.apiBaseUrl}/api/lookups/states`);
+  }
+
   getDistricts(stateId: number, divisionId?: number): Observable<BoundaryMasterResponse[]> {
     return this.http.get<BoundaryMasterResponse[]>(`${this.apiBaseUrl}/api/lookups/districts`, {
       params: divisionId ? { stateId, divisionId } : { stateId }

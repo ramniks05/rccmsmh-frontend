@@ -1,9 +1,10 @@
-import { Component, HostListener, inject } from '@angular/core';
+import { Component, HostListener, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { finalize } from 'rxjs';
 
 import { AuthService } from './services/auth.service';
+import { AdvocateService } from './services/advocate.service';
 import { TokenStorageService } from './services/token-storage.service';
 
 @Component({
@@ -12,8 +13,9 @@ import { TokenStorageService } from './services/token-storage.service';
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
-export class App {
+export class App implements OnInit {
   private readonly authService = inject(AuthService);
+  private readonly advocateService = inject(AdvocateService);
   private readonly tokenStorage = inject(TokenStorageService);
   private readonly router = inject(Router);
 
@@ -22,8 +24,16 @@ export class App {
 
   // Reactive signals — update instantly on login/logout
   protected readonly isLoggedIn = this.tokenStorage.isLoggedIn;
-  protected readonly isAdvocate = this.tokenStorage.isAdvocate();
-  protected readonly isOfficer = this.tokenStorage.isOfficer();
+  protected readonly isAdvocate = this.tokenStorage.sessionIsAdvocate;
+  protected readonly isProfileComplete = this.tokenStorage.sessionProfileComplete;
+
+  protected isOfficer(): boolean {
+    return this.tokenStorage.isOfficer();
+  }
+
+  ngOnInit(): void {
+    this.syncAdvocateSession();
+  }
   protected readonly displayName = this.tokenStorage.sessionDisplayName;
   protected readonly role = this.tokenStorage.sessionRole;
   protected readonly designation = this.tokenStorage.sessionDesignation;
@@ -73,5 +83,16 @@ export class App {
     this.tokenStorage.clear();
     this.showUserMenu = false;
     void this.router.navigate(['/']);
+  }
+
+  /** Refresh advocate flag and profileComplete from API after reload or stale session. */
+  private syncAdvocateSession(): void {
+    if (!this.tokenStorage.getAccessToken() || !this.tokenStorage.isAdvocate()) {
+      return;
+    }
+    this.advocateService.getMyProfile().subscribe({
+      next: (p) => this.tokenStorage.setProfileComplete(p.profileComplete === true),
+      error: () => { /* menu still shows; guards handle incomplete */ }
+    });
   }
 }

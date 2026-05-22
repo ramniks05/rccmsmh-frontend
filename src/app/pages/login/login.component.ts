@@ -73,12 +73,41 @@ export class LoginComponent {
       .subscribe({
         next: (response: LoginResponse) => {
           this.tokenStorage.saveSession(response);
-          void this.router.navigate([this.dashboardRoute(response.role)]);
+          this.navigateAfterLogin(response);
         },
         error: (error: unknown) => {
           this.loginErrorMessage = this.extractApiError(error);
         }
       });
+  }
+
+  private navigateAfterLogin(response: LoginResponse): void {
+    const role = (response.role || '').toUpperCase();
+    if (role !== 'ADVOCATE') {
+      void this.router.navigate([this.dashboardRoute(response.role)]);
+      return;
+    }
+    if (response.profileComplete === true) {
+      this.tokenStorage.setProfileComplete(true);
+      void this.router.navigate(['/portal-home']);
+      return;
+    }
+    if (response.profileComplete === false) {
+      this.tokenStorage.setProfileComplete(false);
+      void this.router.navigate(['/advocate/profile']);
+      return;
+    }
+    this.authService.me().subscribe({
+      next: (me) => {
+        const complete = me.profileComplete === true;
+        this.tokenStorage.setProfileComplete(complete);
+        void this.router.navigate(complete ? ['/portal-home'] : ['/advocate/profile']);
+      },
+      error: () => {
+        this.tokenStorage.setProfileComplete(false);
+        void this.router.navigate(['/advocate/profile']);
+      }
+    });
   }
 
   /** Returns the correct landing route based on role. */

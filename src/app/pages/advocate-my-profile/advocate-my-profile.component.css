@@ -1,0 +1,354 @@
+:host {
+  display: block;
+}
+
+.my-profile-page {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.state-card {
+  text-align: center;
+  padding: 2rem;
+  color: #64748b;
+}
+
+.error-card {
+  color: #991b1b;
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+}
+
+/* ── Single profile card ─────────────────────────────────────────── */
+.profile-sheet {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.profile-sheet-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.5rem 1.75rem;
+  background: linear-gradient(135deg, #0a2d6e 0%, #0b3d91 55%, #1a56c4 100%);
+  color: #fff;
+  position: relative;
+}
+
+.profile-sheet-head::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 20px 20px;
+  pointer-events: none;
+}
+
+.profile-sheet-identity,
+.profile-sheet-actions {
+  position: relative;
+  z-index: 1;
+}
+
+.profile-sheet-identity {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+}
+
+.profile-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 800;
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.45);
+}
+
+.profile-eyebrow {
+  margin: 0 0 0.15rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.88;
+  font-weight: 600;
+}
+
+.profile-sheet-head h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.chip {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+}
+
+.chip-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.chip-warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.profile-sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.profile-sheet-head .btn-primary {
+  background: #f59e0b;
+  color: #1c1917;
+  border: none;
+  font-weight: 700;
+}
+
+.profile-sheet-head .btn-primary:hover {
+  background: #fbbf24;
+}
+
+.profile-sheet-head .btn-secondary {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.profile-sheet-head .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* ── Body & sections ─────────────────────────────────────────────── */
+.profile-sheet-body {
+  padding: 0;
+}
+
+.profile-section {
+  padding: 1.35rem 1.75rem;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 1rem;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #0b3d91;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.section-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #0b3d91;
+  flex-shrink: 0;
+}
+
+.section-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.section-divider {
+  height: 1px;
+  margin: 0 1.75rem;
+  background: linear-gradient(90deg, transparent, #e2e8f0 12%, #e2e8f0 88%, transparent);
+}
+
+.section-divider-light {
+  background: #f1f5f9;
+  margin: 0;
+}
+
+/* Split: bar enrollment | place of practice */
+.profile-section-split {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0;
+  align-items: stretch;
+  padding: 0;
+}
+
+.subsection {
+  padding: 1.35rem 1.75rem;
+}
+
+.subsection-vrule {
+  width: 1px;
+  background: linear-gradient(180deg, transparent, #e2e8f0 15%, #e2e8f0 85%, transparent);
+  margin: 1rem 0;
+}
+
+/* Field grid */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1.5rem;
+}
+
+.field-grid-address {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.field-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.field-item-wide {
+  grid-column: 1 / -1;
+}
+
+.field-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+}
+
+.field-value {
+  font-size: 0.94rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.field-value a {
+  color: #0b3d91;
+  text-decoration: none;
+}
+
+.field-value a:hover {
+  text-decoration: underline;
+}
+
+.field-value-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cert-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.12rem 0.45rem;
+  border-radius: 6px;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.address-summary {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.address-summary p {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+  color: #334155;
+  line-height: 1.55;
+  font-weight: 500;
+}
+
+.empty-block {
+  margin: 0 0 0.85rem;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+.profile-sheet-footer {
+  padding: 0.85rem 1.75rem 1.15rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .profile-section-split {
+    grid-template-columns: 1fr;
+  }
+
+  .subsection-vrule {
+    width: auto;
+    height: 1px;
+    margin: 0 1.75rem;
+    background: linear-gradient(90deg, transparent, #e2e8f0 12%, #e2e8f0 88%, transparent);
+  }
+
+  .field-grid,
+  .field-grid-address {
+    grid-template-columns: 1fr;
+  }
+
+  .field-item-wide {
+    grid-column: auto;
+  }
+
+  .profile-sheet-head {
+    padding: 1.25rem;
+  }
+
+  .profile-section,
+  .subsection {
+    padding: 1.15rem 1.25rem;
+  }
+
+  .section-divider {
+    margin: 0 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-sheet-head h1 {
+    font-size: 1.25rem;
+  }
+
+  .profile-sheet-actions {
+    width: 100%;
+  }
+
+  .profile-sheet-actions .btn {
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+  }
+}

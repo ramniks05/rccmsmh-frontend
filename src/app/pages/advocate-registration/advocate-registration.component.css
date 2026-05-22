@@ -306,7 +306,7 @@
 .input-wrap input {
   width: 100%;
 
-  padding: 0.78rem 1rem;
+  padding: 0.78rem 2.8rem 0.78rem 0.95rem;
 
   border: 1.5px solid #e2e8f0;
   border-radius: 12px;
@@ -714,4 +714,28 @@
   .form-head h2 {
     font-size: 1.35rem;
   }
+}
+
+.section-label {
+  margin: 0.5rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0b3d91;
+}
+
+.cert-ok {
+  color: #166534;
+  font-weight: 600;
+}
+
+select {
+  width: 100%;
+  border-radius: 10px;
+  border: 1.5px solid #e2e8f0;
+  padding: 0.65rem 0.85rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  background: #fff;
 }

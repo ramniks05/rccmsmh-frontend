@@ -78,6 +78,27 @@
 
     <div class="actions-grid">
       @if (isAdvocate) {
+        <a
+          class="action-tile"
+          [routerLink]="tokenStorage.isProfileComplete() ? '/advocate/my-profile' : '/advocate/profile'"
+          [attr.aria-label]="tokenStorage.isProfileComplete() ? 'View my profile' : 'Complete your profile'"
+        >
+          <div class="action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z"/>
+            </svg>
+          </div>
+          <div class="action-content">
+            <h3>{{ tokenStorage.isProfileComplete() ? 'My profile' : 'Complete profile' }}</h3>
+            <p>View contact, bar enrollment, and address</p>
+          </div>
+          <div class="action-arrow" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13">
+              <path fill-rule="evenodd" d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+        </a>
+
         <a class="action-tile" routerLink="/cases/new" aria-label="File a new case">
           <div class="action-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 
 import { AuthService } from '../../services/auth.service';
+import { AdvocateService } from '../../services/advocate.service';
 import { TokenStorageService } from '../../services/token-storage.service';
 import { FilingApplicationService, MyApplicationItem } from '../../services/filing-application.service';
 
@@ -24,7 +25,8 @@ interface StatCard {
 })
 export class PortalHomeComponent implements OnInit {
   private readonly authService      = inject(AuthService);
-  private readonly tokenStorage     = inject(TokenStorageService);
+  private readonly advocateService  = inject(AdvocateService);
+  protected readonly tokenStorage   = inject(TokenStorageService);
   private readonly filingService    = inject(FilingApplicationService);
   private readonly router           = inject(Router);
 
@@ -76,7 +78,21 @@ export class PortalHomeComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    if (this.isAdvocate && !this.tokenStorage.isProfileComplete()) {
+      void this.router.navigate(['/advocate/profile']);
+      return;
+    }
+    if (this.isAdvocate) {
+      this.syncProfileStatus();
+    }
     this.loadApplications();
+  }
+
+  private syncProfileStatus(): void {
+    this.advocateService.getMyProfile().subscribe({
+      next: (p) => this.tokenStorage.setProfileComplete(p.profileComplete === true),
+      error: () => { /* guard will redirect if still incomplete */ }
+    });
   }
 
   protected loadApplications(): void {

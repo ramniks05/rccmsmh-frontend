@@ -14,18 +14,59 @@ import { MyApplicationsComponent } from './pages/applications/my-applications/my
 import { authGuard } from './guards/auth.guard';
 import { adminGuard } from './guards/admin.guard';
 import { advocateGuard } from './guards/advocate.guard';
+import {
+  advocateProfileCompleteGuard,
+  advocateProfilePageGuard
+} from './guards/advocate-profile-complete.guard';
+import { AdvocateProfileComponent } from './pages/advocate-profile/advocate-profile.component';
+import { AdvocateMyProfileComponent } from './pages/advocate-my-profile/advocate-my-profile.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
   { path: 'login', component: LoginComponent },
-  { path: 'portal-home', component: PortalHomeComponent, canActivate: [authGuard] },
-  { path: 'cases', component: CaseListComponent, canActivate: [authGuard] },
-  { path: 'cases/new', component: NewCaseComponent, canActivate: [authGuard, advocateGuard] },
-  { path: 'applications', component: MyApplicationsComponent, canActivate: [authGuard] },
-  { path: 'applications/new', component: NewApplicationComponent, canActivate: [authGuard, advocateGuard] },
-  { path: 'applications/:id', component: ApplicationPreviewComponent, canActivate: [authGuard] },
-  { path: 'admin/masters', component: AdminMastersComponent, canActivate: [adminGuard] },
   { path: 'register/advocate', component: AdvocateRegistrationComponent },
   { path: 'register/party', component: PartyRegistrationComponent },
+  {
+    path: 'advocate/my-profile',
+    component: AdvocateMyProfileComponent,
+    canActivate: [authGuard, advocateGuard]
+  },
+  {
+    path: 'advocate/profile',
+    component: AdvocateProfileComponent,
+    canActivate: [authGuard, advocateGuard, advocateProfilePageGuard]
+  },
+  {
+    path: 'advocate/profile/edit',
+    component: AdvocateProfileComponent,
+    canActivate: [authGuard, advocateGuard]
+  },
+  {
+    path: 'portal-home',
+    component: PortalHomeComponent,
+    canActivate: [authGuard, advocateProfileCompleteGuard]
+  },
+  { path: 'cases', component: CaseListComponent, canActivate: [authGuard] },
+  {
+    path: 'cases/new',
+    component: NewCaseComponent,
+    canActivate: [authGuard, advocateGuard, advocateProfileCompleteGuard]
+  },
+  {
+    path: 'applications',
+    component: MyApplicationsComponent,
+    canActivate: [authGuard, advocateProfileCompleteGuard]
+  },
+  {
+    path: 'applications/new',
+    component: NewApplicationComponent,
+    canActivate: [authGuard, advocateGuard, advocateProfileCompleteGuard]
+  },
+  {
+    path: 'applications/:id',
+    component: ApplicationPreviewComponent,
+    canActivate: [authGuard, advocateProfileCompleteGuard]
+  },
+  { path: 'admin/masters', component: AdminMastersComponent, canActivate: [adminGuard] },
   { path: '**', redirectTo: '' }
 ];

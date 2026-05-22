@@ -25,9 +25,14 @@
 
       @if (isLoggedIn()) {
         <a routerLink="/portal-home" class="nav-home-link">Home</a>
-        @if (isAdvocate) {
+        @if (isAdvocate()) {
           <a routerLink="/applications" class="nav-home-link">My Applications</a>
-        } @else if (isOfficer) {
+          @if (isProfileComplete()) {
+            <a routerLink="/advocate/my-profile" class="nav-home-link">My profile</a>
+          } @else {
+            <a routerLink="/advocate/profile" class="nav-home-link">Complete profile</a>
+          }
+        } @else if (isOfficer()) {
           <a routerLink="/cases" class="nav-home-link">My Cases</a>
         } @else {
           <a routerLink="/applications" class="nav-home-link">My Applications</a>
@@ -82,6 +87,14 @@
               </div>
 
               <div class="user-menu-divider"></div>
+
+              @if (isAdvocate()) {
+                @if (isProfileComplete()) {
+                  <a routerLink="/advocate/my-profile" class="user-menu-link" role="menuitem" (click)="closeUserMenu()">My profile</a>
+                } @else {
+                  <a routerLink="/advocate/profile" class="user-menu-link" role="menuitem" (click)="closeUserMenu()">Complete profile</a>
+                }
+              }
 
               <button
                 type="button"

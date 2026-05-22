@@ -1,0 +1,250 @@
+<section class="app-page profile-page">
+  <header class="page-head">
+    <div>
+      @if (isEditMode()) {
+        <h2>Update profile</h2>
+        <p class="sub">Change email, mobile, gender, or address. Bar enrollment details stay as registered.</p>
+      } @else {
+        <h2>Complete your profile</h2>
+        <p class="sub">Add address and personal details to access filing and case features.</p>
+      }
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="card loading-card">Loading profile…</div>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="submit()" class="card profile-form rccms-form">
+      <p class="section-label">Personal</p>
+      <span class="field-hint registration-hint full-width">
+        Name was set at advocate registration and cannot be changed here. You may update email or mobile.
+      </span>
+      <div class="form-grid">
+        <div class="field">
+          <label for="firstName">
+            <span class="field-label">First name</span>
+          </label>
+          <div class="input-wrap">
+            <input id="firstName" type="text" formControlName="firstName" readonly />
+          </div>
+        </div>
+        <div class="field">
+          <label for="middleName">
+            <span class="field-label">Middle name</span>
+          </label>
+          <div class="input-wrap">
+            <input id="middleName" type="text" formControlName="middleName" readonly />
+          </div>
+        </div>
+        <div class="field">
+          <label for="lastName">
+            <span class="field-label">Last name</span>
+          </label>
+          <div class="input-wrap">
+            <input id="lastName" type="text" formControlName="lastName" readonly />
+          </div>
+        </div>
+        <div class="field">
+          <label for="gender">
+            <span class="field-label">Gender</span>
+            <span class="field-required">*</span>
+          </label>
+          <select id="gender" formControlName="gender" [class.has-error]="isFieldInvalid('gender')">
+            <option value="">Select</option>
+            <option value="MALE">Male</option>
+            <option value="FEMALE">Female</option>
+            <option value="OTHER">Other</option>
+          </select>
+          @if (isFieldInvalid('gender')) {
+            <span class="field-error">{{ getFieldError('gender') }}</span>
+          }
+        </div>
+        <div class="field">
+          <label for="mobileNumber">
+            <span class="field-label">Mobile</span>
+            <span class="field-required">*</span>
+          </label>
+          <div class="input-wrap">
+            <input
+              id="mobileNumber"
+              type="tel"
+              maxlength="10"
+              inputmode="numeric"
+              formControlName="mobileNumber"
+              [class.has-error]="isFieldInvalid('mobileNumber')"
+            />
+          </div>
+          @if (isFieldInvalid('mobileNumber')) {
+            <span class="field-error">{{ getFieldError('mobileNumber') }}</span>
+          }
+        </div>
+        <div class="field">
+          <label for="email">
+            <span class="field-label">Email</span>
+            <span class="field-required">*</span>
+          </label>
+          <div class="input-wrap">
+            <input
+              id="email"
+              type="email"
+              formControlName="email"
+              [class.has-error]="isFieldInvalid('email')"
+            />
+          </div>
+          @if (isFieldInvalid('email')) {
+            <span class="field-error">{{ getFieldError('email') }}</span>
+          }
+        </div>
+      </div>
+
+      <p class="section-label">Address (search by pincode)</p>
+      <div class="address-section">
+        <div class="form-grid pincode-search-row">
+          <div class="field">
+            <label for="pinCode">
+              <span class="field-label">Pincode</span>
+              <span class="field-required">*</span>
+            </label>
+            <div class="input-wrap">
+              <input
+                id="pinCode"
+                type="text"
+                formControlName="pinCode"
+                maxlength="6"
+                inputmode="numeric"
+                placeholder="416013"
+                [class.has-error]="isFieldInvalid('pinCode')"
+              />
+            </div>
+            @if (isFieldInvalid('pinCode')) {
+              <span class="field-error">{{ getFieldError('pinCode') }}</span>
+            }
+          </div>
+          <div class="field pin-search-cell">
+            <button
+              type="button"
+              class="btn-pin-search"
+              (click)="lookupPincode()"
+              [disabled]="pincodeLoading()"
+            >
+              {{ pincodeLoading() ? 'Searching…' : 'Search pincode' }}
+            </button>
+          </div>
+        </div>
+
+        @if (pincodeHint()) {
+          <span class="field-hint pin-hint full-width">{{ pincodeHint() }}</span>
+        }
+
+        @if (addressFromPincode() || form.controls.stateName.value) {
+          <div class="form-grid address-fields">
+            <div class="field">
+              <label for="stateName">
+                <span class="field-label">State</span>
+                <span class="field-required">*</span>
+              </label>
+              <div class="input-wrap">
+                <input
+                  id="stateName"
+                  type="text"
+                  formControlName="stateName"
+                  readonly
+                  [class.has-error]="isFieldInvalid('stateName')"
+                />
+              </div>
+            </div>
+            <div class="field">
+              <label for="districtName">
+                <span class="field-label">District</span>
+                <span class="field-required">*</span>
+              </label>
+              <div class="input-wrap">
+                <input
+                  id="districtName"
+                  type="text"
+                  formControlName="districtName"
+                  readonly
+                  [class.has-error]="isFieldInvalid('districtName')"
+                />
+              </div>
+            </div>
+            <div class="field">
+              <label for="subdistrictName">
+                <span class="field-label">Taluka</span>
+              </label>
+              <div class="input-wrap">
+                <input id="subdistrictName" type="text" formControlName="subdistrictName" readonly />
+              </div>
+            </div>
+            @if (postOffices().length) {
+              <div class="field">
+                <label for="postOfficeSelect">
+                  <span class="field-label">Post office</span>
+                  <span class="field-required">*</span>
+                </label>
+                <select
+                  id="postOfficeSelect"
+                  formControlName="postOfficeValue"
+                  (change)="onPostOfficeSelected()"
+                >
+                  <option value="">Select post office</option>
+                  @for (po of postOffices(); track po.value) {
+                    <option [value]="po.value">{{ po.name }}</option>
+                  }
+                </select>
+              </div>
+            }
+            <div class="field">
+              <label for="village">
+                <span class="field-label">Village / city</span>
+              </label>
+              <div class="input-wrap">
+                <input
+                  id="village"
+                  type="text"
+                  formControlName="village"
+                  placeholder="Locality or area name"
+                />
+              </div>
+            </div>
+            <div class="field full-width">
+              <div class="field-header">
+                <label for="addressLine1">
+                  <span class="field-label">Address</span>
+                  <span class="field-required">*</span>
+                </label>
+                <span class="field-count">{{ getFieldCharCount('addressLine1') }}</span>
+              </div>
+              <div class="input-wrap">
+                <input
+                  id="addressLine1"
+                  type="text"
+                  formControlName="addressLine1"
+                  placeholder="House no., street, building"
+                  maxlength="200"
+                  [class.has-error]="isFieldInvalid('addressLine1')"
+                />
+              </div>
+              @if (isFieldInvalid('addressLine1')) {
+                <span class="field-error">{{ getFieldError('addressLine1') }}</span>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      @if (successMessage()) {
+        <div class="success-banner full-width">{{ successMessage() }}</div>
+      }
+      @if (errorMessage()) {
+        <div class="error-banner full-width">{{ errorMessage() }}</div>
+      }
+
+      <div class="footer-actions full-width">
+        <button type="submit" class="btn btn-primary btn-submit-profile" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : 'Save profile' }}
+        </button>
+      </div>
+    </form>
+  }
+</section>

@@ -137,6 +137,549 @@ body {
   }
 }
 
+/* ── Uniform form controls (registration + profile) ───────────────── */
+.register-page,
+.app-page.profile-page {
+  --rccms-field-border: #e2e8f0;
+  --rccms-field-radius: 12px;
+  --rccms-field-pad-y: 0.78rem;
+  --rccms-field-pad-x: 0.95rem;
+  --rccms-field-font: 0.95rem;
+  --rccms-label-size: 0.85rem;
+  --rccms-navy: #0b3d91;
+  --rccms-error: #ef4444;
+  --rccms-success: #10b981;
+  /* Reserved row so validation text does not shift inputs in a grid row */
+  --rccms-feedback-min: 1.35rem;
+}
+
+.register-page .rccms-form,
+.app-page.profile-page .rccms-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.register-page .form-grid,
+.register-page .address-grid,
+.register-page .address-section .address-grid,
+.app-page.profile-page .form-grid,
+.app-page.profile-page .address-grid,
+.app-page.profile-page .address-section .address-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+/* First / middle / last name on one row */
+.register-page .form-grid.name-grid,
+.app-page.profile-page .form-grid.name-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.register-page .rccms-form .field,
+.app-page.profile-page .rccms-form .field {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+/* Leaf fields only: reserve one line for hint/error so grid-row inputs stay aligned */
+.register-page .rccms-form .field:not(.address-section),
+.app-page.profile-page .rccms-form .field:not(.address-section) {
+  position: relative;
+  padding-bottom: var(--rccms-feedback-min);
+}
+
+.register-page .rccms-form .field:not(.address-section) > .field-error,
+.register-page .rccms-form .field:not(.address-section) > .field-hint,
+.app-page.profile-page .rccms-form .field:not(.address-section) > .field-error,
+.app-page.profile-page .rccms-form .field:not(.address-section) > .field-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+}
+
+.register-page .rccms-form .field.address-section,
+.register-page .rccms-form .field.field-file,
+.app-page.profile-page .rccms-form .field.address-section,
+.app-page.profile-page .rccms-form .field.field-file {
+  padding-bottom: 0;
+}
+
+.register-page .rccms-form .field.field-file > .field-hint,
+.register-page .rccms-form .field.field-file > .field-error,
+.app-page.profile-page .rccms-form .field.field-file > .field-hint,
+.app-page.profile-page .rccms-form .field.field-file > .field-error {
+  position: static;
+}
+
+.register-page .rccms-form .field.address-section > .field-hint,
+.register-page .rccms-form .field.address-section > .field-error,
+.app-page.profile-page .rccms-form .field.address-section > .field-hint,
+.app-page.profile-page .rccms-form .field.address-section > .field-error {
+  position: static;
+}
+
+.register-page .rccms-form .field:has(.password-meter),
+.app-page.profile-page .rccms-form .field:has(.password-meter) {
+  padding-bottom: calc(var(--rccms-feedback-min) + 0.35rem);
+}
+
+.register-page .full-width,
+.app-page.profile-page .full-width {
+  grid-column: 1 / -1;
+}
+
+.register-page .field-header,
+.app-page.profile-page .field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.register-page .field > label,
+.register-page .field-header > label,
+.app-page.profile-page .field > label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem;
+  font-size: var(--rccms-label-size);
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1.35;
+  min-height: 1.35em;
+}
+
+.register-page .field-optional,
+.app-page.profile-page .field-optional {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.register-page .field-label,
+.app-page.profile-page .field-label {
+  font-size: var(--rccms-label-size);
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.register-page .field-required,
+.app-page.profile-page .field-required {
+  color: var(--rccms-error);
+  font-weight: 700;
+}
+
+.register-page .section-label,
+.app-page.profile-page .section-label {
+  margin: 0.75rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rccms-navy);
+}
+
+.register-page .section-label:first-child,
+.app-page.profile-page .section-label:first-child {
+  margin-top: 0;
+}
+
+.register-page .input-wrap,
+.app-page.profile-page .input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.register-page .field input:not([type='file']):not([type='checkbox']):not([type='radio']),
+.register-page .field select,
+.register-page .field textarea,
+.register-page .input-wrap input,
+.app-page.profile-page .field input:not([type='file']),
+.app-page.profile-page .field select,
+.app-page.profile-page .field textarea,
+.app-page.profile-page .input-wrap input {
+  width: 100%;
+  padding: var(--rccms-field-pad-y) var(--rccms-field-pad-x);
+  border: 1.5px solid var(--rccms-field-border);
+  border-radius: var(--rccms-field-radius);
+  font-size: var(--rccms-field-font);
+  font-family: inherit;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+  transition: border-color 120ms, box-shadow 120ms;
+  box-sizing: border-box;
+}
+
+.register-page .field select,
+.app-page.profile-page .field select {
+  padding-right: 2.25rem;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1.1rem;
+}
+
+.register-page .field input:focus,
+.register-page .field select:focus,
+.register-page .field textarea:focus,
+.register-page .input-wrap input:focus,
+.app-page.profile-page .field input:focus,
+.app-page.profile-page .field select:focus,
+.app-page.profile-page .field textarea:focus,
+.app-page.profile-page .input-wrap input:focus {
+  border-color: var(--rccms-navy);
+  box-shadow: 0 0 0 3px rgba(11, 61, 145, 0.12);
+}
+
+.register-page .field input.has-error,
+.register-page .field select.has-error,
+.register-page .input-wrap input.has-error,
+.app-page.profile-page .field input.has-error,
+.app-page.profile-page .field select.has-error,
+.app-page.profile-page .input-wrap input.has-error {
+  border-color: var(--rccms-error) !important;
+}
+
+.register-page .field input.is-valid,
+.register-page .input-wrap input.is-valid,
+.app-page.profile-page .field input.is-valid,
+.app-page.profile-page .input-wrap input.is-valid {
+  border-color: var(--rccms-success) !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+}
+
+.register-page .field input:disabled,
+.register-page .field select:disabled,
+.app-page.profile-page .field input:disabled,
+.app-page.profile-page .field select:disabled {
+  background: #f8fafc;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.register-page .field input[readonly],
+.app-page.profile-page .field input[readonly] {
+  background: #f8fafc;
+  color: #475569;
+}
+
+.register-page .field input[type='file'],
+.app-page.profile-page .field input[type='file'] {
+  padding: 0.55rem;
+  font-size: 0.88rem;
+  border: 1.5px dashed #cbd5e1;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.register-page .file-picker,
+.app-page.profile-page .file-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  position: relative;
+  z-index: 1;
+}
+
+.register-page .file-picker-input,
+.app-page.profile-page .file-picker-input {
+  position: absolute;
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  z-index: -1;
+}
+
+.register-page .file-picker-button,
+.app-page.profile-page .file-picker-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.1rem;
+  border-radius: var(--rccms-field-radius);
+  border: 1.5px solid var(--rccms-navy);
+  background: #eff6ff;
+  color: var(--rccms-navy);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.register-page .file-picker-button:hover,
+.app-page.profile-page .file-picker-button:hover {
+  background: #dbeafe;
+}
+
+.register-page .file-picker-name,
+.app-page.profile-page .file-picker-name {
+  flex: 1;
+  min-width: 140px;
+  font-size: 0.88rem;
+  color: #334155;
+  word-break: break-all;
+}
+
+.register-page .file-picker-name.is-empty,
+.app-page.profile-page .file-picker-name.is-empty {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.register-page .field-hint,
+.app-page.profile-page .field-hint {
+  font-size: 0.8rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.register-page .field-error,
+.app-page.profile-page .field-error {
+  font-size: 0.8rem;
+  color: #dc2626;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.register-page .field-count,
+.app-page.profile-page .field-count {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.register-page .toggle-pw,
+.app-page.profile-page .toggle-pw {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+}
+
+.register-page .toggle-pw:hover,
+.app-page.profile-page .toggle-pw:hover {
+  color: #475569;
+}
+
+.register-page .toggle-pw svg,
+.app-page.profile-page .toggle-pw svg {
+  width: 18px;
+  height: 18px;
+}
+
+.register-page .field-icon,
+.app-page.profile-page .field-icon {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+
+.register-page .field-icon.valid,
+.app-page.profile-page .field-icon.valid {
+  color: var(--rccms-success);
+}
+
+.register-page .field-icon.error,
+.app-page.profile-page .field-icon.error {
+  color: var(--rccms-error);
+}
+
+.register-page .input-wrap:has(.toggle-pw) input,
+.register-page .input-wrap:has(.field-icon) input {
+  padding-right: 2.8rem;
+}
+
+.register-page .pin-row,
+.app-page.profile-page .pin-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.register-page .pin-field,
+.app-page.profile-page .pin-field {
+  flex: 1;
+  min-width: 140px;
+}
+
+.register-page .btn-pin-search,
+.app-page.profile-page .btn-pin-search {
+  border: 1.5px solid var(--rccms-field-border);
+  background: #f8fafc;
+  color: var(--rccms-navy);
+  border-radius: var(--rccms-field-radius);
+  padding: var(--rccms-field-pad-y) 1rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.register-page .btn-pin-search:hover:not(:disabled),
+.app-page.profile-page .btn-pin-search:hover:not(:disabled) {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.register-page .btn-pin-search:disabled,
+.app-page.profile-page .btn-pin-search:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.register-page .post-office-field,
+.app-page.profile-page .post-office-field {
+  margin-top: 0.25rem;
+}
+
+.register-page .address-fields,
+.app-page.profile-page .address-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.register-page .address-section {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.register-page .address-section > .pin-hint,
+.register-page .address-section > .form-grid.pincode-search-row,
+.register-page .address-section > .form-grid.address-fields {
+  grid-column: 1 / -1;
+}
+
+.register-page .pin-search-cell {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: var(--rccms-feedback-min, 1.35rem);
+}
+
+.register-page .pin-search-cell .btn-pin-search {
+  width: 100%;
+}
+
+@media (max-width: 820px) {
+  .register-page .address-section {
+    grid-template-columns: 1fr;
+  }
+
+  .register-page .pin-search-cell {
+    padding-bottom: 0;
+  }
+}
+
+.register-page .pincode-search-row,
+.app-page.profile-page .pincode-search-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.register-page .post-office-list,
+.app-page.profile-page .post-office-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.register-page .po-chip,
+.app-page.profile-page .po-chip {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: var(--rccms-navy);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.register-page .po-chip:hover,
+.app-page.profile-page .po-chip:hover {
+  background: #dbeafe;
+}
+
+.register-page .success-banner,
+.register-page .error-banner,
+.app-page.profile-page .success-banner,
+.app-page.profile-page .error-banner {
+  padding: 0.85rem 1rem;
+  border-radius: var(--rccms-field-radius);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.register-page .success-banner,
+.app-page.profile-page .success-banner {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.register-page .error-banner,
+.app-page.profile-page .error-banner {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+@media (max-width: 820px) {
+  .register-page .form-grid,
+  .register-page .address-grid,
+  .app-page.profile-page .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .register-page .form-grid.name-grid,
+  .app-page.profile-page .form-grid.name-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .register-page .pin-row,
+  .app-page.profile-page .pin-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .register-page .btn-pin-search,
+  .app-page.profile-page .btn-pin-search {
+    width: 100%;
+  }
+}
+
 /* RCCMS application UI (global, scoped under .rccms-app) */
 .rccms-app {
   color: #0f172a;
