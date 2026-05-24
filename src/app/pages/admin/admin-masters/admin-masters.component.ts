@@ -2,14 +2,19 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Observable } from 'rxjs';
+import { forkJoin, Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 import {
   AdminMastersService,
   ActRecord,
   SectionRecord,
   DepartmentRecord,
+  AdminCaseCategoryRecord,
+  ConfiguredSubjectSummary,
+  CreateOrUpdateDocumentTypeRequest,
   DocumentTypeMappingItemRecord,
+  DocumentTypeRecord,
   MasterRecord,
   DesignationRecord,
   OccupationRecord,
@@ -50,6 +55,7 @@ type MasterKind =
   | 'DESIGNATION'
   | 'OCCUPATION'
   | 'EMPLOYEE'
+  | 'DOCUMENT_TYPE'
   | 'DOCUMENT_TYPE_MAPPING';
 
 @Component({
@@ -87,8 +93,16 @@ export class AdminMastersComponent {
   protected readonly employees = signal<EmployeeRecord[]>([]);
   protected readonly occupations = signal<OccupationRecord[]>([]);
   protected readonly employeePostings = signal<EmployeePostingRecord[]>([]);
+  protected readonly documentTypes = signal<DocumentTypeRecord[]>([]);
+  protected readonly caseCategories = signal<AdminCaseCategoryRecord[]>([]);
   protected readonly documentTypeMappings = signal<DocumentTypeMappingItemRecord[]>([]);
   protected readonly mappingSubjects = signal<SubjectRecord[]>([]);
+  protected readonly mappingSubjectsLoading = signal(false);
+  protected readonly configuredMappingSubjects = signal<ConfiguredSubjectSummary[]>([]);
+  protected readonly configuredSubjectDocumentsBySubjectId = signal<
+    Map<number, DocumentTypeMappingItemRecord[]>
+  >(new Map());
+  protected readonly mappingContextLabel = signal<string | null>(null);
 
   protected readonly editingDepartmentId = signal<number | null>(null);
   protected readonly editingActId = signal<number | null>(null);
@@ -99,6 +113,7 @@ export class AdminMastersComponent {
   protected readonly editingDesignationId = signal<number | null>(null);
   protected readonly editingOccupationId = signal<number | null>(null);
   protected readonly editingEmployeeId = signal<number | null>(null);
+  protected readonly editingDocumentTypeId = signal<number | null>(null);
   protected readonly selectedEmployeeForPostingsId = signal<number | null>(null);
 
   protected readonly selectedSectionActId = signal<number>(0);
@@ -124,6 +139,7 @@ export class AdminMastersComponent {
   protected readonly isDesignation = computed(() => this.selected() === 'DESIGNATION');
   protected readonly isOccupation = computed(() => this.selected() === 'OCCUPATION');
   protected readonly isEmployee = computed(() => this.selected() === 'EMPLOYEE');
+  protected readonly isDocumentType = computed(() => this.selected() === 'DOCUMENT_TYPE');
   protected readonly isDocumentTypeMapping = computed(() => this.selected() === 'DOCUMENT_TYPE_MAPPING');
 
   protected readonly activeMasterList = computed<MasterRecord[]>(() => {
@@ -165,6 +181,8 @@ export class AdminMastersComponent {
                       ? this.occupations().length
                     : this.isEmployee()
                       ? this.employees().length
+                      : this.isDocumentType()
+                        ? this.documentTypes().length
           : this.activeMasterList().length
   );
   protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.total() / this.pageSize())));
@@ -238,6 +256,62 @@ export class AdminMastersComponent {
     const start = (currentPage - 1) * size;
     return this.employees().slice(start, start + size);
   });
+
+  protected readonly pagedDocumentTypeList = computed<DocumentTypeRecord[]>(() => {
+    const size = this.pageSize();
+    const currentPage = Math.min(this.page(), this.totalPages());
+    const start = (currentPage - 1) * size;
+    return this.documentTypes().slice(start, start + size);
+  });
+
+  protected readonly sortedDocumentTypesForMapping = computed(() =>
+    [...this.documentTypes()].sort((a, b) => a.name.localeCompare(b.name))
+  );
+
+  protected readonly mappedDocumentTypeIds = computed(
+    () => new Set(this.documentTypeMappings().map((item) => item.documentTypeId))
+  );
+
+  protected readonly unmappedDocumentTypes = computed(() =>
+    this.sortedDocumentTypesForMapping().filter((doc) => !this.mappedDocumentTypeIds().has(doc.id))
+  );
+
+  protected readonly pendingDocumentSelectionCount = computed(() => this.pendingDocumentTypeIds().size);
+
+  protected readonly allUnmappedDocumentsSelected = computed(() => {
+    const unmapped = this.unmappedDocumentTypes();
+    if (!unmapped.length) return false;
+    const pending = this.pendingDocumentTypeIds();
+    return unmapped.every((doc) => pending.has(doc.id));
+  });
+
+  protected readonly mappingWorkspaceReady = computed(() => this.mappingFormSelection() !== null);
+
+  protected readonly configuredSubjectsForCategoryTable = computed(() => {
+    const currentSubjectId = this.toPositiveInt(
+      this.documentTypeMappingForm.controls.subjectId.getRawValue()
+    );
+    return this.configuredMappingSubjects().map((row) => ({
+      ...row,
+      isCurrent: row.subjectId === currentSubjectId
+    }));
+  });
+
+  protected readonly otherConfiguredSubjectsTable = computed(() =>
+    this.configuredSubjectsForCategoryTable().filter((row) => !row.isCurrent)
+  );
+
+  protected readonly hasCurrentMappingLoaded = computed(
+    () => this.mappingWorkspaceReady() && this.documentTypeMappings().length > 0
+  );
+
+  /** Normalize select values (DOM may return strings). */
+  protected readonly selectIdCompare = (a: number | string, b: number | string): boolean =>
+    Number(a) === Number(b);
+
+  protected mappingCategorySelected(): boolean {
+    return this.toPositiveInt(this.documentTypeMappingForm.controls.caseCategoryId.getRawValue()) > 0;
+  }
 
   private readonly stateNameById = computed(() => {
     const map = new Map<number, string>();
@@ -339,8 +413,10 @@ export class AdminMastersComponent {
         return 'Create Occupation';
       case 'EMPLOYEE':
         return 'Create Employee';
+      case 'DOCUMENT_TYPE':
+        return this.editingDocumentTypeId() ? 'Edit Document Type' : 'Create Document Type';
       case 'DOCUMENT_TYPE_MAPPING':
-        return 'Document Type Mapping';
+        return 'Document Mapping (Category + Subject)';
     }
   });
 
@@ -491,16 +567,23 @@ export class AdminMastersComponent {
     fromDate: ['', [Validators.required]]
   });
 
-  protected readonly documentTypeMappingForm = this.fb.nonNullable.group({
-    caseCategoryId: [0, [Validators.required, Validators.min(1)]],
-    subjectId: [0, [Validators.required, Validators.min(1)]]
+  protected readonly documentTypeForm = this.fb.nonNullable.group({
+    code: ['', [Validators.required, Validators.minLength(2)]],
+    name: ['', [Validators.required, Validators.minLength(2)]],
+    localName: [''],
+    validForPhotoId: [false],
+    validForAddress: [false],
+    sourceUrl: ['']
   });
 
-  protected readonly documentTypeMappingItemForm = this.fb.nonNullable.group({
-    documentTypeId: [0, [Validators.required, Validators.min(1)]],
-    required: [false],
-    displayOrder: [1, [Validators.required, Validators.min(1)]]
+  protected readonly documentTypeMappingForm = this.fb.nonNullable.group({
+    mappingDepartmentId: [0, [Validators.min(1)]],
+    subjectId: [0, [Validators.min(1)]],
+    caseCategoryId: [0, [Validators.min(1)]]
   });
+
+  /** Multi-select buffer before adding to mapped list */
+  private readonly pendingDocumentTypeIds = signal<Set<number>>(new Set());
 
   constructor() {
     if (this.hasFixedState) {
@@ -578,6 +661,24 @@ export class AdminMastersComponent {
     this.subjectForm.controls.departmentId.valueChanges.subscribe((departmentId) => {
       this.selectedSubjectDepartmentId.set(departmentId || 0);
       this.loadSubjects();
+    });
+
+    this.documentTypeMappingForm.controls.caseCategoryId.valueChanges.subscribe(() => {
+      if (this.selected() === 'DOCUMENT_TYPE_MAPPING') {
+        this.onMappingCategoryChange();
+      }
+    });
+
+    this.documentTypeMappingForm.controls.mappingDepartmentId.valueChanges.subscribe(() => {
+      if (this.selected() === 'DOCUMENT_TYPE_MAPPING') {
+        this.onMappingDepartmentChange();
+      }
+    });
+
+    this.documentTypeMappingForm.controls.subjectId.valueChanges.subscribe(() => {
+      if (this.selected() === 'DOCUMENT_TYPE_MAPPING') {
+        this.onMappingSubjectChange();
+      }
     });
 
     this.officeForm.controls.departmentId.valueChanges.subscribe((departmentId) => {
@@ -770,9 +871,22 @@ export class AdminMastersComponent {
       this.loadOffices();
       this.loadDesignations();
       this.loadEmployees();
+    } else if (kind === 'DOCUMENT_TYPE') {
+      this.loadDocumentTypes();
     } else if (kind === 'DOCUMENT_TYPE_MAPPING') {
-      this.loadDocumentMappingSubjects();
+      this.loadDepartments();
+      this.loadCaseCategoriesForMapping();
+      this.loadDocumentTypes();
+      this.mappingSubjects.set([]);
+      this.documentTypeMappingForm.reset({
+        mappingDepartmentId: 0,
+        subjectId: 0,
+        caseCategoryId: 0
+      });
       this.documentTypeMappings.set([]);
+      this.configuredMappingSubjects.set([]);
+      this.mappingContextLabel.set(null);
+      this.pendingDocumentTypeIds.set(new Set());
     }
   }
 
@@ -810,6 +924,8 @@ export class AdminMastersComponent {
                                 ? this.designationForm
                                 : kind === 'OCCUPATION'
                                   ? this.occupationForm
+                                  : kind === 'DOCUMENT_TYPE'
+                                    ? this.documentTypeForm
                                   : this.employeeForm;
 
     form.markAllAsTouched();
@@ -849,6 +965,8 @@ export class AdminMastersComponent {
                                 ? this.submitDesignation()
                                 : kind === 'OCCUPATION'
                                   ? this.submitOccupation()
+                                  : kind === 'DOCUMENT_TYPE'
+                                    ? this.submitDocumentType()
                                 : this.submitEmployee();
 
     const reqUnknown$: Observable<unknown> = req$ as Observable<unknown>;
@@ -860,7 +978,8 @@ export class AdminMastersComponent {
             kind === 'SECTION' ||
             kind === 'DEPARTMENT' ||
             kind === 'SUBJECT' ||
-            kind === 'OFFICE_TYPE'
+            kind === 'OFFICE_TYPE' ||
+            kind === 'DOCUMENT_TYPE'
             ? 'Saved successfully.'
             : 'Created successfully.'
         );
@@ -983,6 +1102,17 @@ export class AdminMastersComponent {
             this.editingOccupationId.set(null);
             this.occupationForm.reset({ name: '', localName: '', shortName: '', shortNameLocal: '' });
             this.loadOccupations();
+          } else if (kind === 'DOCUMENT_TYPE') {
+            this.editingDocumentTypeId.set(null);
+            this.documentTypeForm.reset({
+              code: '',
+              name: '',
+              localName: '',
+              validForPhotoId: false,
+              validForAddress: false,
+              sourceUrl: ''
+            });
+            this.loadDocumentTypes();
           } else if (kind === 'EMPLOYEE') {
             this.editingEmployeeId.set(null);
             this.employeeForm.reset({
@@ -1693,104 +1823,399 @@ export class AdminMastersComponent {
     });
   }
 
-  private loadDocumentMappingSubjects(): void {
-    this.masters.getSubjects().subscribe({
-      next: (rows) => this.mappingSubjects.set(rows),
-      error: () => this.mappingSubjects.set([])
+  private loadDocumentTypes(): void {
+    this.masters.getDocumentTypes().subscribe({
+      next: (rows) => {
+        this.documentTypes.set(rows);
+        this.page.set(1);
+      },
+      error: () => this.documentTypes.set([])
     });
+  }
+
+  private loadCaseCategoriesForMapping(): void {
+    this.masters.getCaseCategories().subscribe({
+      next: (rows) => this.caseCategories.set(rows),
+      error: () => this.caseCategories.set([])
+    });
+  }
+
+  private loadDocumentMappingSubjects(departmentId: number): void {
+    if (departmentId < 1) {
+      this.mappingSubjects.set([]);
+      return;
+    }
+    this.mappingSubjectsLoading.set(true);
+    this.masters.getSubjects(departmentId).subscribe({
+      next: (rows) => {
+        this.mappingSubjects.set(rows);
+        if (rows.length === 0) {
+          this.apiMessage.set('No subjects found for this department. Create subjects under the Subject tab first.');
+        }
+      },
+      error: (err: unknown) => {
+        this.mappingSubjects.set([]);
+        this.apiError.set(this.formatError(err));
+      },
+      complete: () => this.mappingSubjectsLoading.set(false)
+    });
+  }
+
+  private toPositiveInt(value: unknown): number {
+    const n = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0;
+  }
+
+  private mappingFormSelection(): {
+    mappingDepartmentId: number;
+    subjectId: number;
+    caseCategoryId: number;
+  } | null {
+    const raw = this.documentTypeMappingForm.getRawValue();
+    const mappingDepartmentId = this.toPositiveInt(raw.mappingDepartmentId);
+    const subjectId = this.toPositiveInt(raw.subjectId);
+    const caseCategoryId = this.toPositiveInt(raw.caseCategoryId);
+    if (mappingDepartmentId > 0 && subjectId > 0 && caseCategoryId > 0) {
+      return { mappingDepartmentId, subjectId, caseCategoryId };
+    }
+    return null;
+  }
+
+  private resetMappingWorkspace(): void {
+    this.documentTypeMappings.set([]);
+    this.pendingDocumentTypeIds.set(new Set());
+    this.mappingContextLabel.set(null);
+  }
+
+  protected onMappingDepartmentChange(): void {
+    const departmentId = this.toPositiveInt(
+      this.documentTypeMappingForm.controls.mappingDepartmentId.getRawValue()
+    );
+    this.documentTypeMappingForm.controls.subjectId.setValue(0, { emitEvent: false });
+    this.documentTypeMappingForm.controls.caseCategoryId.setValue(0, { emitEvent: false });
+    this.mappingSubjects.set([]);
+    this.configuredMappingSubjects.set([]);
+    this.configuredSubjectDocumentsBySubjectId.set(new Map());
+    this.resetMappingWorkspace();
+    if (departmentId > 0) {
+      this.loadDocumentMappingSubjects(departmentId);
+    }
+  }
+
+  protected onMappingSubjectChange(): void {
+    this.documentTypeMappingForm.controls.caseCategoryId.setValue(0, { emitEvent: false });
+    this.configuredMappingSubjects.set([]);
+    this.configuredSubjectDocumentsBySubjectId.set(new Map());
+    this.resetMappingWorkspace();
+  }
+
+  protected onMappingCategoryChange(): void {
+    const categoryId = this.toPositiveInt(this.documentTypeMappingForm.controls.caseCategoryId.getRawValue());
+    this.resetMappingWorkspace();
+    if (categoryId > 0) {
+      this.loadConfiguredSubjects(categoryId);
+    } else {
+      this.configuredMappingSubjects.set([]);
+    }
+    if (this.mappingFormSelection()) {
+      this.loadDocumentTypeMappings();
+    }
+  }
+
+  protected loadConfiguredSubjects(caseCategoryId?: number): void {
+    const id = this.toPositiveInt(
+      caseCategoryId ?? this.documentTypeMappingForm.controls.caseCategoryId.getRawValue()
+    );
+    if (id < 1) {
+      this.configuredMappingSubjects.set([]);
+      this.configuredSubjectDocumentsBySubjectId.set(new Map());
+      return;
+    }
+    this.masters.getConfiguredSubjectsForCategory(id).subscribe({
+      next: (rows) => {
+        this.configuredMappingSubjects.set(rows);
+        if (!rows.length) {
+          this.configuredSubjectDocumentsBySubjectId.set(new Map());
+          return;
+        }
+        forkJoin(
+          rows.map((s) =>
+            this.masters.getDocumentTypeMappings(id, s.subjectId).pipe(
+              map((resp) => ({ subjectId: s.subjectId, items: resp.items ?? [] }))
+            )
+          )
+        ).subscribe({
+          next: (results) => {
+            const bySubject = new Map<number, DocumentTypeMappingItemRecord[]>();
+            for (const r of results) {
+              bySubject.set(r.subjectId, r.items);
+            }
+            this.configuredSubjectDocumentsBySubjectId.set(bySubject);
+          },
+          error: () => this.configuredSubjectDocumentsBySubjectId.set(new Map())
+        });
+      },
+      error: () => {
+        this.configuredMappingSubjects.set([]);
+        this.configuredSubjectDocumentsBySubjectId.set(new Map());
+      }
+    });
+  }
+
+  protected mappingDocumentCode(item: DocumentTypeMappingItemRecord): string {
+    return (
+      item.documentType?.code ||
+      this.documentTypes().find((d) => d.id === item.documentTypeId)?.code ||
+      `DOC-${item.documentTypeId}`
+    );
+  }
+
+  protected mappingDocumentName(item: DocumentTypeMappingItemRecord): string {
+    return (
+      item.documentType?.name ||
+      this.documentTypes().find((d) => d.id === item.documentTypeId)?.name ||
+      `Document #${item.documentTypeId}`
+    );
+  }
+
+  protected mappingDocumentLocalName(item: DocumentTypeMappingItemRecord): string {
+    return (
+      item.documentType?.localName ||
+      this.documentTypes().find((d) => d.id === item.documentTypeId)?.localName ||
+      '—'
+    );
+  }
+
+  protected configuredSubjectDocumentNames(subjectId: number): string {
+    const items = this.configuredSubjectDocumentsBySubjectId().get(subjectId) ?? [];
+    if (!items.length) {
+      return '—';
+    }
+    return items.map((item) => this.mappingDocumentName(item)).join(', ');
+  }
+
+  protected selectConfiguredSubject(summary: ConfiguredSubjectSummary): void {
+    this.documentTypeMappingForm.controls.subjectId.setValue(summary.subjectId, { emitEvent: false });
+    if (this.mappingFormSelection()) {
+      this.loadDocumentTypeMappings();
+    }
   }
 
   protected loadDocumentTypeMappings(): void {
     this.apiMessage.set(null);
     this.apiError.set(null);
 
-    this.documentTypeMappingForm.markAllAsTouched();
-    if (this.documentTypeMappingForm.invalid) {
-      this.apiError.set('Please select case category and subject.');
+    const selection = this.mappingFormSelection();
+    if (!selection) {
+      this.apiError.set('Please select department, subject, and case category.');
       return;
     }
 
-    const raw = this.documentTypeMappingForm.getRawValue();
     this.busy.set(true);
-    this.masters.getDocumentTypeMappings(raw.caseCategoryId, raw.subjectId).subscribe({
-      next: (rows) => {
-        this.documentTypeMappings.set(rows);
+    this.masters.getDocumentTypeMappings(selection.caseCategoryId, selection.subjectId).subscribe({
+      next: (resp) => {
+        this.documentTypeMappings.set(resp.items ?? []);
+        this.pendingDocumentTypeIds.set(new Set());
+        const dept = this.departments().find((d) => d.id === selection.mappingDepartmentId);
+        this.mappingContextLabel.set(
+          `${dept?.name ?? 'Department'} · ${resp.subjectName} (${resp.subjectCode}) · ${resp.caseCategoryName} (${resp.caseCategoryCode})`
+        );
         this.apiMessage.set('Mapping loaded.');
+        this.loadConfiguredSubjects(selection.caseCategoryId);
       },
       error: (err: unknown) => this.apiError.set(this.formatError(err)),
       complete: () => this.busy.set(false)
     });
   }
 
-  protected addDocumentTypeMappingItem(): void {
-    this.apiMessage.set(null);
-    this.apiError.set(null);
-    this.documentTypeMappingItemForm.markAllAsTouched();
-    if (this.documentTypeMappingItemForm.invalid) {
-      this.apiError.set('Please enter valid document type item details.');
-      return;
-    }
+  protected isDocumentPending(documentTypeId: number): boolean {
+    return this.pendingDocumentTypeIds().has(documentTypeId);
+  }
 
-    const raw = this.documentTypeMappingItemForm.getRawValue();
-    if (this.documentTypeMappings().some((item) => item.documentTypeId === raw.documentTypeId)) {
-      this.apiError.set('Duplicate document type is not allowed.');
-      return;
-    }
-
-    const draftItem: DocumentTypeMappingItemRecord = {
-      documentTypeId: raw.documentTypeId,
-      required: raw.required,
-      displayOrder: raw.displayOrder,
-      documentType: {
-        id: raw.documentTypeId,
-        code: `DOC-${raw.documentTypeId}`,
-        name: `Document Type #${raw.documentTypeId}`,
-        localName: null,
-        validForPhotoId: false,
-        validForAddress: false,
-        sourceUrl: null
+  protected togglePendingDocument(documentTypeId: number, checked: boolean): void {
+    this.pendingDocumentTypeIds.update((ids) => {
+      const next = new Set(ids);
+      if (checked) {
+        next.add(documentTypeId);
+      } else {
+        next.delete(documentTypeId);
       }
-    };
+      return next;
+    });
+  }
 
+  protected toggleSelectAllUnmapped(checked: boolean): void {
+    if (checked) {
+      this.pendingDocumentTypeIds.set(new Set(this.unmappedDocumentTypes().map((doc) => doc.id)));
+    } else {
+      this.pendingDocumentTypeIds.set(new Set());
+    }
+  }
+
+  protected addPendingDocumentsToMapping(): void {
+    const pending = this.pendingDocumentTypeIds();
+    if (!pending.size) {
+      this.apiError.set('Select at least one document from the master list.');
+      return;
+    }
+    this.apiError.set(null);
+    let nextOrder = this.documentTypeMappings().reduce((max, item) => Math.max(max, item.displayOrder), 0);
+    const additions: DocumentTypeMappingItemRecord[] = [];
+    for (const doc of this.documentTypes()) {
+      if (!pending.has(doc.id) || this.isDocumentTypeMapped(doc.id)) {
+        continue;
+      }
+      nextOrder += 1;
+      additions.push({
+        documentTypeId: doc.id,
+        required: true,
+        displayOrder: nextOrder,
+        documentType: doc
+      });
+    }
+    if (!additions.length) {
+      this.apiError.set('Selected documents are already mapped.');
+      return;
+    }
     this.documentTypeMappings.set(
-      [...this.documentTypeMappings(), draftItem].sort((a, b) => a.displayOrder - b.displayOrder)
+      [...this.documentTypeMappings(), ...additions].sort((a, b) => a.displayOrder - b.displayOrder)
     );
-    this.documentTypeMappingItemForm.reset({ documentTypeId: 0, required: false, displayOrder: raw.displayOrder + 1 });
+    this.pendingDocumentTypeIds.set(new Set());
+    this.apiMessage.set(`${additions.length} document(s) added. Review required/order, then save mapping.`);
+  }
+
+  protected isDocumentTypeMapped(documentTypeId: number): boolean {
+    return this.mappedDocumentTypeIds().has(documentTypeId);
+  }
+
+  protected getMappingItem(documentTypeId: number): DocumentTypeMappingItemRecord | undefined {
+    return this.documentTypeMappings().find((item) => item.documentTypeId === documentTypeId);
+  }
+
+  protected setMappingRequired(documentTypeId: number, required: boolean): void {
+    this.documentTypeMappings.update((rows) =>
+      rows.map((item) => (item.documentTypeId === documentTypeId ? { ...item, required } : item))
+    );
+  }
+
+  protected setMappingDisplayOrder(documentTypeId: number, displayOrder: number): void {
+    const order = Number.isFinite(displayOrder) && displayOrder > 0 ? displayOrder : 1;
+    this.documentTypeMappings.update((rows) => {
+      const updated = rows.map((item) =>
+        item.documentTypeId === documentTypeId ? { ...item, displayOrder: order } : item
+      );
+      return updated.sort((a, b) => a.displayOrder - b.displayOrder);
+    });
   }
 
   protected removeDocumentTypeMappingItem(documentTypeId: number): void {
     this.documentTypeMappings.set(this.documentTypeMappings().filter((item) => item.documentTypeId !== documentTypeId));
   }
 
+  protected clearAndSaveDocumentTypeMappings(): void {
+    if (!confirm('Remove all document mappings for this category and subject?')) return;
+    this.documentTypeMappings.set([]);
+    this.saveDocumentTypeMappings();
+  }
+
   protected saveDocumentTypeMappings(): void {
     this.apiMessage.set(null);
     this.apiError.set(null);
 
-    this.documentTypeMappingForm.markAllAsTouched();
-    if (this.documentTypeMappingForm.invalid) {
-      this.apiError.set('Please select case category and subject.');
+    const selection = this.mappingFormSelection();
+    if (!selection) {
+      this.apiError.set('Please select department, subject, and case category.');
       return;
     }
 
-    const raw = this.documentTypeMappingForm.getRawValue();
-    const items = this.documentTypeMappings().map((item) => ({
-      documentTypeId: item.documentTypeId,
-      required: item.required,
-      displayOrder: item.displayOrder
-    }));
+    const items = [...this.documentTypeMappings()]
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .map((item, index) => ({
+        documentTypeId: item.documentTypeId,
+        required: item.required,
+        displayOrder: item.displayOrder > 0 ? item.displayOrder : index + 1
+      }));
 
     this.busy.set(true);
     this.masters
       .replaceDocumentTypeMappings({
-        caseCategoryId: raw.caseCategoryId,
-        subjectId: raw.subjectId,
+        caseCategoryId: selection.caseCategoryId,
+        subjectId: selection.subjectId,
         items
       })
       .subscribe({
-        next: () => this.apiMessage.set('Mapping saved.'),
+        next: (resp) => {
+          this.documentTypeMappings.set(resp.items ?? []);
+          const dept = this.departments().find((d) => d.id === selection.mappingDepartmentId);
+          this.mappingContextLabel.set(
+            `${dept?.name ?? 'Department'} · ${resp.subjectName} (${resp.subjectCode}) · ${resp.caseCategoryName} (${resp.caseCategoryCode})`
+          );
+          this.apiMessage.set(items.length ? 'Mapping saved.' : 'All mappings cleared for this combination.');
+          this.loadConfiguredSubjects(selection.caseCategoryId);
+        },
         error: (err: unknown) => this.apiError.set(this.formatError(err)),
         complete: () => this.busy.set(false)
       });
+  }
+
+  private documentTypePayload(): CreateOrUpdateDocumentTypeRequest {
+    const raw = this.documentTypeForm.getRawValue();
+    return {
+      code: raw.code.trim().toUpperCase(),
+      name: raw.name.trim(),
+      localName: raw.localName.trim() || undefined,
+      validForPhotoId: raw.validForPhotoId,
+      validForAddress: raw.validForAddress,
+      sourceUrl: raw.sourceUrl.trim() || undefined
+    };
+  }
+
+  private submitDocumentType() {
+    const payload = this.documentTypePayload();
+    const id = this.editingDocumentTypeId();
+    return id ? this.masters.updateDocumentType(id, payload) : this.masters.createDocumentType(payload);
+  }
+
+  protected startEditDocumentType(row: DocumentTypeRecord): void {
+    this.apiMessage.set(null);
+    this.apiError.set(null);
+    this.editingDocumentTypeId.set(row.id);
+    this.documentTypeForm.reset({
+      code: row.code,
+      name: row.name,
+      localName: row.localName || '',
+      validForPhotoId: row.validForPhotoId,
+      validForAddress: row.validForAddress,
+      sourceUrl: row.sourceUrl || ''
+    });
+  }
+
+  protected cancelEditDocumentType(): void {
+    this.editingDocumentTypeId.set(null);
+    this.documentTypeForm.reset({
+      code: '',
+      name: '',
+      localName: '',
+      validForPhotoId: false,
+      validForAddress: false,
+      sourceUrl: ''
+    });
+  }
+
+  protected deleteDocumentType(row: DocumentTypeRecord): void {
+    if (!confirm(`Delete document type "${row.name}"?`)) return;
+    this.apiMessage.set(null);
+    this.apiError.set(null);
+    this.busy.set(true);
+    this.masters.deleteDocumentType(row.id).subscribe({
+      next: () => {
+        this.apiMessage.set('Document type deleted.');
+        if (this.editingDocumentTypeId() === row.id) this.cancelEditDocumentType();
+        this.loadDocumentTypes();
+      },
+      error: (err: unknown) => this.apiError.set(this.formatError(err)),
+      complete: () => this.busy.set(false)
+    });
   }
 
   private designationPayload(): CreateOrUpdateDesignationRequest {

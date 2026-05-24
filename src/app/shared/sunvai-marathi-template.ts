@@ -60,6 +60,46 @@ export function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/** Plain text from HTML editor content (for validation). */
+export function stripHtmlToPlainText(html: string): string {
+  const raw = (html || '').trim();
+  if (!raw) return '';
+  if (typeof document !== 'undefined') {
+    const d = document.createElement('div');
+    d.innerHTML = raw;
+    return (d.textContent || d.innerText || '').replace(/\u00a0/g, ' ').trim();
+  }
+  return raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function sanitizeRoznamaHtml(html: string): string {
+  if (typeof document === 'undefined') {
+    return escapeHtml(html);
+  }
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  d.querySelectorAll('script, style, iframe, object, embed, link').forEach((n) => n.remove());
+  d.querySelectorAll('*').forEach((el) => {
+    for (const attr of [...el.attributes]) {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith('on') || name === 'style' || name === 'href' || name === 'src') {
+        el.removeAttribute(attr.name);
+      }
+    }
+  });
+  return d.innerHTML;
+}
+
+/** Roznamah cell HTML — supports rich-text editor output or plain text. */
+export function roznamaContentToDisplayHtml(content: string): string {
+  const raw = (content || '').trim();
+  if (!raw) return '<span class="muted-body">—</span>';
+  if (!/<[a-z][\s\S]*>/i.test(raw)) {
+    return escapeHtml(raw).replace(/\n/g, '<br>');
+  }
+  return sanitizeRoznamaHtml(raw);
+}
+
 function escDev(text: string): string {
   return escapeHtml(toDevanagariDigits(text));
 }
@@ -480,7 +520,7 @@ function buildRoznamaTableHtml(rows: RoznamaEntryRow[], fallbackContent: string)
     .map((row) => {
       const dateCell = formatRoznamaDateForDisplay(row.date);
       const contentCell = row.content
-        ? escapeHtml(row.content).replace(/\n/g, '<br>')
+        ? roznamaContentToDisplayHtml(row.content)
         : '<span class="muted-body">—</span>';
       return `<tr>
         <td class="col-date">${dateCell || '—'}</td>

@@ -1,0 +1,48 @@
+<div class="rte-shell" [class.rte-focused]="focused()" [class.rte-disabled]="disabled">
+  <div class="rte-toolbar" role="toolbar" aria-label="Text formatting">
+    <button type="button" class="rte-btn" title="Bold" (mousedown)="$event.preventDefault(); runCmd('bold')" [disabled]="disabled">
+      <strong>B</strong>
+    </button>
+    <button type="button" class="rte-btn" title="Italic" (mousedown)="$event.preventDefault(); runCmd('italic')" [disabled]="disabled">
+      <em>I</em>
+    </button>
+    <button type="button" class="rte-btn" title="Underline" (mousedown)="$event.preventDefault(); runCmd('underline')" [disabled]="disabled">
+      <span class="rte-u">U</span>
+    </button>
+    <span class="rte-sep" aria-hidden="true"></span>
+    <button type="button" class="rte-btn" title="Bullet list" (mousedown)="$event.preventDefault(); runCmd('insertUnorderedList')" [disabled]="disabled">
+      • List
+    </button>
+    <button type="button" class="rte-btn" title="Numbered list" (mousedown)="$event.preventDefault(); runCmd('insertOrderedList')" [disabled]="disabled">
+      1. List
+    </button>
+    <span class="rte-sep" aria-hidden="true"></span>
+    <button type="button" class="rte-btn" title="Align left" (mousedown)="$event.preventDefault(); runCmd('justifyLeft')" [disabled]="disabled">
+      ⬅
+    </button>
+    <button type="button" class="rte-btn" title="Align center" (mousedown)="$event.preventDefault(); runCmd('justifyCenter')" [disabled]="disabled">
+      ↔
+    </button>
+    <button type="button" class="rte-btn" title="Align right" (mousedown)="$event.preventDefault(); runCmd('justifyRight')" [disabled]="disabled">
+      ➡
+    </button>
+    <span class="rte-sep" aria-hidden="true"></span>
+    <button type="button" class="rte-btn" title="Undo" (mousedown)="$event.preventDefault(); runCmd('undo')" [disabled]="disabled">
+      ↶
+    </button>
+    <button type="button" class="rte-btn" title="Clear formatting" (mousedown)="$event.preventDefault(); clearFormatting()" [disabled]="disabled">
+      Clear
+    </button>
+  </div>
+
+  <div
+    #surface
+    class="rte-surface"
+    [style.min-height]="minHeight"
+    [attr.contenteditable]="disabled ? 'false' : 'true'"
+    [attr.data-placeholder]="placeholder"
+    (input)="onSurfaceInput()"
+    (blur)="onSurfaceBlur()"
+    (focus)="onSurfaceFocus()"
+  ></div>
+</div>

@@ -1,0 +1,265 @@
+<div class="officer-dashboard portal-home">
+  <header class="dash-hero">
+    <div class="dash-hero-inner">
+      <div class="dash-hero-left">
+        <div class="dash-avatar" aria-hidden="true">{{ getInitials(displayName) }}</div>
+        <div>
+          <p class="dash-eyebrow">
+            <span class="dash-dot"></span>
+            Officer workspace
+          </p>
+          <h1>Dashboard</h1>
+          <p class="dash-sub">
+            <span>{{ displayName }}</span>
+            <span class="dash-sep">·</span>
+            <span>{{ roleLabel() }}</span>
+            @if (officeName !== '—') {
+              <span class="dash-sep">·</span>
+              <span>{{ officeName }}</span>
+            }
+          </p>
+          @if (designationName !== '—') {
+            <p class="dash-designation">{{ designationName }}</p>
+          }
+        </div>
+      </div>
+      <div class="dash-hero-right">
+        <div class="dash-date-card">
+          <span class="dash-date-label">Today</span>
+          <strong>{{ today | date:'EEEE' }}</strong>
+          <span>{{ today | date:'d MMMM yyyy' }}</span>
+        </div>
+        <div class="dash-hero-actions">
+          <button type="button" class="btn-ghost" (click)="refresh()" [disabled]="loading()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M4 4v5h5M20 20v-5h-5M20 8A8 8 0 004 16M4 16A8 8 0 0020 8"/>
+            </svg>
+            {{ loading() ? 'Refreshing…' : 'Refresh' }}
+          </button>
+          <a routerLink="/cases" class="btn-hero-primary">Open workbench</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  @if (error()) {
+    <div class="dash-alert" role="alert">{{ error() }}</div>
+  }
+
+  @if (loading()) {
+    <div class="dash-loading">
+      <div class="dash-spinner"></div>
+      <p>Loading your queues…</p>
+    </div>
+  } @else {
+    <section class="stats-section">
+      <div class="section-intro">
+        <span class="section-eyebrow">Queues</span>
+        <h2 class="section-title">Action required</h2>
+        <p class="section-subtitle">
+          {{ tiles().length }} queues · {{ totalQueueCount() }} items pending
+        </p>
+      </div>
+
+      <div class="stats-grid" aria-label="Action queues">
+        @for (tile of tiles(); track tile.id) {
+          <button
+            type="button"
+            class="stat-card"
+            [class]="'stat-' + tile.color"
+            (click)="openTile(tile)"
+          >
+            <div class="stat-top">
+              <div class="stat-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path [attr.d]="tile.icon" />
+                </svg>
+              </div>
+              <span class="stat-open" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M7 17L17 7M7 7h10v10"/>
+                </svg>
+              </span>
+            </div>
+            <div class="stat-content">
+              <p class="stat-label">{{ tile.label }}</p>
+              <p class="stat-value">{{ tile.count }}</p>
+              <p class="stat-desc">{{ tile.description }}</p>
+            </div>
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="data-section">
+      <div class="section-intro">
+        <span class="section-eyebrow">Snapshot</span>
+        <h2 class="section-title">Recent activity</h2>
+        <p class="section-subtitle">Latest items from your office — click a row to open in workbench</p>
+      </div>
+
+      <div class="data-grid">
+        <article class="data-card">
+          <header class="data-card-head">
+            <div>
+              <h3>Applications pending</h3>
+              <p>{{ recentPending().length }} shown</p>
+            </div>
+            <button type="button" class="link-btn" (click)="openTileById('FILING_PENDING')">
+              View all
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+          </header>
+
+          @if (recentPending().length === 0) {
+            <div class="empty-state">
+              <div class="empty-icon" aria-hidden="true">📋</div>
+              <p>No applications waiting on you.</p>
+            </div>
+          } @else {
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Application</th>
+                    <th>Subject</th>
+                    <th>Stage</th>
+                    <th class="col-action"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (a of recentPending(); track a.applicationId) {
+                    <tr class="data-row-clickable" (click)="openApplication(a.applicationId)">
+                      <td>
+                        <span class="cell-primary">{{ a.applicationNo || 'App #' + a.applicationId }}</span>
+                        <span class="cell-sub">ID {{ a.applicationId }}</span>
+                      </td>
+                      <td class="cell-wrap">{{ a.subjectName }}</td>
+                      <td>
+                        <span [class]="stageChipClass(a.processingStage)">
+                          {{ formatStageLabel(a.processingStage || a.status) }}
+                        </span>
+                      </td>
+                      <td class="col-action">
+                        <span class="row-action">Open</span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </article>
+
+        <article class="data-card">
+          <header class="data-card-head">
+            <div>
+              <h3>Today's hearings</h3>
+              <p>{{ recentHearings().length }} scheduled today</p>
+            </div>
+            @if (isPO) {
+              <button type="button" class="link-btn" (click)="openTileById('TODAY_HEARINGS')">
+                Cause list
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </button>
+            }
+          </header>
+
+          @if (recentHearings().length === 0) {
+            <div class="empty-state">
+              <div class="empty-icon" aria-hidden="true">📅</div>
+              <p>No hearings scheduled for today.</p>
+            </div>
+          } @else {
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Case No</th>
+                    <th>Hearing</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (h of recentHearings(); track h.hearingId) {
+                    <tr>
+                      <td><span class="cell-primary">{{ h.caseNo }}</span></td>
+                      <td>#{{ h.hearingNo }}</td>
+                      <td>{{ formatHearingDate(h.hearingDate) }}</td>
+                      <td>
+                        <span [class]="statusChipClass(h.status)">{{ formatStageLabel(h.status) }}</span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </article>
+      </div>
+
+      <article class="data-card data-card-full">
+        <header class="data-card-head">
+          <div>
+            <h3>Active cases</h3>
+            <p>{{ recentActive().length }} of {{ dashboard()?.activeCases?.length ?? 0 }} in office</p>
+          </div>
+          <button type="button" class="link-btn" (click)="openTileById('ACTIVE_CASES')">
+            View all cases
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </header>
+
+        @if (recentActive().length === 0) {
+          <div class="empty-state">
+            <div class="empty-icon" aria-hidden="true">⚖️</div>
+            <p>No active cases in the current snapshot.</p>
+          </div>
+        } @else {
+          <div class="table-scroll table-scroll-wide">
+            <table class="data-table data-table-cases">
+              <thead>
+                <tr>
+                  <th>Case No</th>
+                  <th>Category</th>
+                  <th>Registry status</th>
+                  <th>Proceeding stage</th>
+                  <th class="col-action"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (c of recentActive(); track c.caseId) {
+                  <tr>
+                    <td>
+                      <span class="cell-primary">{{ c.caseNo }}</span>
+                      <span class="cell-sub">Case ID {{ c.caseId }}</span>
+                    </td>
+                    <td class="cell-wrap">{{ c.caseCategoryName }}</td>
+                    <td>
+                      <span [class]="statusChipClass(c.status)">{{ formatStageLabel(c.status) }}</span>
+                    </td>
+                    <td>
+                      <span [class]="stageChipClass(c.proceedingStage)">
+                        {{ formatStageLabel(c.proceedingStage) }}
+                      </span>
+                    </td>
+                    <td class="col-action">
+                      <button
+                        type="button"
+                        class="btn-row"
+                        (click)="openCase(c.caseId, c.filingApplicationId); $event.stopPropagation()"
+                      >
+                        Open
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </article>
+    </section>
+  }
+</div>

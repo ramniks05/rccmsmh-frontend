@@ -1,25 +1,3 @@
-<div class="mini-card">
-  <div class="mini-head">
-    <strong>Disputed land type</strong>
-  </div>
-
-  <div class="radio-row">
-    <label class="role-option">
-      <input type="radio" name="landMode" [checked]="mode() === 'RURAL_7_12'" (change)="setMode('RURAL_7_12')" />
-      <span>Rural RoR (7/12)</span>
-    </label>
-    <label class="role-option">
-      <input
-        type="radio"
-        name="landMode"
-        [checked]="mode() === 'URBAN_PROPERTY_CARD'"
-        (change)="setMode('URBAN_PROPERTY_CARD')"
-      />
-      <span>Urban Property Card</span>
-    </label>
-  </div>
-</div>
-
 @if (error()) {
   <p class="api-message error">{{ error() }}</p>
 }
@@ -27,75 +5,34 @@
 @if (mode() === 'RURAL_7_12') {
   <div class="mini-card">
     <div class="mini-head">
-      <strong>Search rural plot (7/12)</strong>
-    </div>
-    <p class="sub sub-tight-top">District → Taluka → Village, then enter survey number (pin) and search.</p>
-    <div class="grid">
-      <label>
-        District *
-        <select [value]="ruralDistrictCode()" (change)="onRuralDistrictChange($any($event.target).value)" [disabled]="loading()">
-          <option value="">Select</option>
-          @for (d of ruralDistricts(); track d.district_code) {
-            <option [value]="d.district_code.trim()">{{ d.district_name }}</option>
-          }
-        </select>
-      </label>
-      <label>
-        Taluka *
-        <select
-          [value]="ruralTalukaCode()"
-          (change)="onRuralTalukaChange($any($event.target).value)"
-          [disabled]="!ruralDistrictCode() || loading()"
-        >
-          <option value="">Select</option>
-          @for (t of ruralTalukas(); track t.taluka_code) {
-            <option [value]="t.taluka_code.trim()">{{ t.taluka_name }}</option>
-          }
-        </select>
-      </label>
-      <label class="span-2">
-        Village (LGD) *
-        <select
-          [value]="ruralVillageLgdCode()"
-          (change)="onRuralVillageChange($any($event.target).value)"
-          [disabled]="!ruralTalukaCode() || loading()"
-        >
-          <option value="">Select</option>
-          @for (v of ruralVillages(); track v.lgd_village_code) {
-            <option [value]="v.lgd_village_code.trim()">{{ v.village_name }}</option>
-          }
-        </select>
-      </label>
-      <label class="span-2">
-        Survey number (pin) *
-        <input type="text" [value]="ruralPin()" (input)="setRuralPin($any($event.target).value)" placeholder="e.g. 201" />
-      </label>
+      <strong>7/12 plots</strong>
     </div>
 
-    <div class="row-actions">
-      <button type="button" class="btn btn-primary" (click)="searchRural()" [disabled]="loading()">
-        {{ loading() ? 'Searching…' : 'Search' }}
-      </button>
-    </div>
-
-    @if (ruralSubSurveyRows().length > 0) {
-      <div class="table-wrap" style="margin-top: 12px">
+    @if (ruralPlotsFromStep1().length === 0) {
+      <p class="api-message error tight">No 7/12 plots found. Complete the land search first.</p>
+    } @else {
+      <div class="table-wrap">
         <table class="simple-table">
           <thead>
             <tr>
               <th>Survey (pin)</th>
-              <th>Sub-parts</th>
+              <th>Sub-survey</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            @for (r of ruralSubSurveyRows(); track $index) {
+            @for (r of ruralPlotsFromStep1(); track $index) {
               <tr>
                 <td>{{ r.pin }}</td>
                 <td class="muted">{{ ruralPinLabel(r) }}</td>
                 <td>
-                  <button type="button" class="btn btn-secondary btn-compact" (click)="addRuralRow(r)">
-                    Add
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-compact"
+                    (click)="addRuralRow(r)"
+                    [disabled]="isRuralPlotAdded(r)"
+                  >
+                    {{ isRuralPlotAdded(r) ? 'Added' : 'Add' }}
                   </button>
                 </td>
               </tr>
@@ -108,110 +45,76 @@
 } @else {
   <div class="mini-card">
     <div class="mini-head">
-      <strong>Urban property card</strong>
-    </div>
-    <!-- <div class="grid">
-      <label>
-        District *
-        <select [value]="urbanDistrictCode()" (change)="onUrbanDistrictChange($any($event.target).value)">
-          <option value="">Select</option>
-          @for (d of urbanDistricts(); track d.district_code) {
-            <option [value]="d.district_code.trim()">{{ d.district_name }}</option>
-          }
-        </select>
-      </label>
-      <label>
-        Office *
-        <select [value]="urbanOfficeCode()" (change)="onUrbanOfficeChange($any($event.target).value)" [disabled]="!urbanDistrictCode()">
-          <option value="">Select</option>
-          @for (o of urbanOffices(); track o.office_code) {
-            <option [value]="o.office_code.trim()">{{ o.office_english_name || o.office_name }}</option>
-          }
-        </select>
-      </label>
-      <label class="span-2">
-        Village *
-        <select [value]="urbanVillageCode()" (change)="onUrbanVillageChange($any($event.target).value)" [disabled]="!urbanOfficeCode()">
-          <option value="">Select</option>
-          @for (v of urbanVillages(); track v.village_code) {
-            <option [value]="v.village_code.trim()">{{ v.village_english_name || v.village_name }}</option>
-          }
-        </select>
-      </label>
-      <label>
-        CTS number *
-        <input
-          type="text"
-          [value]="urbanParentCts()"
-          (input)="setUrbanParentCts($any($event.target).value)"
-          placeholder="e.g. 67"
-          [disabled]="!urbanVillageCode()"
-        />
-      </label>
-      <label>
-        Sub-CTS number *
-        <select
-          [value]="urbanSelectedSubCts()"
-          (change)="onUrbanSubCtsChange($any($event.target).value)"
-          [disabled]="urbanSubCtsRows().length === 0 || loadingPropertyDetails()"
-        >
-          <option value="">Select sub-CTS</option>
-          @for (s of urbanSubCtsRows(); track ctsRowLabel(s)) {
-            <option [value]="ctsRowLabel(s)">{{ ctsRowLabel(s) }}</option>
-          }
-        </select>
-      </label>
+      <strong>Property details</strong>
+      @if (loadingPropertyDetails() || loadingSubCts()) {
+        <span class="muted loading-hint">Loading…</span>
+      }
     </div>
 
-    <div class="row-actions">
-      <button
-        type="button"
-        class="btn btn-primary"
-        (click)="loadUrbanSubCts()"
-        [disabled]="loadingSubCts() || !canLoadUrbanSubCts()"
-      >
-        {{ loadingSubCts() ? 'Loading sub-CTS…' : 'Load sub-CTS' }}
-      </button>
-      @if (loadingPropertyDetails()) {
-        <span class="sub muted">Loading area details…</span>
-      }
-    </div> -->
+    @if (!loadingPropertyDetails() && urbanPropertyDetails().length === 0) {
+      <p class="empty-line muted">Select CTS and sub-CTS to load property details.</p>
+    }
 
     @if (urbanPropertyDetails().length > 0) {
-      <div class="table-wrap" style="margin-top: 12px">
-        <table class="simple-table">
+      @if (urbanPropertyTableLayout().commonFields.length > 0) {
+        <div class="property-common-summary" aria-label="Shared property details">
+          <div class="property-common-grid">
+            @for (field of urbanPropertyTableLayout().commonFields; track field.key) {
+              <div class="land-field">
+                <span class="land-field-label">{{ field.label }}</span>
+                <span class="land-field-value">{{ field.value }}</span>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <div class="table-wrap property-table-wrap">
+        <table class="simple-table property-details-table">
           <thead>
             <tr>
-              @for (col of urbanPropertyColumns(); track col) {
-                <th>{{ col }}</th>
-                @if (col === 'total_area') {
-                  <th class="disputed-area-col">disputed_area</th>
-                }
+              <th class="col-num">#</th>
+              @for (col of urbanTableColumnsWithoutTotalArea(urbanPropertyTableLayout().columns); track col.key) {
+                <th>{{ col.label }}</th>
               }
-              <th></th>
+              <th class="col-total">Total area</th>
+              <th class="col-disputed">Disputed area *</th>
+              <th class="col-action"></th>
             </tr>
           </thead>
           <tbody>
             @for (row of urbanPropertyDetails(); track $index; let i = $index) {
               <tr>
-                @for (col of urbanPropertyColumns(); track col) {
-                  <td>{{ formatPropertyCell(row[col]) }}</td>
-                  @if (col === 'total_area') {
-                    <td class="disputed-area-col">
-                      <input
-                        type="text"
-                        class="disputed-area-input"
-                        [value]="getDisputedArea(i)"
-                        (input)="setDisputedArea(i, $any($event.target).value)"
-                        placeholder="Enter area"
-                        [attr.aria-label]="'Disputed area for row ' + (i + 1)"
-                      />
-                    </td>
-                  }
+                <td class="col-num muted">{{ i + 1 }}</td>
+                @for (col of urbanTableColumnsWithoutTotalArea(urbanPropertyTableLayout().columns); track col.key) {
+                  <td>{{ urbanPropertyCell(row, col.key) }}</td>
                 }
-                <td>
-                  <button type="button" class="btn btn-secondary btn-compact" (click)="addUrbanPropertyRow(row, i)">
-                    Add
+                <td class="col-total">{{ urbanPropertyTotalArea(row) }}</td>
+                <td class="col-disputed">
+                  <input
+                    type="text"
+                    class="disputed-area-input table-disputed-input"
+                    [class.invalid]="isDisputedAreaInvalid(i, row)"
+                    [value]="getDisputedArea(i, row)"
+                    (input)="setDisputedArea(i, $any($event.target).value, row)"
+                    [placeholder]="'Max ' + (formatPropertyCell(row['total_area']) || '—')"
+                    [attr.aria-label]="'Disputed area for row ' + (i + 1)"
+                    [attr.aria-invalid]="isDisputedAreaInvalid(i, row)"
+                    [disabled]="isUrbanPropertyRowAdded(row, i)"
+                  />
+                  @if (getDisputedAreaError(i); as areaErr) {
+                    <span class="disputed-area-error">{{ areaErr }}</span>
+                  }
+                </td>
+                <td class="col-action">
+                  <button
+                    type="button"
+                    class="btn btn-primary btn-compact"
+                    (click)="addUrbanPropertyRow(row, i)"
+                    [disabled]="isDisputedAreaInvalid(i, row) || isUrbanPropertyRowAdded(row, i)"
+                    [title]="isUrbanPropertyRowAdded(row, i) ? 'Already added below' : (getDisputedAreaError(i) || '')"
+                  >
+                    {{ isUrbanPropertyRowAdded(row, i) ? 'Added' : 'Add' }}
                   </button>
                 </td>
               </tr>
@@ -219,10 +122,6 @@
           </tbody>
         </table>
       </div>
-    } @else if (urbanSelectedSubCts() && !loadingPropertyDetails()) {
-      <p class="sub sub-tight-top muted">Select sub-CTS to load area / property details.</p>
-    } @else if (urbanSubCtsRows().length === 0 && urbanParentCts() && !loadingSubCts()) {
-      <p class="sub sub-tight-top muted">Enter CTS and click Load sub-CTS.</p>
     }
   </div>
 }
@@ -233,40 +132,69 @@
   </div>
 
   @if (disputedLands().length === 0) {
-    <p class="sub sub-tight-top">No disputed land added yet. Search above and add a property.</p>
-  } @else {
+    <p class="empty-line muted">No records added.</p>
+  } @else if (addedUrbanEntries().length > 0) {
+    <div class="table-wrap property-table-wrap">
+      <table class="simple-table property-details-table added-property-table">
+        <thead>
+          <tr>
+            <th class="col-num">#</th>
+            @for (col of urbanTableColumnsWithoutTotalArea(urbanPropertyTableLayout().columns); track col.key) {
+              <th>{{ col.label }}</th>
+            }
+            <th class="col-total">Total area</th>
+            <th class="col-disputed">Disputed area</th>
+            <th class="col-action"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (entry of addedUrbanEntries(); track entry.landIndex; let i = $index) {
+            <tr>
+              <td class="col-num muted">{{ i + 1 }}</td>
+              @for (col of urbanTableColumnsWithoutTotalArea(urbanPropertyTableLayout().columns); track col.key) {
+                <td>{{ urbanPropertyCell(entry.detail, col.key) }}</td>
+              }
+              <td class="col-total">{{ urbanPropertyTotalArea(entry.detail) }}</td>
+              <td class="col-disputed">{{ addedUrbanDisputedArea(entry.detail) }}</td>
+              <td class="col-action">
+                <button
+                  type="button"
+                  class="btn btn-secondary danger btn-compact"
+                  (click)="remove(entry.landIndex)"
+                >
+                  Remove
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else if (addedRuralEntries().length > 0) {
     <div class="table-wrap">
       <table class="simple-table">
         <thead>
           <tr>
-            <th>#</th>
-            <th>Type</th>
-            <th>Location</th>
-            <th>Identifier</th>
+            <th class="col-num">#</th>
+            <th>Survey (pin)</th>
+            <th>Sub-survey</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          @for (x of disputedLands(); track keyOf(x); let i = $index) {
+          @for (entry of addedRuralEntries(); track entry.landIndex; let i = $index) {
             <tr>
-              <td>{{ i + 1 }}</td>
-              <td>{{ x.type === 'RURAL_7_12' ? '7/12' : 'Property card' }}</td>
-              <td>
-                @if (x.type === 'RURAL_7_12') {
-                  {{ x.districtName }} / {{ x.talukaName }} / {{ x.villageName }}
-                } @else {
-                  {{ x.districtName }} / {{ x.officeName }} / {{ x.villageName }}
-                }
-              </td>
-              <td>
-                @if (x.type === 'RURAL_7_12') {
-                  Pin {{ x.pin }} ({{ x.pinParts.pin1 }}{{ x.pinParts.pin2 }}{{ x.pinParts.pin3 }}{{ x.pinParts.pin4 }}{{ x.pinParts.pin5 }}{{ x.pinParts.pin6 }}{{ x.pinParts.pin7 }}{{ x.pinParts.pin8 }})
-                } @else {
-                  CTS {{ x.parentCtsNo || x.ctsNo }}@if (x.subCtsNo) { / Sub {{ x.subCtsNo }}}
-                }
-              </td>
-              <td>
-                <button type="button" class="btn btn-secondary danger btn-compact" (click)="remove(i)">Remove</button>
+              <td class="col-num muted">{{ i + 1 }}</td>
+              <td>{{ entry.row.pin }}</td>
+              <td class="muted">{{ ruralSubSurveyLabel(entry.row.pinParts) }}</td>
+              <td class="col-action">
+                <button
+                  type="button"
+                  class="btn btn-secondary danger btn-compact"
+                  (click)="remove(entry.landIndex)"
+                >
+                  Remove
+                </button>
               </td>
             </tr>
           }

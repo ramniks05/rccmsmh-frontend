@@ -73,7 +73,7 @@ export class PortalHomeComponent implements OnInit {
       return;
     }
     if (this.tokenStorage.isOfficer()) {
-      void this.router.navigate(['/cases']);
+      void this.router.navigate(['/officer/dashboard']);
     }
   }
 

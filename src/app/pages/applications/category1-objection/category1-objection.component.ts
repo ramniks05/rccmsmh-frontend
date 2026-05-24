@@ -1,7 +1,8 @@
-import { Component, computed, DestroyRef, inject, input, signal } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { catchError, debounceTime, finalize, forkJoin, map, merge, of, Subject, switchMap } from 'rxjs';
 import {
   distinctUntilChanged,
@@ -20,8 +21,21 @@ import { environment } from '../../../../environments/environment';
 import { AdvocateLookupResponse } from '../../../services/advocate-by-bar-council.service';
 import { VakaltnamaPanelComponent } from '../vakaltnama-panel/vakaltnama-panel.component';
 import { DisputedLandPanelComponent } from '../disputed-land-panel/disputed-land-panel.component';
-import { DisputedLandRow } from '../disputed-land-panel/disputed-land-panel.component';
+import { MappedDocumentsPanelComponent } from '../mapped-documents-panel/mapped-documents-panel.component';
+import { ParagraphListEditorComponent } from '../paragraph-list-editor/paragraph-list-editor.component';
+import { FilingMappedAttachment } from '../../../services/mapped-documents.service';
+import {
+  DisputedLandRow,
+  RuralDisputedLandContext
+} from '../disputed-land-panel/disputed-land-panel.component';
+import {
+  FILING_AFFIDAVIT_FORMAT_URL,
+  FILING_AFFIDAVIT_SAMPLE_TEMPLATE,
+  FILING_PRAYER_FORMAT_URL,
+  FILING_PRAYER_SAMPLE_TEMPLATE
+} from '../../../shared/filing-text-templates';
 import { ApplicantOption, VakaltnamaAssignment } from '../vakaltnama-panel/vakaltnama-panel.component';
+import { formatRuralPinParts } from '../../../shared/land-display.util';
 import {
   LandRecordsService,
   NoticeNineViewResponse,
@@ -95,6 +109,8 @@ interface Category1FilingSession {
   applicationId: number | null;
   applicantIdByClientRowKey: Record<string, number>;
   stepIndex: number;
+  /** Preferred restore target when step order changes. */
+  activeStepKey?: StepKey;
   form: Record<string, unknown>;
   disputedLands: DisputedLandRow[];
   vakaltnamaAssignments: VakaltnamaAssignment[];
@@ -122,11 +138,21 @@ interface Category1FilingSession {
   subdistrictsSnapshot?: BoundaryMasterResponse[];
   talukasSnapshot?: BoundaryMasterResponse[];
   officesSnapshot?: OfficeResponse[];
+  mappedAttachments?: FilingMappedAttachment[];
+  urbanSearchSubCtsRowsSnapshot?: UrbanCtsRow[];
+  urbanSearchMutationsSnapshot?: UrbanMutationListRow[];
+  mutationSuggestionsSnapshot?: UrbanMutationDetailResponse[];
 }
 
 @Component({
   selector: 'app-category1-objection',
-  imports: [ReactiveFormsModule, VakaltnamaPanelComponent, DisputedLandPanelComponent],
+  imports: [
+    ReactiveFormsModule,
+    VakaltnamaPanelComponent,
+    DisputedLandPanelComponent,
+    MappedDocumentsPanelComponent,
+    ParagraphListEditorComponent
+  ],
   templateUrl: './category1-objection.component.html',
   styleUrl: './category1-objection.component.css'
 })
@@ -139,6 +165,7 @@ export class Category1ObjectionComponent {
   private readonly lookups = inject(LookupsService);
   private readonly landRecords = inject(LandRecordsService);
   private readonly filingApplications = inject(FilingApplicationService);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   private hydrating = false;
@@ -154,17 +181,17 @@ export class Category1ObjectionComponent {
 
   protected readonly steps: Step[] = [
     { key: 'DISPUTED_ORDER', title: 'Disputed document/order', hint: 'Select subject and review order details' },
+    {
+      key: 'DISPUTED_LAND',
+      title: 'Disputed land details',
+      hint: 'Add plots and enter disputed area'
+    },
     { key: 'ACT_SECTION', title: 'Case act and PO', hint: 'Select act and section' },
     { key: 'PARTIES', title: 'Applicant/Respondent details', hint: 'Add parties with mobile number and address' },
     {
       key: 'VAKALTNAMA',
       title: 'Vakaltnama',
       hint: 'Filing advocate and co-advocates (search by bar council number)'
-    },
-    {
-      key: 'DISPUTED_LAND',
-      title: 'Disputed land details',
-      hint: 'Search plots from land records API and add multiple'
     },
     {
       key: 'APPLICATION_DESCRIPTION',
@@ -176,9 +203,20 @@ export class Category1ObjectionComponent {
   protected readonly stepIndex = signal(0);
   protected readonly activeStep = computed(() => this.steps[this.stepIndex()]);
 
+  protected readonly stepProgressPercent = computed(() => {
+    const total = this.steps.length;
+    if (total <= 1) return 100;
+    return Math.round((this.stepIndex() / (total - 1)) * 100);
+  });
+
   protected readonly vakaltnamaCoAdvocates = signal<AdvocateLookupResponse[]>([]);
   protected readonly vakaltnamaAssignments = signal<VakaltnamaAssignment[]>([]);
   protected readonly disputedLands = signal<DisputedLandRow[]>([]);
+  protected readonly mappedAttachments = signal<FilingMappedAttachment[]>([]);
+  protected readonly descriptionParagraphs = signal<string[]>(['']);
+  protected readonly affidavitFormatUrl = FILING_AFFIDAVIT_FORMAT_URL;
+  protected readonly prayerFormatUrl = FILING_PRAYER_FORMAT_URL;
+  private readonly mappedDocsPanel = viewChild(MappedDocumentsPanelComponent);
 
   protected readonly subjects = signal<SubjectRecord[]>([]);
   protected readonly loadingSubjects = signal(false);
@@ -233,8 +271,13 @@ export class Category1ObjectionComponent {
         return 'Select ePICS subject, search mutation and review order details';
       }
     }
-    if (step.key === 'DISPUTED_LAND' && this.isRural712Subject()) {
-      return 'Add disputed 7/12 plots (Eferfar) from land records';
+    if (step.key === 'DISPUTED_LAND') {
+      if (this.isRural712Subject()) {
+        return 'Add disputed 7/12 plots and enter disputed area';
+      }
+      if (this.isEpicsSubject()) {
+        return 'Confirm property and enter disputed area';
+      }
     }
     return step.hint;
   });
@@ -245,6 +288,8 @@ export class Category1ObjectionComponent {
   protected readonly mutationFound = signal(false);
   protected readonly searchedMutation = signal(false);
   protected readonly loadingNotice9 = signal(false);
+  protected readonly notice9ModalOpen = signal(false);
+  protected readonly notice9ModalError = signal<string | null>(null);
   protected readonly notice9Resolved = signal<NoticeNineResolved>({
     available: false,
     sourceKind: null,
@@ -340,6 +385,8 @@ export class Category1ObjectionComponent {
     sectionId: [0, [Validators.required, Validators.min(1)]],
     customSectionName: [''],
     applicationDescription: [''],
+    affidavitText: [''],
+    prayerText: [''],
     applicants: this.fb.array([] as ReturnType<Category1ObjectionComponent['createPartyGroup']>[]),
     respondents: this.fb.array([] as ReturnType<Category1ObjectionComponent['createPartyGroup']>[])
   });
@@ -455,8 +502,43 @@ export class Category1ObjectionComponent {
 
   // ─── Mutation suggestion helpers ───────────────────────────────────────────
 
+  /** Read party fields from mutation API (snake_case or camelCase). */
+  private mutationPartyFields(detail: UrbanMutationDetailResponse | Record<string, unknown>): {
+    applicantName: string;
+    mobile: string;
+    email: string;
+    pincode: string;
+    address: string;
+    city: string;
+    districtName: string;
+    taluka: string;
+    stateName: string;
+  } {
+    const d = detail as Record<string, unknown>;
+    const pick = (...keys: string[]): string => {
+      for (const k of keys) {
+        const v = d[k];
+        if (v != null && String(v).trim()) return String(v).trim();
+      }
+      return '';
+    };
+    const address = pick('address', 'address_line', 'addressLine');
+    const city = pick('city');
+    return {
+      applicantName: pick('applicant_name', 'applicantName', 'name', 'applicant'),
+      mobile: pick('mobile_number', 'mobileNumber', 'mobile'),
+      email: pick('email_id', 'emailId', 'email'),
+      pincode: pick('pin_code', 'pinCode', 'pincode'),
+      address,
+      city,
+      districtName: pick('district_name', 'districtName', 'district'),
+      taluka: pick('taluka', 'taluka_name', 'talukaName'),
+      stateName: pick('state_name', 'stateName', 'state')
+    };
+  }
+
   protected suggestionDisplayName(detail: UrbanMutationDetailResponse): string {
-    return String(detail.applicant_name || '').trim() || '(no name)';
+    return this.mutationPartyFields(detail).applicantName || '(no name)';
   }
 
   private parseSuggestionName(fullName: string): { firstName: string; middleName: string; lastName: string } {
@@ -472,6 +554,12 @@ export class Category1ObjectionComponent {
   }
 
   protected applySuggestion(detail: UrbanMutationDetailResponse, role: 'applicant' | 'respondent'): void {
+    const fields = this.mutationPartyFields(detail);
+    if (!fields.applicantName && !fields.mobile) {
+      this.apiError.set('No name or mobile found in this search result — run Search on step 1 again.');
+      return;
+    }
+
     const arr = role === 'applicant' ? this.applicants : this.respondents;
 
     let targetIndex = -1;
@@ -493,32 +581,101 @@ export class Category1ObjectionComponent {
     }
 
     const group = arr.at(targetIndex) as ReturnType<Category1ObjectionComponent['createPartyGroup']>;
-    const { firstName, middleName, lastName } = this.parseSuggestionName(String(detail.applicant_name || ''));
+    const { firstName, middleName, lastName } = this.parseSuggestionName(fields.applicantName);
 
-    const addressParts = [detail.address, detail.city]
-      .map((x) => String(x || '').trim())
+    const addressParts = [fields.address, fields.city]
       .filter(Boolean)
       .join(', ');
 
-    group.patchValue({
-      firstName,
-      middleName,
-      lastName,
-      mobile: String(detail.mobile_number || '').trim(),
-      email: String(detail.email_id || '').trim(),
-      address: addressParts,
-      pincode: String(detail.pin_code || '').trim()
-    });
+    group.patchValue(
+      {
+        firstName,
+        middleName,
+        lastName,
+        mobile: fields.mobile,
+        email: fields.email,
+        address: addressParts,
+        pincode: fields.pincode,
+        district: fields.districtName,
+        taluka: fields.taluka
+      },
+      { emitEvent: true }
+    );
 
-    const pincode = String(detail.pin_code || '').trim();
-    if (/^\d{6}$/.test(pincode)) {
-      this.lookupPincode(role, targetIndex);
+    if (/^\d{6}$/.test(fields.pincode)) {
+      this.lookupPincode(role, targetIndex, () => this.prefillPartyAddressFromMutation(role, targetIndex, fields));
+    } else {
+      this.prefillPartyAddressFromMutation(role, targetIndex, fields);
+    }
+
+    this.apiError.set(null);
+    this.schedulePersist();
+  }
+
+  private prefillPartyAddressFromMutation(
+    role: 'applicant' | 'respondent',
+    index: number,
+    fields: ReturnType<Category1ObjectionComponent['mutationPartyFields']>
+  ): void {
+    const arr = role === 'applicant' ? this.applicants : this.respondents;
+    const group = arr.at(index) as ReturnType<Category1ObjectionComponent['createPartyGroup']> | undefined;
+    if (!group) return;
+
+    const tempId = group.controls.tempId.getRawValue();
+    const lookup = this.partyLookupState(role, tempId);
+
+    if (fields.districtName && lookup.districts.some((d) => d.toLowerCase() === fields.districtName.toLowerCase())) {
+      group.controls.district.setValue(fields.districtName, { emitEvent: false });
+    }
+    if (fields.taluka && lookup.talukas.some((t) => t.toLowerCase() === fields.taluka.toLowerCase())) {
+      group.controls.taluka.setValue(fields.taluka, { emitEvent: false });
+    }
+
+    const posts = lookup.postOffices;
+    if (!posts.length) return;
+
+    const cityNeedle = (fields.city || fields.address).toLowerCase();
+    const distNeedle = fields.districtName.toLowerCase();
+    let match =
+      posts.find((po) => cityNeedle && po.name.toLowerCase().includes(cityNeedle)) ??
+      posts.find((po) => distNeedle && po.district.toLowerCase() === distNeedle) ??
+      (posts.length === 1 ? posts[0] : undefined);
+
+    if (match) {
+      group.controls.villageValue.setValue(match.value, { emitEvent: false });
+      this.onVillageSelectionChange(role, index);
+    }
+
+    if (fields.stateName && lookup.states.length === 0) {
+      this.setLookupState(role, tempId, { ...lookup, states: [fields.stateName] });
     }
   }
 
+  private ensureMutationSuggestionsForPartiesStep(): void {
+    if (!this.isEpicsSubject() || this.mutationSuggestions().length > 0) return;
+    const inward =
+      this.mutationDetails()?.inwardNumber?.trim() ||
+      this.form.controls.selectedInwardNumber.getRawValue().trim() ||
+      this.form.controls.searchValue.getRawValue().trim();
+    if (inward.length < 2) return;
+
+    this.landRecords
+      .getUrbanMutationDetailList(inward)
+      .pipe(catchError(() => of([] as UrbanMutationDetailResponse[])))
+      .subscribe({
+        next: (list) => {
+          if (list?.length) {
+            this.mutationSuggestions.set(list);
+            this.schedulePersist();
+          }
+        }
+      });
+  }
+
   protected suggestionAppliedAs(detail: UrbanMutationDetailResponse): 'applicant' | 'respondent' | null {
-    const mobile = String(detail.mobile_number || '').trim();
-    const name = String(detail.applicant_name || '').trim().toLowerCase();
+    const fields = this.mutationPartyFields(detail);
+    const mobile = fields.mobile;
+    const name = fields.applicantName.toLowerCase();
 
     const matchesRow = (arr: ReturnType<Category1ObjectionComponent['createPartyGroup']>[]): boolean => {
       return arr.some((g) => {
@@ -542,13 +699,18 @@ export class Category1ObjectionComponent {
     return null;
   }
 
-  protected lookupPincode(role: 'applicant' | 'respondent', index: number): void {
+  protected lookupPincode(
+    role: 'applicant' | 'respondent',
+    index: number,
+    afterLoad?: () => void
+  ): void {
     const arr = role === 'applicant' ? this.applicants : this.respondents;
     const group = arr.at(index) as ReturnType<Category1ObjectionComponent['createPartyGroup']> | undefined;
     if (!group) return;
+    const tempId = group.controls.tempId.getRawValue();
     const pincode = (group.controls.pincode.getRawValue() || '').trim();
     if (!/^\d{6}$/.test(pincode)) {
-      this.setLookupState(role, group.controls.tempId.getRawValue(), {
+      this.setLookupState(role, tempId, {
         postOffices: [],
         talukas: [],
         districts: [],
@@ -558,7 +720,7 @@ export class Category1ObjectionComponent {
       });
       return;
     }
-    this.setLookupState(role, group.controls.tempId.getRawValue(), {
+    this.setLookupState(role, tempId, {
       postOffices: [],
       talukas: [],
       districts: [],
@@ -568,7 +730,7 @@ export class Category1ObjectionComponent {
     });
     this.lookups.getPincodeDetails(pincode).subscribe({
       next: (resp) => {
-        this.setLookupState(role, group.controls.tempId.getRawValue(), {
+        this.setLookupState(role, tempId, {
           postOffices: resp.postOffices || [],
           talukas: resp.talukas || [],
           districts: resp.districts || [],
@@ -576,9 +738,10 @@ export class Category1ObjectionComponent {
           loading: false,
           error: null
         });
+        afterLoad?.();
       },
       error: (err: unknown) => {
-        this.setLookupState(role, group.controls.tempId.getRawValue(), {
+        this.setLookupState(role, tempId, {
           postOffices: [],
           talukas: [],
           districts: [],
@@ -588,6 +751,11 @@ export class Category1ObjectionComponent {
         });
       }
     });
+  }
+
+  protected partyRowTempId(control: AbstractControl): string {
+    const g = control as FormGroup;
+    return String(g.controls['tempId']?.getRawValue?.() ?? '').trim();
   }
 
   protected partyLookupState(role: 'applicant' | 'respondent', tempId: string): PartyAddressLookupState {
@@ -674,34 +842,33 @@ export class Category1ObjectionComponent {
         )
         .subscribe((value) => {
 
-          this.tryAutoTranslate(
-            value,
-            marathiField,
-            group,
-            englishField
-          );
+          this.tryAutoTranslate(value, marathiField, group, englishField);
         });
 
       // prefilled trigger
       setTimeout(() => {
-
-        const existingValue =
-          control.value?.trim();
-
+        const existingValue = control.value?.trim();
         if (existingValue) {
-
-          this.tryAutoTranslate(
-            existingValue,
-            marathiField,
-            group,
-            englishField
-          );
+          this.tryAutoTranslate(existingValue, marathiField, group, englishField);
         }
-
       }, 300);
     }
   );
 }
+
+  private partyRowMeta(
+    group: ReturnType<Category1ObjectionComponent['createPartyGroup']>
+  ): { role: 'applicant' | 'respondent'; index: number } {
+    const ai = this.applicants.controls.indexOf(group);
+    if (ai >= 0) return { role: 'applicant', index: ai };
+    const ri = this.respondents.controls.indexOf(group);
+    if (ri >= 0) return { role: 'respondent', index: ri };
+    return { role: 'applicant', index: 0 };
+  }
+
+  private marathiFieldKey(role: string, index: number, marathiFieldName: string): string {
+    return `${role}-${index}-${marathiFieldName}`;
+  }
 
 private tryAutoTranslate(
   englishText: string,
@@ -711,6 +878,8 @@ private tryAutoTranslate(
 ): void {
 
   const text = (englishText ?? '').trim();
+  const { role, index } = this.partyRowMeta(group);
+  const marathiKey = this.marathiFieldKey(role, index, marathiFieldName);
 
   // if English field is cleared, also clear Marathi field to allow re-translation when user adds text again
   if (!text) {
@@ -720,10 +889,9 @@ private tryAutoTranslate(
       },
       { emitEvent: false }
     );
-    // Clear the "manually edited" flag when English field is cleared
     this.manuallyEditedMarathiFields.update((s) => {
       const next = new Set(s);
-      next.delete(`applicant-0-${marathiFieldName}`);
+      next.delete(marathiKey);
       return next;
     });
     return;
@@ -734,19 +902,12 @@ private tryAutoTranslate(
       ?.value
       ?.trim();
 
-  // Check if this Marathi field was manually edited by the user
-  const wasManuallyEdited = this.manuallyEditedMarathiFields().has(`applicant-0-${marathiFieldName}`);
+  const wasManuallyEdited = this.manuallyEditedMarathiFields().has(marathiKey);
 
-  // Skip translation only if:
-  // 1. Marathi field has a value AND
-  // 2. It was manually edited by the user
-  // (If not manually edited, we assume the old value is auto-generated and should be re-translated)
   if (marathiAlready && wasManuallyEdited) {
     return;
   }
 
-  // If Marathi has a value but wasn't manually edited, clear it before re-translating
-  // This ensures we replace old auto-generated translations
   if (marathiAlready && !wasManuallyEdited) {
     group.patchValue(
       {
@@ -760,8 +921,8 @@ private tryAutoTranslate(
     text,
     marathiFieldName,
     group,
-    'applicant',
-    0,
+    role,
+    index,
     fieldName
   );
 }
@@ -832,6 +993,14 @@ private tryAutoTranslate(
     this.loadOccupations();
     this.loadUrbanSearchDistricts();
     this.loadRuralSearchDistricts();
+
+    effect(() => {
+      const stepKey = this.activeStep().key;
+      if (stepKey !== 'DISPUTED_ORDER' || this.hydrating) return;
+      untracked(() => {
+        queueMicrotask(() => this.ensureUrbanInwardChainLoaded());
+      });
+    });
 
     this.form.controls.subjectId.valueChanges.subscribe((subjectId) => {
       if (this.hydrating) return;
@@ -1074,7 +1243,7 @@ private tryAutoTranslate(
   protected hardResetFiling(): void {
     if (
       !confirm(
-        'Clear all data for this application and start fresh? Saved session on this browser will be removed.'
+        'Reset the entire form? All entered data will be cleared and you will start a new filing.'
       )
     ) {
       return;
@@ -1179,7 +1348,11 @@ private tryAutoTranslate(
         applicationId: this.serverApplicationId(),
         applicantIdByClientRowKey: { ...this.applicantIdByClientRowKeySig() },
         stepIndex: this.stepIndex(),
-        form: this.form.getRawValue() as Record<string, unknown>,
+        activeStepKey: this.activeStep().key,
+        form: {
+          ...(this.form.getRawValue() as Record<string, unknown>),
+          descriptionParagraphs: [...this.descriptionParagraphs()]
+        },
         disputedLands: this.disputedLands(),
         vakaltnamaAssignments: this.vakaltnamaAssignments(),
         vakaltnamaCoAdvocates: this.vakaltnamaCoAdvocates(),
@@ -1208,7 +1381,11 @@ private tryAutoTranslate(
         selectedRural712Index: this.selectedRural712Index(),
         rural712LandDetails: [...this.rural712LandDetails()],
         rural712SatbaraSigned: this.rural712SatbaraSigned(),
-        rural712SatbaraMessage: this.rural712SatbaraMessage()
+        rural712SatbaraMessage: this.rural712SatbaraMessage(),
+        mappedAttachments: [...this.mappedAttachments()],
+        urbanSearchSubCtsRowsSnapshot: [...this.urbanSearchSubCtsRows()],
+        urbanSearchMutationsSnapshot: [...this.urbanSearchMutations()],
+        mutationSuggestionsSnapshot: [...this.mutationSuggestions()]
       };
       sessionStorage.setItem(this.sessionKey(), JSON.stringify(snapshot));
     } catch {
@@ -1254,7 +1431,10 @@ private tryAutoTranslate(
     this.filingClientRef.set(snap.clientApplicationRef);
     this.serverApplicationId.set(snap.applicationId ?? null);
     this.applicantIdByClientRowKeySig.set({ ...(snap.applicantIdByClientRowKey ?? {}) });
-    this.stepIndex.set(snap.stepIndex ?? 0);
+    const restoredKey = snap.activeStepKey;
+    const keyIndex =
+      restoredKey != null ? this.steps.findIndex((s) => s.key === restoredKey) : -1;
+    this.stepIndex.set(keyIndex >= 0 ? keyIndex : (snap.stepIndex ?? 0));
 
     const f = snap.form as {
       applicants?: Array<{ tempId?: string; name?: string; mobile?: string; address?: string }>;
@@ -1264,8 +1444,29 @@ private tryAutoTranslate(
     const apps = Array.isArray(f.applicants) ? f.applicants : [];
     const resps = Array.isArray(f.respondents) ? f.respondents : [];
     const { applicants: _a, respondents: _r, ...scalarFields } = f;
+    const rawParagraphs = scalarFields['descriptionParagraphs'];
+    const legacyDesc = scalarFields['applicationDescription'];
+    let paragraphs: string[] = [''];
+    if (Array.isArray(rawParagraphs) && rawParagraphs.length) {
+      paragraphs = rawParagraphs.map((p) => String(p ?? ''));
+    } else if (legacyDesc != null && String(legacyDesc).trim()) {
+      paragraphs = [String(legacyDesc)];
+    }
+    delete scalarFields['descriptionParagraphs'];
+    this.descriptionParagraphs.set(paragraphs);
     this.rebuildApplicantsAndRespondents(apps, resps);
     this.form.patchValue(scalarFields as object, { emitEvent: false });
+    if (snap.urbanSearchSubCtsRowsSnapshot?.length) {
+      this.urbanSearchSubCtsRows.set(snap.urbanSearchSubCtsRowsSnapshot);
+    }
+    if (snap.urbanSearchMutationsSnapshot?.length) {
+      this.urbanSearchMutations.set(snap.urbanSearchMutationsSnapshot);
+    }
+    if (snap.mutationSuggestionsSnapshot?.length) {
+      this.mutationSuggestions.set(snap.mutationSuggestionsSnapshot);
+    } else if (this.searchedMutation()) {
+      this.ensureMutationSuggestionsForPartiesStep();
+    }
 
     if (snap.applicantPincodeLookup) {
       this.applicantPincodeLookup.set({ ...snap.applicantPincodeLookup });
@@ -1290,6 +1491,7 @@ private tryAutoTranslate(
     }
 
     this.disputedLands.set(snap.disputedLands ?? []);
+    this.mappedAttachments.set(snap.mappedAttachments ?? []);
     this.vakaltnamaAssignments.set(snap.vakaltnamaAssignments ?? []);
     this.vakaltnamaCoAdvocates.set(snap.vakaltnamaCoAdvocates ?? []);
 
@@ -1327,7 +1529,6 @@ private tryAutoTranslate(
       this.fetchRural712RowDetails(restoredRuralRow);
     }
 
-    this.maybeRefetchNoticeNineAfterRestore(snap);
 
     const officeFallback = snap.selectedOffice ?? null;
     this.restoreLocationOfficeAndActChain(scalarFields, officeFallback);
@@ -1434,11 +1635,13 @@ private tryAutoTranslate(
         next: (rows) => {
           this.sections.set(rows);
           applySection();
+          this.applyAutoSectionSelection();
         },
         error: () => applySection()
       });
     } else {
       applySection();
+      this.applyAutoSectionSelection();
     }
   }
 
@@ -1460,6 +1663,9 @@ private tryAutoTranslate(
       this.restoreUrbanSearchDropdowns(urbanDist, urbanOffice);
     } else {
       this.syncEpicsUrbanOfficeSnapshot();
+      if (this.isEpicsSubject()) {
+        this.ensureUrbanInwardChainLoaded();
+      }
     }
 
     if (this.isEpicsSubject() && searchMode === 'MUTATION_NUMBER' && urbanVillage) {
@@ -1471,6 +1677,8 @@ private tryAutoTranslate(
     if (this.isRural712Subject() && ruralDist) {
       this.restoreRuralSearchDropdowns(ruralDist, ruralTal);
     }
+
+    this.applyAutoActSelection();
   }
 
   protected loadSubjects(): void {
@@ -1527,7 +1735,10 @@ private tryAutoTranslate(
 
   private loadActs(): void {
     this.lookups.getActs().subscribe({
-      next: (rows) => this.acts.set(rows),
+      next: (rows) => {
+        this.acts.set(rows);
+        this.applyAutoActSelection();
+      },
       error: (err: unknown) => this.apiError.set(this.formatError(err))
     });
   }
@@ -1536,12 +1747,38 @@ private tryAutoTranslate(
     this.lookups.getSections(actId).subscribe({
       next: (rows) => {
         this.sections.set(rows);
-        if (rows.length === 1 && this.form.controls.sectionId.getRawValue() === 0) {
-          this.form.controls.sectionId.setValue(rows[0].id);
-        }
+        this.applyAutoSectionSelection();
       },
       error: (err: unknown) => this.apiError.set(this.formatError(err))
     });
+  }
+
+  /** When only one act exists, select it and load sections automatically. */
+  private applyAutoActSelection(): void {
+    if (this.hydrating) return;
+    const list = this.acts();
+    if (list.length !== 1) return;
+
+    const currentActId = Number(this.form.controls.actId.getRawValue() || 0);
+    if (currentActId > 0) {
+      this.applyAutoSectionSelection();
+      return;
+    }
+
+    this.form.controls.actId.setValue(list[0].id);
+  }
+
+  /** When only one section exists for the selected act, select it automatically. */
+  private applyAutoSectionSelection(): void {
+    if (this.hydrating) return;
+    const list = this.sections();
+    if (list.length !== 1) return;
+
+    const currentSectionId = Number(this.form.controls.sectionId.getRawValue() || 0);
+    if (currentSectionId > 0) return;
+
+    this.form.controls.sectionId.setValue(list[0].id, { emitEvent: false });
+    this.schedulePersist();
   }
 
   private loadOccupations(): void {
@@ -1666,15 +1903,16 @@ private tryAutoTranslate(
       landDetail: undefined
     };
     this.disputedLands.set([...existing, next]);
-    this.apiMessage.set('Plot added to disputed land list (see Disputed land step).');
+    this.apiMessage.set('Plot added to disputed land list (step 2).');
     this.schedulePersist();
   }
 
   protected rural712PinLabel(r: RuralSubSurveyRow): string {
-    const parts = [r.pin1, r.pin2, r.pin3, r.pin4, r.pin5, r.pin6, r.pin7, r.pin8]
-      .map((x) => String(x || '').trim())
-      .filter(Boolean);
-    return parts.length ? `${r.pin} (${parts.join('')})` : r.pin;
+    return formatRuralPinParts(r) || '—';
+  }
+
+  protected rural712SubPartsLabel(r: RuralSubSurveyRow): string {
+    return formatRuralPinParts(r);
   }
 
   protected selectRural712OrderRow(index: number): void {
@@ -1838,6 +2076,34 @@ private tryAutoTranslate(
     return s || '— Complete 7/12 search on step 1 —';
   }
 
+  protected ruralDisputedLandContext(): RuralDisputedLandContext | null {
+    if (!this.isRural712Subject()) {
+      return null;
+    }
+    const dist = this.ruralSearchDistricts().find(
+      (d) => d.district_code.trim() === this.form.controls.ruralDistrictCode.getRawValue().trim()
+    );
+    const tal = this.ruralSearchTalukas().find(
+      (t) => t.taluka_code.trim() === this.form.controls.ruralTalukaCode.getRawValue().trim()
+    );
+    const vil = this.ruralSearchVillages().find(
+      (v) => v.lgd_village_code.trim() === this.form.controls.ruralVillageLgdCode.getRawValue().trim()
+    );
+    const pin = this.form.controls.ruralSurveyPin.getRawValue().trim();
+    if (!dist || !tal || !vil || !pin) {
+      return null;
+    }
+    return {
+      districtCode: dist.district_code.trim(),
+      districtName: dist.district_name,
+      talukaCode: tal.taluka_code.trim(),
+      talukaName: tal.taluka_name,
+      villageLgdCode: vil.lgd_village_code.trim(),
+      villageName: vil.village_name,
+      surveyPin: pin
+    };
+  }
+
   private disputedLandKey(x: DisputedLandRow): string {
     if (x.type === 'RURAL_7_12') {
       const p = x.pinParts;
@@ -1897,9 +2163,43 @@ private tryAutoTranslate(
           this.urbanSearchOffices.set((offices as UrbanOffice[]) || []);
           this.urbanSearchVillages.set((villages as UrbanVillage[]) || []);
           this.syncEpicsUrbanOfficeSnapshot();
+          this.ensureUrbanInwardChainLoaded();
         },
         error: () => this.syncEpicsUrbanOfficeSnapshot()
       });
+  }
+
+  /** Reload sub-CTS / inward dropdown options when returning to step 1 without clearing selections. */
+  private ensureUrbanInwardChainLoaded(): void {
+    if (this.hydrating || !this.isEpicsSubject()) return;
+
+    const mode = this.form.controls.searchMode.getRawValue();
+    const village = this.form.controls.urbanVillageCode.getRawValue().trim();
+    if (!village) return;
+
+    if (mode === 'SURVEY_NUMBER') {
+      const parentCts = this.form.controls.ctsNoInput.getRawValue().trim();
+      const subCts = this.form.controls.selectedSubCtsNo.getRawValue().trim();
+
+      if (parentCts && this.urbanSearchSubCtsRows().length === 0) {
+        this.fetchUrbanSubCtsRows(village, parentCts, true);
+        return;
+      }
+      if (subCts && this.urbanSearchMutations().length === 0) {
+        this.fetchUrbanMutationsForSubCts(village, subCts, true);
+      }
+      return;
+    }
+
+    if (mode === 'MUTATION_NUMBER') {
+      if (this.urbanMutationTypeOptions().length === 0) {
+        this.loadUrbanMutationTypes();
+      }
+      const typeCode = this.form.controls.selectedUrbanMutationTypeCode.getRawValue().trim();
+      if (typeCode && this.urbanSearchMutations().length === 0) {
+        this.fetchUrbanMutationsForMutationType(village, typeCode, true);
+      }
+    }
   }
 
   private loadUrbanSearchVillages(officeCode: string): void {
@@ -1930,17 +2230,17 @@ private tryAutoTranslate(
     const searchToken = ++this.latestMutationSearchToken;
     this.clearSearchResultState();
     this.loadingSearch.set(true);
-    this.loadingNotice9.set(true);
     this.searchedMutation.set(true);
     this.notice9Resolved.set({ available: false, sourceKind: null, url: null, previewKind: 'none' });
 
-    forkJoin({
-      mutations: this.landRecords.getUrbanMutationDetailList(v).pipe(catchError(() => of([] as UrbanMutationDetailResponse[]))),
-      notice9: this.landRecords.getUrbanNoticeNineView(v).pipe(catchError(() => of(null)))
-    })
-      .pipe(finalize(() => { this.loadingSearch.set(false); this.loadingNotice9.set(false); }))
+    this.landRecords
+      .getUrbanMutationDetailList(v)
+      .pipe(
+        catchError(() => of([] as UrbanMutationDetailResponse[])),
+        finalize(() => this.loadingSearch.set(false))
+      )
       .subscribe({
-        next: ({ mutations, notice9 }) => {
+        next: (mutations) => {
           if (searchToken !== this.latestMutationSearchToken) return;
           this.mutationSuggestions.set(mutations);
           const first = mutations[0] ?? null;
@@ -1951,11 +2251,6 @@ private tryAutoTranslate(
           } else {
             this.mutationDetails.set(this.toMutationDetailsView(first));
             this.mutationFound.set(true);
-          }
-          if (notice9) {
-            this.applyNoticeNineViewResult(notice9);
-          } else {
-            this.notice9Resolved.set({ available: false, sourceKind: null, url: null, previewKind: 'none' });
           }
           this.schedulePersist();
         },
@@ -2056,6 +2351,52 @@ private tryAutoTranslate(
     return lower.startsWith('data:application/pdf') || lower.endsWith('.pdf');
   }
 
+  protected canPreviewNotice9(): boolean {
+    return this.mutationFound() && !!this.mutationDetails()?.inwardNumber?.trim();
+  }
+
+  protected openNotice9Preview(): void {
+    if (!this.canPreviewNotice9() || this.loadingNotice9()) return;
+
+    const cached = this.notice9Resolved();
+    if (cached.available && cached.url) {
+      this.notice9ModalError.set(null);
+      this.notice9ModalOpen.set(true);
+      return;
+    }
+
+    const inward = this.resolveNotice9InwardNumber();
+    if (!inward) {
+      this.notice9ModalError.set('Inward number is required to load Notice 9.');
+      this.notice9ModalOpen.set(true);
+      return;
+    }
+
+    this.notice9ModalError.set(null);
+    this.notice9ModalOpen.set(true);
+    this.fetchNoticeNineForInward(inward, true);
+  }
+
+  protected closeNotice9Modal(): void {
+    this.notice9ModalOpen.set(false);
+    this.notice9ModalError.set(null);
+  }
+
+  protected onNotice9ModalBackdropClick(event: MouseEvent): void {
+    if ((event.target as HTMLElement).classList.contains('notice9-modal-backdrop')) {
+      this.closeNotice9Modal();
+    }
+  }
+
+  private resolveNotice9InwardNumber(): string {
+    return (
+      this.mutationDetails()?.inwardNumber?.trim() ||
+      this.form.controls.searchValue.getRawValue().trim() ||
+      this.form.controls.selectedInwardNumber.getRawValue().trim() ||
+      ''
+    );
+  }
+
   private compactNotice9ForSession(n9: NoticeNineResolved): NoticeNineResolved {
     if (n9.url && n9.url.length > 120_000) {
       return { available: true, sourceKind: n9.sourceKind, url: null, previewKind: n9.previewKind };
@@ -2063,28 +2404,32 @@ private tryAutoTranslate(
     return n9;
   }
 
-  private maybeRefetchNoticeNineAfterRestore(snap: Category1FilingSession): void {
-    if (!snap.searchedMutation) return;
-    const inward =
-      snap.notice9InwardRef?.trim() ||
-      snap.mutationDetails?.inwardNumber?.trim() ||
-      String((snap.form as { searchValue?: string })?.searchValue || '').trim();
-    if (!inward) return;
-    const n9 = snap.notice9Resolved;
-    if (n9?.url && n9.available) return;
-    this.fetchNoticeNineForInward(inward);
-  }
-
-  private fetchNoticeNineForInward(inwardNumber: string): void {
+  private fetchNoticeNineForInward(inwardNumber: string, openInModal = false): void {
     const inward = inwardNumber.trim();
     if (!inward) return;
     this.loadingNotice9.set(true);
+    this.notice9ModalError.set(null);
     this.landRecords
       .getUrbanNoticeNineView(inward)
-      .pipe(catchError(() => of(null)), finalize(() => this.loadingNotice9.set(false)))
+      .pipe(
+        catchError((err: unknown) => {
+          this.notice9ModalError.set(this.formatError(err));
+          return of(null);
+        }),
+        finalize(() => this.loadingNotice9.set(false))
+      )
       .subscribe({
         next: (notice9) => {
-          if (notice9) { this.applyNoticeNineViewResult(notice9); this.schedulePersist(); }
+          if (notice9) {
+            this.applyNoticeNineViewResult(notice9);
+            this.schedulePersist();
+            if (openInModal && !this.notice9Resolved().available) {
+              this.notice9ModalError.set('Notice 9 is not available for this inward number.');
+            }
+          } else if (openInModal) {
+            this.notice9Resolved.set({ available: false, sourceKind: null, url: null, previewKind: 'none' });
+            this.notice9ModalError.set('Notice 9 is not available for this inward number.');
+          }
         }
       });
   }
@@ -2220,16 +2565,31 @@ private tryAutoTranslate(
     if (!villageCode) { this.apiError.set('Please select village first.'); return; }
     const parentCts = this.form.controls.ctsNoInput.getRawValue().trim();
     if (!parentCts) { this.apiError.set('Please enter parent CTS number (required for sub CTS list).'); return; }
-    this.loadingUrbanSearchChain.set(true);
     this.apiError.set(null);
-    this.urbanSearchMutations.set([]);
-    this.form.controls.selectedSubCtsNo.setValue('', { emitEvent: false });
-    this.form.controls.selectedInwardNumber.setValue('', { emitEvent: false });
+    this.fetchUrbanSubCtsRows(villageCode, parentCts, false);
+  }
+
+  private fetchUrbanSubCtsRows(villageCode: string, parentCts: string, preserveSelections: boolean): void {
+    if (!preserveSelections) {
+      this.urbanSearchMutations.set([]);
+      this.form.controls.selectedSubCtsNo.setValue('', { emitEvent: false });
+      this.form.controls.selectedInwardNumber.setValue('', { emitEvent: false });
+    }
+    this.loadingUrbanSearchChain.set(true);
     this.landRecords
       .getUrbanSubCtsList(villageCode, parentCts)
       .pipe(finalize(() => this.loadingUrbanSearchChain.set(false)))
       .subscribe({
-        next: (rows) => this.urbanSearchSubCtsRows.set(rows || []),
+        next: (rows) => {
+          this.urbanSearchSubCtsRows.set(rows || []);
+          if (preserveSelections) {
+            const subCts = this.form.controls.selectedSubCtsNo.getRawValue().trim();
+            if (subCts && this.urbanSearchMutations().length === 0) {
+              this.fetchUrbanMutationsForSubCts(villageCode, subCts, true);
+            }
+          }
+          this.schedulePersist();
+        },
         error: (err: unknown) => this.apiError.set(this.formatError(err))
       });
   }
@@ -2238,15 +2598,28 @@ private tryAutoTranslate(
     const villageCode = this.form.controls.urbanVillageCode.getRawValue().trim();
     const ctsNo = this.form.controls.selectedSubCtsNo.getRawValue().trim();
     if (!villageCode || !ctsNo) { this.apiError.set('Please select sub CTS number first.'); return; }
-    this.loadingUrbanSearchChain.set(true);
     this.apiError.set(null);
-    this.form.controls.selectedInwardNumber.setValue('', { emitEvent: false });
-    this.urbanSearchMutations.set([]);
+    this.fetchUrbanMutationsForSubCts(villageCode, ctsNo, false);
+  }
+
+  private fetchUrbanMutationsForSubCts(
+    villageCode: string,
+    ctsNo: string,
+    preserveSelections: boolean
+  ): void {
+    if (!preserveSelections) {
+      this.form.controls.selectedInwardNumber.setValue('', { emitEvent: false });
+      this.urbanSearchMutations.set([]);
+    }
+    this.loadingUrbanSearchChain.set(true);
     this.landRecords
       .getUrbanMutationsApplicantByCts(villageCode, ctsNo)
       .pipe(finalize(() => this.loadingUrbanSearchChain.set(false)))
       .subscribe({
-        next: (rows) => this.urbanSearchMutations.set(rows || []),
+        next: (rows) => {
+          this.urbanSearchMutations.set(rows || []);
+          this.schedulePersist();
+        },
         error: (err: unknown) => this.apiError.set(this.formatError(err))
       });
   }
@@ -2272,15 +2645,28 @@ private tryAutoTranslate(
     const villageCode = this.form.controls.urbanVillageCode.getRawValue().trim();
     const mutationTypeCode = this.form.controls.selectedUrbanMutationTypeCode.getRawValue().trim();
     if (!villageCode || !mutationTypeCode) { this.apiError.set('Please select village and mutation type first.'); return; }
-    this.loadingUrbanSearchChain.set(true);
     this.apiError.set(null);
-    this.form.controls.selectedInwardNumber.setValue('', { emitEvent: false });
-    this.urbanSearchMutations.set([]);
+    this.fetchUrbanMutationsForMutationType(villageCode, mutationTypeCode, false);
+  }
+
+  private fetchUrbanMutationsForMutationType(
+    villageCode: string,
+    mutationTypeCode: string,
+    preserveSelections: boolean
+  ): void {
+    if (!preserveSelections) {
+      this.form.controls.selectedInwardNumber.setValue('', { emitEvent: false });
+      this.urbanSearchMutations.set([]);
+    }
+    this.loadingUrbanSearchChain.set(true);
     this.landRecords
       .getUrbanMutationsApplicantByMutationType(villageCode, mutationTypeCode)
       .pipe(finalize(() => this.loadingUrbanSearchChain.set(false)))
       .subscribe({
-        next: (rows) => this.urbanSearchMutations.set(rows || []),
+        next: (rows) => {
+          this.urbanSearchMutations.set(rows || []);
+          this.schedulePersist();
+        },
         error: (err: unknown) => this.apiError.set(this.formatError(err))
       });
   }
@@ -2324,6 +2710,7 @@ private tryAutoTranslate(
     this.applicantIdByClientRowKeySig.set({});
     this.stepIndex.set(0);
     this.disputedLands.set([]);
+    this.mappedAttachments.set([]);
     this.vakaltnamaAssignments.set([]);
     this.vakaltnamaCoAdvocates.set([]);
     this.mutationDetails.set(null);
@@ -2331,6 +2718,8 @@ private tryAutoTranslate(
     this.searchedMutation.set(false);
     this.loadingSearch.set(false);
     this.loadingNotice9.set(false);
+    this.notice9ModalOpen.set(false);
+    this.notice9ModalError.set(null);
     this.notice9Resolved.set({ available: false, sourceKind: null, url: null, previewKind: 'none' });
     this.manualAttachFileName.set(null);
     this.manualNotice9FileName.set(null);
@@ -2349,10 +2738,12 @@ private tryAutoTranslate(
         selectedSubCtsNo: '', selectedInwardNumber: '', mutationNumberInput: '',
         selectedUrbanMutationTypeCode: '', manualInwardNumber: '', manualInwardDate: '',
         manualMutationType: '', manualApplicantName: '', manualVillage: '',
-        manualStatus: '', actId: 0, sectionId: 0, customSectionName: '', applicationDescription: ''
+        manualStatus: '', actId: 0, sectionId: 0, customSectionName: '',
+        applicationDescription: '', affidavitText: '', prayerText: ''
       },
       { emitEvent: false }
     );
+    this.descriptionParagraphs.set(['']);
     this.form.controls.districtId.setValue(0, { emitEvent: false });
     this.form.controls.subdistrictId.setValue(0, { emitEvent: false });
     this.form.controls.talukaId.setValue(0, { emitEvent: false });
@@ -2378,7 +2769,11 @@ private tryAutoTranslate(
     this.apiMessage.set(null);
     this.apiError.set(null);
     if (!this.validateCurrentStep(true)) return;
-    this.stepIndex.set(Math.min(this.steps.length - 1, this.stepIndex() + 1));
+    const nextIndex = Math.min(this.steps.length - 1, this.stepIndex() + 1);
+    this.stepIndex.set(nextIndex);
+    if (this.steps[nextIndex]?.key === 'PARTIES') {
+      this.ensureMutationSuggestionsForPartiesStep();
+    }
     this.schedulePersist();
   }
 
@@ -2389,6 +2784,9 @@ private tryAutoTranslate(
     this.apiError.set(null);
     if (targetIndex < current) {
       this.stepIndex.set(targetIndex);
+      if (this.steps[targetIndex]?.key === 'PARTIES') {
+        this.ensureMutationSuggestionsForPartiesStep();
+      }
       this.schedulePersist();
       return;
     }
@@ -2401,6 +2799,9 @@ private tryAutoTranslate(
       }
     }
     this.stepIndex.set(targetIndex);
+    if (this.steps[targetIndex]?.key === 'PARTIES') {
+      this.ensureMutationSuggestionsForPartiesStep();
+    }
     this.schedulePersist();
   }
 
@@ -2597,10 +2998,16 @@ private tryAutoTranslate(
         dob: row['dob'] || '', age: row['age'] || '', occupation: row['occupation'] || ''
       };
     });
+    const descriptionParagraphs = this.normalizedDescriptionParagraphs();
     return {
       ...rawForPayload,
       sectionCustomText: (raw['customSectionName'] as string) || null,
-      applicants, respondents,
+      descriptionParagraphs,
+      applicationDescription: descriptionParagraphs.join('\n\n'),
+      affidavitText: String(raw['affidavitText'] ?? '').trim(),
+      prayerText: String(raw['prayerText'] ?? '').trim(),
+      applicants,
+      respondents,
       vakalatnamaAssignments: this.vakaltnamaAssignments()
     };
   }
@@ -2627,12 +3034,85 @@ private tryAutoTranslate(
     };
   }
 
+  protected onDescriptionParagraphsChange(paragraphs: string[]): void {
+    this.descriptionParagraphs.set(paragraphs.length ? paragraphs : ['']);
+    this.schedulePersist();
+  }
+
+  protected loadAffidavitTemplate(): void {
+    this.form.controls.affidavitText.setValue(FILING_AFFIDAVIT_SAMPLE_TEMPLATE);
+    this.schedulePersist();
+  }
+
+  protected loadPrayerTemplate(): void {
+    this.form.controls.prayerText.setValue(FILING_PRAYER_SAMPLE_TEMPLATE);
+    this.schedulePersist();
+  }
+
+  private normalizedDescriptionParagraphs(): string[] {
+    return this.descriptionParagraphs()
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+  }
+
   private validateApplicationDescriptionStep(markTouched: boolean): boolean {
-    const c = this.form.controls.applicationDescription;
-    if (markTouched) c.markAsTouched();
-    const v = c.getRawValue().trim();
-    if (v.length < 10) { this.apiError.set('Please enter application description (at least 10 characters).'); return false; }
+    if (markTouched) {
+      this.form.controls.affidavitText.markAsTouched();
+      this.form.controls.prayerText.markAsTouched();
+    }
+    const paragraphs = this.normalizedDescriptionParagraphs();
+    const totalLen = paragraphs.join('\n\n').length;
+    if (!paragraphs.length || totalLen < 10) {
+      this.apiError.set('Please enter application description (at least one paragraph, 10 characters total).');
+      return false;
+    }
+    const affidavit = this.form.controls.affidavitText.getRawValue().trim();
+    if (affidavit.length < 10) {
+      this.apiError.set('Please enter affidavit text (at least 10 characters).');
+      return false;
+    }
+    const prayer = this.form.controls.prayerText.getRawValue().trim();
+    if (prayer.length < 10) {
+      this.apiError.set('Please enter prayer text (at least 10 characters).');
+      return false;
+    }
     return true;
+  }
+
+  protected previewApplication(): void {
+    const appId = this.serverApplicationId();
+    if (appId != null && appId > 0) {
+      void this.router.navigate(['/applications', appId]);
+      return;
+    }
+    if (!this.validateApplicationDescriptionStep(true)) return;
+    this.apiMessage.set(null);
+    this.apiError.set(null);
+    const body: FilingApplicationSaveRequest = {
+      status: 'DRAFT',
+      caseCategoryId: this.caseCategoryId(),
+      clientApplicationRef: this.filingClientRef(),
+      form: this.buildFormPayload(),
+      disputedOrder: this.buildDisputedOrderPayload(),
+      disputedLands: this.buildDisputedLandsPayload(),
+      attachments: [...this.mappedAttachments()]
+    };
+    this.saveInProgress.set(true);
+    this.filingApplications
+      .save(body)
+      .pipe(finalize(() => this.saveInProgress.set(false)))
+      .subscribe({
+        next: (resp) => {
+          if (resp?.applicationId != null && resp.applicationId > 0) {
+            this.serverApplicationId.set(resp.applicationId);
+            this.schedulePersist();
+            void this.router.navigate(['/applications', resp.applicationId]);
+            return;
+          }
+          this.apiError.set('Draft saved but application ID was not returned — cannot open preview.');
+        },
+        error: (err: unknown) => this.apiError.set(this.formatError(err))
+      });
   }
 
   private validateAllStepsForSubmit(): boolean {
@@ -2641,8 +3121,23 @@ private tryAutoTranslate(
       const ok = key === 'APPLICATION_DESCRIPTION' ? this.validateApplicationDescriptionStep(true) : this.validateStepByKey(key, true);
       if (!ok) { this.stepIndex.set(i); return false; }
     }
+    const docErr = this.mappedDocsPanel()?.validateApplicantForSubmit();
+    if (docErr) {
+      this.apiError.set(docErr);
+      this.stepIndex.set(this.steps.findIndex((s) => s.key === 'APPLICATION_DESCRIPTION'));
+      return false;
+    }
     return true;
   }
+
+  protected onMappedAttachmentsChange(attachments: FilingMappedAttachment[]): void {
+    this.mappedAttachments.set(attachments);
+    this.schedulePersist();
+  }
+
+  protected readonly filingSubjectId = computed(
+    () => this.selectedSubject()?.id ?? Number(this.form.controls.subjectId.getRawValue() || 0)
+  );
 
   protected selectedSubjectLabel(): string { return this.selectedSubject()?.subjectName || ''; }
   protected selectedActLabel(): string {
@@ -2662,6 +3157,7 @@ private tryAutoTranslate(
   protected finalSubmit(): void { this.apiMessage.set(null); this.postSave('FINAL'); }
 
   private postSave(mode: 'DRAFT' | 'FINAL'): void {
+    if (mode === 'FINAL' && !this.validateAllStepsForSubmit()) return;
     const status: FilingSaveStatus = mode === 'FINAL' ? 'SUBMITTED' : 'DRAFT';
     const appId = this.serverApplicationId();
     const body: FilingApplicationSaveRequest = {
@@ -2671,7 +3167,7 @@ private tryAutoTranslate(
       form: this.buildFormPayload(),
       disputedOrder: this.buildDisputedOrderPayload(),
       disputedLands: this.buildDisputedLandsPayload(),
-      attachments: []
+      attachments: [...this.mappedAttachments()]
     };
     this.saveInProgress.set(true);
     this.filingApplications

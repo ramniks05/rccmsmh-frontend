@@ -63,12 +63,8 @@ export const authInterceptor: HttpInterceptorFn = (
           }
         }
 
-        // 403 → forbidden (allow registration pages to render)
-        if (error.status === 403) {
-          if (!isPublicAppRoute(router.url)) {
-            void router.navigate(['/portal-home']);
-          }
-        }
+        // 403 is handled by the calling screen (e.g. officer case workspace may
+        // fall back from filing API to case API). Do not navigate away globally.
       }
 
       return throwError(() => error);

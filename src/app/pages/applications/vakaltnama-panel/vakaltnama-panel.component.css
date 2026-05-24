@@ -1,6 +1,16 @@
+:host {
+  display: block;
+  --rccms-primary: #0b3d91;
+  --rccms-primary-mid: #2563eb;
+  --rccms-surface-section: #fafbfd;
+  --rccms-border: #e8edf5;
+  --rccms-radius-md: 12px;
+  --rccms-radius-sm: 10px;
+}
+
 .vak-wrap {
   display: grid;
-  gap: 12px;
+  gap: 1rem;
 }
 
 .vak-flow {
@@ -33,11 +43,11 @@
 }
 
 .vak-label {
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #6b7280;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #64748b;
 }
 
 .vak-checks {
@@ -52,21 +62,27 @@
 .vak-select {
   width: 100%;
   max-width: 100%;
-  border-radius: 12px;
-  border: 1px solid rgba(31, 41, 55, 0.18);
-  padding: 10px 12px;
+  border-radius: var(--rccms-radius-sm);
+  border: 1px solid #e2e8f0;
+  padding: 0.58rem 0.75rem;
   background: #ffffff;
-  color: #111827;
+  color: #0f172a;
   font: inherit;
   outline: none;
+  transition: border-color 140ms, box-shadow 140ms;
+}
+
+.vak-select:focus {
+  border-color: var(--rccms-primary-mid);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
 }
 
 .vak-picked {
   margin: 0;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: rgba(37, 99, 235, 0.08);
-  border: 1px solid rgba(37, 99, 235, 0.2);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: none;
 }
 
 .vak-flow-actions {
@@ -95,9 +111,10 @@
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(31, 41, 55, 0.12);
-  background: #fafafa;
+  border-radius: var(--rccms-radius-md);
+  border: 1px solid var(--rccms-border);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
 }
 
 .vak-group-main {
@@ -112,11 +129,28 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 6px;
+  overflow-wrap: break-word;
 }
 
 .vak-group-applicants {
-  font-size: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.88rem;
   color: #1f2937;
+}
+
+.vak-applicant-chip {
+  display: inline-block;
+  max-width: 100%;
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #dbeafe;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .vak-group-co {
@@ -189,10 +223,12 @@
 }
 
 .mini-card {
-  border: 1px solid rgba(31, 41, 55, 0.12);
-  border-radius: 16px;
-  padding: 12px;
-  margin-top: 12px;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin-top: 1rem;
+  background: transparent;
+  box-shadow: none;
 }
 
 .mini-card:first-child {
@@ -243,12 +279,18 @@ label {
 }
 
 input {
-  border-radius: 12px;
-  border: 1px solid rgba(31, 41, 55, 0.18);
-  padding: 10px 12px;
+  border-radius: var(--rccms-radius-sm);
+  border: 1px solid #e2e8f0;
+  padding: 0.58rem 0.75rem;
   background: #ffffff;
-  color: #111827;
+  color: #0f172a;
   outline: none;
+  transition: border-color 140ms, box-shadow 140ms;
+}
+
+input:focus {
+  border-color: var(--rccms-primary-mid);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
 }
 
 .search-row {
@@ -397,24 +439,48 @@ input {
 }
 
 .check-grid {
-  margin-top: 10px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .check-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(31, 41, 55, 0.12);
-  background: rgba(31, 41, 55, 0.02);
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: auto;
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #e8edf5;
+  background: #fafbfd;
+  cursor: pointer;
+}
+
+.check-item input[type='checkbox'] {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.check-item-text {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .check-item.disabled {
   opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.check-item.disabled input {
+  cursor: not-allowed;
 }
 
 .selected-adv {
@@ -453,11 +519,6 @@ input {
   border-bottom: none;
 }
 
-@media (max-width: 820px) {
-  .check-grid {
-    grid-template-columns: 1fr;
-  }
-}
 
 .vak-filing-adv {
   display: flex;

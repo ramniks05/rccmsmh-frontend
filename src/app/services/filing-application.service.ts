@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
+import { FilingMappedAttachment } from './mapped-documents.service';
 
 /** POST /api/filing-applications/save — matches backend contract. Bearer + JSON via interceptor / HttpClient. */
 export type FilingSaveStatus = 'DRAFT' | 'SUBMITTED';
@@ -18,7 +19,7 @@ export interface FilingApplicationSaveRequest {
   form: Record<string, unknown>;
   disputedOrder?: unknown;
   disputedLands?: unknown;
-  attachments?: unknown[];
+  attachments?: FilingMappedAttachment[];
 }
 
 export interface FilingApplicationSaveResponse {

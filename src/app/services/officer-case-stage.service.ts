@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { map, Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
+import { OfficerInboxItem } from './officer-filing.service';
 
 // ─── Approve / Assignment ───────────────────────────────────────────────────
 
@@ -22,6 +23,14 @@ export interface OfficerAssignmentActionResponse {
 }
 
 // ─── Case inbox ─────────────────────────────────────────────────────────────
+
+export interface OfficerDashboardResponse {
+  pendingApplications: OfficerInboxItem[];
+  activeCases: OfficerCaseInboxItem[];
+  todayHearings: CaseHearingResponse[];
+}
+
+// OfficerCaseInboxItem defined below — forward ref satisfied at runtime
 
 export interface OfficerCaseInboxItem {
   caseId: number;
@@ -70,10 +79,13 @@ export interface CaseNoticeItem {
   /** CLERK_DRAFT | PO_SCRUTINY | PO_FINALIZED | PO_SIGNED | SERVED */
   status: string;
   draftContent: string | null;
+  previewContent?: string | null;
+  finalContent?: string | null;
   revertReason?: string | null;
   message?: string;
   selectedParties: string[];
   digitalSignatureRef: string | null;
+  servedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -89,7 +101,67 @@ export interface NoticeSignRequest {
   digitalSignatureRef: string;
 }
 
+export interface NoticeServeRequest {
+  hearingId: number;
+  draftContent: string;
+  selectedParties: string[];
+  noticeType?: string;
+  finalContent?: string;
+  digitalSignatureRef?: string;
+}
+
+/** GET /api/cases/officer/notices/pending-serve — full notice backlog (no date filter). */
+export interface PendingServeNoticeRow {
+  rowNo?: number;
+  queueDate: string;
+  caseId: number;
+  caseNo: string;
+  filingApplicationId: number;
+  caseCategoryName?: string;
+  hearingId: number;
+  hearingNo: number;
+  hearingDate: string;
+  noticeId?: number | null;
+  noticeType?: string | null;
+  noticeStatus?: string | null;
+}
+
+export interface PendingServeNoticeResponse {
+  totalRows: number;
+  rows: PendingServeNoticeRow[];
+}
+
 // ─── Roznama (order sheet) ───────────────────────────────────────────────────
+
+export type RoznamaAttendancePartyType = 'APPLICANT' | 'RESPONDENT' | 'OTHER';
+
+export interface RoznamaAttendanceEntry {
+  attendanceId: number | null;
+  partyType: RoznamaAttendancePartyType;
+  partyRefId: number | null;
+  otherPartyKey: string | null;
+  partyName: string;
+  lineNo: number;
+  present: boolean | null;
+  mandatory: boolean;
+  updatedAt: string | null;
+}
+
+export interface RoznamaAttendanceSaveEntry {
+  partyType: RoznamaAttendancePartyType;
+  partyRefId: number;
+  present: boolean;
+  partyName?: string;
+  otherPartyKey?: string;
+}
+
+export interface RoznamaAttendanceResponse {
+  caseId: number;
+  hearingId: number;
+  attendanceRequired: boolean;
+  attendanceComplete: boolean;
+  entries: RoznamaAttendanceEntry[];
+}
 
 export interface RoznamaResponse {
   id: number;
@@ -106,6 +178,10 @@ export interface RoznamaResponse {
   updatedAt: string;
   updatedByLoginId?: string;
   message?: string;
+  hearingOutcome?: string | null;
+  attendanceRequired?: boolean;
+  attendanceComplete?: boolean;
+  attendance?: RoznamaAttendanceEntry[];
 }
 
 /** @deprecated use RoznamaResponse */
@@ -140,13 +216,15 @@ export interface OfficerRoznamaTableRow {
   hearingNo: number;
   hearingDate: string;
   hearingStatus: string;
+  noticeServed?: boolean;
+  proceedingAllowed?: boolean;
   roznamaId: number | null;
   roznamaStatus: string | null;
   proceedingStage: string;
   draftContent: string | null;
   finalContent: string | null;
   roznamaUpdatedAt: string | null;
-  roznamaLinkedToHearing: boolean;
+  roznamaLinkedToHearing?: boolean;
   canEdit: boolean;
 }
 
@@ -156,17 +234,80 @@ export interface OfficerRoznamaTableResponse {
   rows: OfficerRoznamaTableRow[];
 }
 
-export interface RoznamaDraftRequest {
-  /** Latest hearing reference when saving; one roznamah document exists per case. */
-  hearingId?: number;
-  hearingDate?: string;
-  content: string;
-  remarks?: string;
-}
-
 export interface RoznamaHearingQuery {
   hearingId?: number;
   hearingDate?: string;
+}
+
+/** POST /{caseId}/roznama — single complete (save + sign + outcome). */
+export interface CompleteRoznamaRequest {
+  hearingId: number;
+  content: string;
+  hearingOutcome: 'ADJOURN' | 'FINAL';
+  hearingDate?: string;
+  nextHearingDate?: string;
+  digitalSignatureRef?: string;
+  remarks?: string;
+  /** When attendanceRequired and not yet saved via PUT …/attendance */
+  attendance?: RoznamaAttendanceSaveEntry[];
+}
+
+export interface CompleteRoznamaResponse {
+  status: string;
+  hearingOutcome: string;
+  caseStatus?: string;
+  finalHearing?: boolean;
+  nextHearingId?: number | null;
+  nextHearingDate?: string | null;
+  message?: string;
+  roznamaFinalized?: boolean;
+  roznamaSigned?: boolean;
+  id?: number;
+  caseId?: number;
+  caseNo?: string;
+  hearingId?: number | null;
+  content?: string;
+}
+
+export interface JudgmentWorkflowContextSlice {
+  allowedActions?: string[];
+  workflowStatus?: string;
+  blueprint?: string;
+  message?: string;
+}
+
+export interface CaseWorkflowContext {
+  caseId: number;
+  caseNo?: string;
+  caseStatus?: string;
+  hearingId?: number | null;
+  hearingNo?: number | null;
+  hearingDate?: string | null;
+  noticeServed?: boolean;
+  proceedingAllowed?: boolean;
+  proceedingStage?: string | null;
+  roznamaStatus?: string | null;
+  allowedActions?: string[];
+  judgment?: JudgmentWorkflowContextSlice;
+  message?: string;
+}
+
+export interface JudgmentHistoryRow {
+  historyId?: number;
+  action?: string;
+  status?: string;
+  summary?: string;
+  draftSummary?: string;
+  remarks?: string;
+  actorRole?: string;
+  actorLoginId?: string;
+  createdAt?: string;
+}
+
+export interface RescheduleHearingRequest {
+  nextHearingDate: string;
+  noticeGenerate?: boolean;
+  remarks?: string;
 }
 
 // ─── Judgment ────────────────────────────────────────────────────────────────
@@ -286,6 +427,12 @@ export class OfficerCaseStageService {
     );
   }
 
+  // ── Officer dashboard ──────────────────────────────────────────────────────
+
+  getOfficerDashboard(): Observable<OfficerDashboardResponse> {
+    return this.http.get<OfficerDashboardResponse>(`${this.base}/api/cases/officer/dashboard`);
+  }
+
   // ── Case inbox / detail ────────────────────────────────────────────────────
 
   getCaseInbox(status?: string): Observable<OfficerCaseInboxItem[]> {
@@ -314,6 +461,22 @@ export class OfficerCaseStageService {
 
   // ── Notice workflow ────────────────────────────────────────────────────────
 
+  /** All hearings with date set and notice not yet served (office backlog). */
+  getPendingServeNotices(): Observable<PendingServeNoticeResponse> {
+    return this.http
+      .get<PendingServeNoticeResponse | PendingServeNoticeRow[]>(
+        `${this.base}/api/cases/officer/notices/pending-serve`
+      )
+      .pipe(
+        map((raw) => {
+          if (Array.isArray(raw)) {
+            return { totalRows: raw.length, rows: raw };
+          }
+          return raw ?? { totalRows: 0, rows: [] };
+        })
+      );
+  }
+
   listNotices(caseId: number): Observable<CaseNoticeItem[]> {
     return this.http.get<CaseNoticeItem[]>(`${this.base}/api/cases/officer/${caseId}/notices`);
   }
@@ -334,8 +497,29 @@ export class OfficerCaseStageService {
     return this.http.post<CaseNoticeItem>(`${this.base}/api/cases/officer/${caseId}/notices/${noticeId}/sign`, payload);
   }
 
-  serveNotice(caseId: number, noticeId: number): Observable<CaseNoticeItem> {
-    return this.http.post<CaseNoticeItem>(`${this.base}/api/cases/officer/${caseId}/notices/${noticeId}/serve`, {});
+  /** Serve notice — one shot: draft + finalize + sign + serve. */
+  serveNotice(caseId: number, body: NoticeServeRequest): Observable<CaseNoticeItem> {
+    return this.http.post<CaseNoticeItem>(
+      `${this.base}/api/cases/officer/${caseId}/notices/serve`,
+      body
+    );
+  }
+
+  /** @deprecated use serveNotice — legacy path when noticeId existed */
+  serveNoticeById(
+    caseId: number,
+    noticeId: number,
+    body: NoticeServeRequest
+  ): Observable<CaseNoticeItem> {
+    return this.http.post<CaseNoticeItem>(
+      `${this.base}/api/cases/officer/${caseId}/notices/${noticeId}/serve`,
+      body
+    );
+  }
+
+  /** @deprecated alias */
+  serveNoticeForHearing(caseId: number, body: NoticeServeRequest): Observable<CaseNoticeItem> {
+    return this.serveNotice(caseId, body);
   }
 
   /** PO reverts notice to Clerk (allowed on PO_FINALIZED or PO_SIGNED → back to CLERK_DRAFT) */
@@ -358,7 +542,56 @@ export class OfficerCaseStageService {
     return this.http.get<RoznamaResponse>(`${this.base}/api/cases/officer/${caseId}/roznama`, { params });
   }
 
-  draftRoznama(caseId: number, payload: RoznamaDraftRequest): Observable<RoznamaResponse> {
+  getHearingAttendance(caseId: number, hearingId: number): Observable<RoznamaAttendanceResponse> {
+    return this.http.get<RoznamaAttendanceResponse>(
+      `${this.base}/api/cases/officer/${caseId}/hearings/${hearingId}/attendance`
+    );
+  }
+
+  saveHearingAttendance(
+    caseId: number,
+    hearingId: number,
+    payload: { entries: RoznamaAttendanceSaveEntry[] }
+  ): Observable<RoznamaAttendanceResponse> {
+    return this.http.put<RoznamaAttendanceResponse>(
+      `${this.base}/api/cases/officer/${caseId}/hearings/${hearingId}/attendance`,
+      payload
+    );
+  }
+
+  getWorkflowContext(caseId: number, hearingId?: number): Observable<CaseWorkflowContext> {
+    const params: Record<string, string> = {};
+    if (hearingId) params['hearingId'] = String(hearingId);
+    return this.http.get<CaseWorkflowContext>(
+      `${this.base}/api/cases/officer/${caseId}/workflow-context`,
+      { params }
+    );
+  }
+
+  /** Complete roznamma: save, finalize, sign, apply ADJOURN or FINAL (POST). */
+  completeRoznama(caseId: number, payload: CompleteRoznamaRequest): Observable<CompleteRoznamaResponse> {
+    return this.http.post<CompleteRoznamaResponse>(
+      `${this.base}/api/cases/officer/${caseId}/roznama`,
+      payload
+    );
+  }
+
+  rescheduleHearing(
+    caseId: number,
+    hearingId: number,
+    payload: RescheduleHearingRequest
+  ): Observable<CaseHearingResponse> {
+    return this.http.post<CaseHearingResponse>(
+      `${this.base}/api/cases/officer/${caseId}/hearings/${hearingId}/reschedule`,
+      payload
+    );
+  }
+
+  /** @deprecated use completeRoznama — legacy draft-only PUT */
+  draftRoznama(
+    caseId: number,
+    payload: { hearingId?: number; hearingDate?: string; content: string; remarks?: string }
+  ): Observable<RoznamaResponse> {
     return this.http.put<RoznamaResponse>(`${this.base}/api/cases/officer/${caseId}/roznama`, payload);
   }
 
@@ -374,6 +607,23 @@ export class OfficerCaseStageService {
     if (query?.hearingId) params['hearingId'] = String(query.hearingId);
     if (query?.hearingDate) params['hearingDate'] = query.hearingDate;
     return this.http.post<RoznamaResponse>(`${this.base}/api/cases/officer/${caseId}/roznama/finalize`, {}, { params });
+  }
+
+  /** @deprecated use completeRoznama */
+  signAndSaveRoznama(
+    caseId: number,
+    payload: {
+      hearingId?: number;
+      hearingDate?: string;
+      content: string;
+      remarks?: string;
+      digitalSignatureRef: string;
+    }
+  ): Observable<RoznamaResponse> {
+    return this.http.post<RoznamaResponse>(
+      `${this.base}/api/cases/officer/${caseId}/roznama/sign-and-save`,
+      payload
+    );
   }
 
   signRoznama(caseId: number, payload: { digitalSignatureRef: string } & RoznamaHearingQuery): Observable<RoznamaResponse> {
@@ -471,6 +721,16 @@ export class OfficerCaseStageService {
       .pipe(map((r) => normalizeJudgmentWorkflow(r)));
   }
 
+  /** PO sends judgment draft to clerk (PO_THEN_CLERK blueprint). */
+  sendJudgmentToClerk(caseId: number): Observable<CaseJudgmentWorkflowResponse> {
+    return this.http
+      .post<CaseJudgmentWorkflowResponse>(
+        `${this.base}/api/cases/officer/${caseId}/judgment/send-to-clerk`,
+        {}
+      )
+      .pipe(map((r) => normalizeJudgmentWorkflow(r)));
+  }
+
   /** Clerk submits judgment to PO for scrutiny. */
   submitJudgmentToPO(caseId: number): Observable<CaseJudgmentWorkflowResponse> {
     return this.http
@@ -503,5 +763,22 @@ export class OfficerCaseStageService {
     return this.http
       .post<CaseJudgmentWorkflowResponse>(`${this.base}/api/cases/officer/${caseId}/judgment/publish`, {})
       .pipe(map((r) => normalizeJudgmentWorkflow(r)));
+  }
+
+  /** Pass / record final judgment body (when blueprint uses direct pass). */
+  passFinalJudgment(
+    caseId: number,
+    summaryText: string
+  ): Observable<CaseJudgmentWorkflowResponse> {
+    const body = buildJudgmentDraftBody(summaryText);
+    return this.http
+      .post<CaseJudgmentWorkflowResponse>(`${this.base}/api/cases/officer/${caseId}/judgment`, body)
+      .pipe(map((r) => normalizeJudgmentWorkflow(r)));
+  }
+
+  getJudgmentHistory(caseId: number): Observable<JudgmentHistoryRow[]> {
+    return this.http.get<JudgmentHistoryRow[]>(
+      `${this.base}/api/cases/officer/${caseId}/judgment/history`
+    );
   }
 }
