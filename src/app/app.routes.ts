@@ -10,6 +10,7 @@ import { CaseListComponent } from './pages/cases/case-list/case-list.component';
 import { NewCaseComponent } from './pages/cases/new-case/new-case.component';
 import { ApplicationPreviewComponent } from './pages/applications/application-preview/application-preview.component';
 import { MyApplicationsComponent } from './pages/applications/my-applications/my-applications.component';
+import { OfficerDashboardComponent } from './pages/officer-dashboard/officer-dashboard.component';
 
 import { authGuard } from './guards/auth.guard';
 import { adminGuard } from './guards/admin.guard';
@@ -45,6 +46,11 @@ export const routes: Routes = [
     path: 'portal-home',
     component: PortalHomeComponent,
     canActivate: [authGuard, advocateProfileCompleteGuard]
+  },
+  {
+    path: 'officer/dashboard',
+    component: OfficerDashboardComponent,
+    canActivate: [authGuard]
   },
   { path: 'cases', component: CaseListComponent, canActivate: [authGuard] },
   {

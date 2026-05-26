@@ -1,0 +1,26 @@
+<div class="paragraph-editor">
+  @for (para of paragraphs(); track $index; let i = $index) {
+    <div class="paragraph-card">
+      <div class="paragraph-card-top">
+        <span class="paragraph-badge">¶ {{ i + 1 }}</span>
+        @if (canRemove(i)) {
+          <button type="button" class="btn-text danger" (click)="removeParagraph(i)">
+            Remove
+          </button>
+        }
+      </div>
+      <textarea
+        class="paragraph-textarea"
+        rows="4"
+        [value]="para"
+        (input)="updateParagraph(i, $any($event.target).value)"
+        [attr.placeholder]="'Paragraph ' + (i + 1) + ' — enter application description text'"
+      ></textarea>
+    </div>
+  }
+
+  <button type="button" class="btn-add-paragraph" (click)="addParagraph()">
+    <span class="btn-add-icon" aria-hidden="true">+</span>
+    Add paragraph
+  </button>
+</div>

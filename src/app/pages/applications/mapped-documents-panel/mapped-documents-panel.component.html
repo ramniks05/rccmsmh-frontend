@@ -1,0 +1,178 @@
+<section class="mapped-documents-panel">
+  @if (mode() !== 'applicant') {
+    <div class="panel-head">
+      <h4 class="panel-title">Mapped documents</h4>
+    </div>
+  }
+
+  @if (error()) {
+    <p class="panel-error">{{ error() }}</p>
+  }
+  @if (message()) {
+    <p class="panel-message">{{ message() }}</p>
+  }
+
+  @if (loading()) {
+    <p class="muted">Loading document checklist…</p>
+  } @else if (mode() === 'applicant') {
+    @if (sortedRequiredDocuments().length === 0) {
+      <p class="muted">No documents configured for this case category and subject.</p>
+    } @else {
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Document</th>
+              <th>Local name</th>
+              <th>Required</th>
+              <th>Upload</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (doc of sortedRequiredDocuments(); track doc.id; let i = $index) {
+              <tr [class.row-complete]="!!applicantUpload(doc.id)">
+                <td>{{ doc.displayOrder || i + 1 }}</td>
+                <td>{{ doc.name }}</td>
+                <td>{{ doc.localName || '—' }}</td>
+                <td>
+                  @if (doc.required) {
+                    <span class="req-badge">Required</span>
+                  } @else {
+                    <span class="opt-badge">Optional</span>
+                  }
+                </td>
+                <td class="upload-cell">
+                  <label class="file-upload-label" [class.is-busy]="uploadBusyId() === doc.id">
+                    <input
+                      type="file"
+                      class="file-input"
+                      (change)="onApplicantFileSelected(doc, $event)"
+                      [disabled]="uploadBusyId() === doc.id"
+                    />
+                    <span class="file-upload-text">
+                      {{ uploadBusyId() === doc.id ? 'Uploading…' : 'Choose file' }}
+                    </span>
+                  </label>
+                </td>
+                <td class="status-cell">
+                  @if (applicantUpload(doc.id); as up) {
+                    <span class="uploaded-name" [title]="up.fileName">{{ up.fileName }}</span>
+                    <button type="button" class="btn-link danger" (click)="removeApplicantUpload(doc.id)">Remove</button>
+                  } @else if (doc.required) {
+                    <span class="muted">Not uploaded</span>
+                  } @else {
+                    <span class="muted">—</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  } @else {
+    @if (!checklist()?.documentsConfigured) {
+      <p class="muted">No document mapping configured for this application.</p>
+    } @else if (sortedChecklistItems().length === 0) {
+      <p class="muted">No checklist items returned.</p>
+    } @else {
+      <div class="checklist-summary">
+        <span>Required uploaded: {{ checklist()!.allRequiredUploaded ? 'Yes' : 'No' }}</span>
+        @if (mode() === 'clerk') {
+          <span>Clerk verified: {{ checklist()!.allRequiredClerkVerified ? 'Yes' : 'No' }}</span>
+        }
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Document</th>
+              <th>Required</th>
+              <th>Uploaded</th>
+              <th>File</th>
+              @if (mode() === 'clerk') {
+                <th>Clerk verified</th>
+                <th>Remarks</th>
+              } @else {
+                <th>Verified</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of sortedChecklistItems(); track item.documentTypeId; let i = $index) {
+              <tr [class.row-missing]="item.required && !item.uploaded">
+                <td>{{ item.displayOrder || i + 1 }}</td>
+                <td>{{ documentLabel(item) }}</td>
+                <td>{{ item.required ? 'Yes' : 'No' }}</td>
+                <td>{{ item.uploaded ? 'Yes' : 'No' }}</td>
+                <td>{{ item.fileName || '—' }}</td>
+                @if (mode() === 'clerk') {
+                  <td>
+                    @if (item.uploaded) {
+                      <label class="inline-check">
+                        <input
+                          type="radio"
+                          [name]="'clerk-v-' + item.documentTypeId"
+                          [checked]="clerkRow(item.documentTypeId).clerkVerified === true"
+                          (change)="setClerkVerified(item.documentTypeId, true)"
+                        />
+                        Verified
+                      </label>
+                      <label class="inline-check reject-check">
+                        <input
+                          type="radio"
+                          [name]="'clerk-v-' + item.documentTypeId"
+                          [checked]="clerkRow(item.documentTypeId).clerkVerified === false"
+                          (change)="setClerkVerified(item.documentTypeId, false)"
+                        />
+                        Not verified
+                      </label>
+                    } @else {
+                      <span class="muted">—</span>
+                    }
+                  </td>
+                  <td>
+                    @if (item.uploaded) {
+                      <input
+                        type="text"
+                        class="remarks-input"
+                        [value]="clerkRow(item.documentTypeId).clerkRemarks"
+                        (input)="onClerkRemarksChange(item.documentTypeId, $any($event.target).value)"
+                        placeholder="Optional remarks"
+                      />
+                    } @else {
+                      —
+                    }
+                  </td>
+                } @else {
+                  <td>
+                    @if (item.clerkVerified === true) {
+                      Yes
+                    } @else if (item.clerkVerified === false) {
+                      No
+                    } @else {
+                      —
+                    }
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (mode() === 'clerk') {
+        <div class="row-actions">
+          <button type="button" class="btn btn-primary" (click)="saveClerkChecklist()" [disabled]="saving()">
+            {{ saving() ? 'Saving…' : 'Save document checklist' }}
+          </button>
+        </div>
+        @if (!allRequiredClerkVerified()) {
+          <p class="panel-warn">All required documents must be uploaded and clerk-verified before forwarding to PO.</p>
+        }
+      }
+    }
+  }
+</section>

@@ -75,59 +75,66 @@ export class VakaltnamaPanelComponent {
   protected readonly selectedAdvocate = signal<AdvocateLookupResponse | null>(null);
   protected readonly groupCoAdvocates = signal<AdvocateLookupResponse[]>([]);
 
-  protected readonly advocateLookupLoading = signal(false);
   protected readonly advocateLookupError = signal<string | null>(null);
   protected readonly documentActionError = signal<string | null>(null);
 
-  /**
-   * Advocates the user has looked up (or loaded from saved groups) this session.
-   * Lets you pick a primary advocate from a list when building several applicant groups.
-   */
-  protected readonly advocatePickList = signal<AdvocateLookupResponse[]>([]);
+  /** Logged-in filing advocate — fixed as primary for every group. */
+  protected readonly primaryFilingAdvocate = signal<AdvocateLookupResponse | null>(null);
+  protected readonly loadingFilingAdvocate = signal(false);
 
   constructor() {
     effect(() => {
-      const rows = this.assignments() ?? [];
-      untracked(() => {
-        for (const g of rows) {
-          this.addToAdvocatePickList(g.advocate);
-          for (const c of g.coAdvocates) {
-            this.addToAdvocatePickList(c);
-          }
+      if (!this.isAssignmentMode() || !this.tokenStorage.isAdvocate()) return;
+      untracked(() => this.ensureFilingAdvocatePrimary());
+    });
+  }
+
+  private ensureFilingAdvocatePrimary(): void {
+    if (this.primaryFilingAdvocate() || this.loadingFilingAdvocate()) return;
+
+    const bc = this.tokenStorage.getBarEnrollmentNumber();
+    if (!bc) {
+      this.advocateLookupError.set(
+        'Bar enrollment number is missing from your session. Please sign out and sign in again.'
+      );
+      return;
+    }
+
+    this.loadingFilingAdvocate.set(true);
+    this.advocateLookupError.set(null);
+    this.advocateLookup
+      .searchByBarCouncilNumber(bc)
+      .pipe(finalize(() => this.loadingFilingAdvocate.set(false)))
+      .subscribe({
+        next: (adv) => {
+          this.primaryFilingAdvocate.set(adv);
+          this.selectedAdvocate.set(adv);
+        },
+        error: (err: unknown) => {
+          this.advocateLookupError.set(this.formatHttpError(err));
         }
       });
-    });
+  }
 
+  private resetGroupForm(): void {
+    this.selectedApplicantIds.set([]);
+    this.groupCoAdvocates.set([]);
+    this.selectedAdvocate.set(this.primaryFilingAdvocate());
+    this.barCouncilQuery.set('');
+    this.advocateLookupError.set(null);
+    this.barCouncilSearchError.set(null);
+  }
+
+  private isFilingAdvocateBarCouncil(barCouncilNumber: string): boolean {
+    const filingNorm = this.primaryFilingAdvocate()?.barCouncilNumber?.trim().toUpperCase() ?? '';
+    const norm = barCouncilNumber.trim().toUpperCase();
+    return !!filingNorm && filingNorm === norm;
   }
 
   protected setBarCouncilQuery(value: string): void {
     this.barCouncilQuery.set(value);
     this.barCouncilSearchError.set(null);
     this.advocateLookupError.set(null);
-  }
-
-  protected lookupAdvocate(): void {
-    const raw = this.barCouncilQuery().trim();
-    if (raw.length < 2) {
-      this.advocateLookupError.set('Enter a bar council number to search.');
-      return;
-    }
-    this.advocateLookupError.set(null);
-    this.barCouncilSearchError.set(null);
-    this.advocateLookupLoading.set(true);
-    this.advocateLookup
-      .searchByBarCouncilNumber(raw)
-      .pipe(finalize(() => this.advocateLookupLoading.set(false)))
-      .subscribe({
-        next: (adv) => {
-          this.addToAdvocatePickList(adv);
-          this.selectedAdvocate.set(adv);
-          this.barCouncilQuery.set(adv.barCouncilNumber?.trim() ?? '');
-        },
-        error: (err: unknown) => {
-          this.advocateLookupError.set(this.formatHttpError(err));
-        }
-      });
   }
 
   protected searchAndAddAdvocate(): void {
@@ -138,6 +145,10 @@ export class VakaltnamaPanelComponent {
     }
     this.barCouncilSearchError.set(null);
     this.advocateLookupError.set(null);
+    if (this.isAssignmentMode() && this.isFilingAdvocateBarCouncil(raw)) {
+      this.barCouncilSearchError.set('You are the primary advocate for this filing. Add other advocates as co-advocates only.');
+      return;
+    }
     this.barCouncilSearchLoading.set(true);
     this.advocateLookup
       .searchByBarCouncilNumber(raw)
@@ -151,16 +162,12 @@ export class VakaltnamaPanelComponent {
             return;
           }
           if (this.isAssignmentMode()) {
-            const primary = this.selectedAdvocate();
-            const primaryNorm = primary?.barCouncilNumber?.trim().toUpperCase() ?? '';
-            if (primaryNorm && primaryNorm === norm) {
-              this.barCouncilSearchError.set('This advocate is already the primary advocate for this group.');
+            if (this.isFilingAdvocateBarCouncil(norm)) {
+              this.barCouncilSearchError.set('You are the primary advocate for this filing. Add other advocates as co-advocates only.');
               return;
             }
-            this.addToAdvocatePickList(adv);
             this.groupCoAdvocates.set([...list, adv]);
           } else {
-            this.addToAdvocatePickList(adv);
             this.coAdvocatesChange.emit([...list, adv]);
           }
           this.barCouncilQuery.set('');
@@ -197,27 +204,18 @@ export class VakaltnamaPanelComponent {
   }
 
   protected isApplicantAssigned(applicantId: string): boolean {
-    return (this.assignments() ?? []).some((a) => a.applicantIds.includes(applicantId));
+    return this.applicantAssignedGroupIndex(applicantId) >= 0;
   }
 
-  protected onPickPrimaryFromList(barCouncilNumber: string): void {
-    this.advocateLookupError.set(null);
-    this.barCouncilSearchError.set(null);
-    const v = (barCouncilNumber || '').trim();
-    if (!v) {
-      this.selectedAdvocate.set(null);
-      return;
-    }
-    const found = this.advocatePickList().find(
-      (a) => a.barCouncilNumber.trim().toUpperCase() === v.toUpperCase()
-    );
-    if (found) {
-      this.selectedAdvocate.set(found);
-      this.barCouncilQuery.set(found.barCouncilNumber.trim());
-    }
+  /** Index of saved group that already includes this applicant, or -1. */
+  protected applicantAssignedGroupIndex(applicantId: string): number {
+    const groups = this.assignments() ?? [];
+    return groups.findIndex((g) => g.applicantIds.includes(applicantId));
   }
 
   protected toggleApplicant(applicantId: string, checked: boolean): void {
+    if (checked && this.isApplicantAssigned(applicantId)) return;
+
     const current = this.selectedApplicantIds();
     if (checked) {
       if (!current.includes(applicantId)) this.selectedApplicantIds.set([...current, applicantId]);
@@ -227,14 +225,18 @@ export class VakaltnamaPanelComponent {
   }
 
   protected createAssignment(): void {
-    const advocate = this.selectedAdvocate();
-    const applicantIds = this.selectedApplicantIds();
+    const advocate = this.primaryFilingAdvocate() ?? this.selectedAdvocate();
+    const applicantIds = this.selectedApplicantIds().filter((id) => !this.isApplicantAssigned(id));
+    if (this.loadingFilingAdvocate()) {
+      this.advocateLookupError.set('Loading your advocate profile…');
+      return;
+    }
     if (!advocate) {
-      this.advocateLookupError.set('Please select an advocate for this group.');
+      this.advocateLookupError.set('Primary advocate could not be loaded. Please sign in again.');
       return;
     }
     if (applicantIds.length === 0) {
-      this.advocateLookupError.set('Please select at least one applicant.');
+      this.advocateLookupError.set('Please select at least one applicant not already in another group.');
       return;
     }
 
@@ -245,20 +247,17 @@ export class VakaltnamaPanelComponent {
       applicantIds
     };
     this.assignmentsChange.emit([...(this.assignments() ?? []), next]);
-
-    // Reset selection for next group
-    this.selectedApplicantIds.set([]);
-    this.groupCoAdvocates.set([]);
-    this.selectedAdvocate.set(null);
-    this.barCouncilQuery.set('');
-    this.advocateLookupError.set(null);
-    this.barCouncilSearchError.set(null);
+    this.resetGroupForm();
   }
 
   protected removeAssignment(index: number): void {
     const list = [...(this.assignments() ?? [])];
     list.splice(index, 1);
     this.assignmentsChange.emit(list);
+  }
+
+  protected applicantNameById(applicantId: string): string {
+    return (this.applicants() ?? []).find((a) => a.id === applicantId)?.name?.trim() || applicantId;
   }
 
   protected applicantsLabel(ids: string[]): string {
@@ -490,17 +489,6 @@ export class VakaltnamaPanelComponent {
     const cryptoObj = globalThis.crypto as Crypto | undefined;
     if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
     return `vak-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  }
-
-  private addToAdvocatePickList(adv: AdvocateLookupResponse): void {
-    const norm = adv.barCouncilNumber?.trim().toUpperCase() ?? '';
-    if (!norm) return;
-    const list = this.advocatePickList();
-    if (list.some((a) => a.barCouncilNumber.trim().toUpperCase() === norm)) return;
-    const next = [...list, adv].sort((a, b) =>
-      (a.fullName || '').localeCompare(b.fullName || '', undefined, { sensitivity: 'base' })
-    );
-    this.advocatePickList.set(next);
   }
 
   private formatHttpError(err: unknown): string {

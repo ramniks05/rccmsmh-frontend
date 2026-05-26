@@ -1,8 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
+
+import { normalizeApplicationPreviewResponse } from '../shared/application-preview.util';
 
 import { environment } from '../../environments/environment';
+import { FilingMappedAttachment } from './mapped-documents.service';
 
 /** POST /api/filing-applications/save — matches backend contract. Bearer + JSON via interceptor / HttpClient. */
 export type FilingSaveStatus = 'DRAFT' | 'SUBMITTED';
@@ -18,7 +22,7 @@ export interface FilingApplicationSaveRequest {
   form: Record<string, unknown>;
   disputedOrder?: unknown;
   disputedLands?: unknown;
-  attachments?: unknown[];
+  attachments?: FilingMappedAttachment[];
 }
 
 export interface FilingApplicationSaveResponse {
@@ -108,20 +112,46 @@ export interface ApplicationHistoryResponse {
 /** Alias used in API docs */
 export type ApplicationHistoryListResponse = ApplicationHistoryResponse;
 
+export interface ApplicationDescriptionPreview {
+  paragraphs?: string[];
+  affidavitText?: string | null;
+  prayerText?: string | null;
+}
+
+/** Normalized application block from GET …/preview (advocate / party / officer-aligned). */
+export interface ApplicationPreviewApplication {
+  applicationId: number;
+  applicationNo: string;
+  clientApplicationRef?: string;
+  caseId?: number | null;
+  caseNo?: string | null;
+  caseCategoryId?: number;
+  caseCategoryName?: string;
+  status: string;
+  processingStage?: string;
+  processingStageLabel?: string;
+  currentAssigneeRole?: string | null;
+  officeId?: number;
+  officeName?: string;
+  subjectId?: number;
+  subjectName?: string;
+  applicationDescription?: string | null;
+  filedByName?: string;
+  filedByRole?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  submittedAt?: string | null;
+  form?: Record<string, unknown>;
+  disputedOrder?: Record<string, unknown>;
+  applicants?: Record<string, unknown>[];
+  respondents?: Record<string, unknown>[];
+  disputedLands?: Record<string, unknown>[];
+  attachments?: Record<string, unknown>[];
+  description?: ApplicationDescriptionPreview;
+}
+
 export interface ApplicationPreviewResponse {
-  application: {
-    applicationId: number;
-    applicationNo: string;
-    caseId?: number | null;
-    caseNo?: string | null;
-    status: string;
-    form?: Record<string, unknown>;
-    applicants?: Record<string, unknown>[];
-    respondents?: Record<string, unknown>[];
-    disputedOrder?: Record<string, unknown>;
-    disputedLands?: Record<string, unknown>[];
-    attachments?: Record<string, unknown>[];
-  };
+  application: ApplicationPreviewApplication;
   notices: ApplicationPreviewNotice[];
   hearings: ApplicationPreviewHearing[];
   orderSheetHistory: ApplicationPreviewOrderSheetEntry[];
@@ -171,7 +201,9 @@ export class FilingApplicationService {
 
   /** GET /api/filing-applications/{id}/preview — full read-only view for party/advocate */
   getApplicationPreview(applicationId: number): Observable<ApplicationPreviewResponse> {
-    return this.http.get<ApplicationPreviewResponse>(`${this.apiBaseUrl}/api/filing-applications/${applicationId}/preview`);
+    return this.http
+      .get<unknown>(`${this.apiBaseUrl}/api/filing-applications/${applicationId}/preview`)
+      .pipe(map((raw) => normalizeApplicationPreviewResponse(raw)));
   }
 
   /** GET /api/filing-applications/{applicationId}/history — filer timeline (advocate / party) */

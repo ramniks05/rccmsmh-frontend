@@ -79,13 +79,16 @@
     <button type="button" class="tab" [class.active]="selected() === 'EMPLOYEE'" (click)="select('EMPLOYEE')">
       Employee
     </button>
+    <button type="button" class="tab" [class.active]="selected() === 'DOCUMENT_TYPE'" (click)="select('DOCUMENT_TYPE')">
+      Document Types
+    </button>
     <button
       type="button"
       class="tab"
       [class.active]="selected() === 'DOCUMENT_TYPE_MAPPING'"
       (click)="select('DOCUMENT_TYPE_MAPPING')"
     >
-      Document Type Mapping
+      Doc Mapping
     </button>
   </nav>
 
@@ -991,106 +994,345 @@
         </form>
       }
 
+      @case ('DOCUMENT_TYPE') {
+        <form class="form-grid" [formGroup]="documentTypeForm" (ngSubmit)="submit()">
+          <label>
+            Code *
+            <input type="text" formControlName="code" placeholder="AADHAAR" />
+          </label>
+          <label>
+            Name *
+            <input type="text" formControlName="name" placeholder="Aadhaar Card" />
+          </label>
+          <label>
+            Local name
+            <input type="text" formControlName="localName" placeholder="आधार कार्ड" />
+          </label>
+          <label>
+            Source URL
+            <input type="url" formControlName="sourceUrl" placeholder="https://uidai.gov.in" />
+          </label>
+          <label class="inline-check">
+            <input type="checkbox" formControlName="validForPhotoId" />
+            Valid for photo ID
+          </label>
+          <label class="inline-check">
+            <input type="checkbox" formControlName="validForAddress" />
+            Valid for address proof
+          </label>
+
+          <div class="row-actions">
+            <button type="submit" class="btn btn-primary" [disabled]="busy()">
+              @if (editingDocumentTypeId()) {
+                {{ busy() ? 'Saving...' : 'Update Document Type' }}
+              } @else {
+                {{ busy() ? 'Saving...' : 'Create Document Type' }}
+              }
+            </button>
+            @if (editingDocumentTypeId()) {
+              <button type="button" class="btn btn-secondary" (click)="cancelEditDocumentType()" [disabled]="busy()">
+                Cancel
+              </button>
+            }
+          </div>
+        </form>
+      }
+
       @case ('DOCUMENT_TYPE_MAPPING') {
-        <section class="filter-card" aria-label="Document type mapping">
-          <h4>Load Mapping</h4>
-          <form
-            class="filter-grid"
-            [formGroup]="documentTypeMappingForm"
-            (ngSubmit)="$event.preventDefault(); loadDocumentTypeMappings()"
-          >
+        <p class="field-hint" style="margin-top:0">
+          Flow: <strong>Department → Subject → Case category</strong>, then select multiple documents from the master list and save.
+        </p>
+
+        <section class="filter-card" aria-label="Document mapping selectors">
+          <h4>1. Department, subject &amp; case category</h4>
+          <form class="filter-grid mapping-step-form" [formGroup]="documentTypeMappingForm">
             <label>
-              Case Category ID *
-              <input type="number" formControlName="caseCategoryId" min="1" placeholder="1" />
+              Department *
+              <select formControlName="mappingDepartmentId" [compareWith]="selectIdCompare">
+                <option [ngValue]="0">Select department</option>
+                @for (d of departments(); track d.id) {
+                  <option [ngValue]="d.id">{{ d.name }}</option>
+                }
+              </select>
             </label>
             <label>
               Subject *
-              <select formControlName="subjectId">
-                <option [ngValue]="0">Select subject</option>
+              <select
+                formControlName="subjectId"
+                [compareWith]="selectIdCompare"
+                [disabled]="documentTypeMappingForm.controls.mappingDepartmentId.getRawValue() < 1 || mappingSubjectsLoading()"
+              >
+                <option [ngValue]="0">
+                  @if (documentTypeMappingForm.controls.mappingDepartmentId.getRawValue() < 1) {
+                    Select department first
+                  } @else if (mappingSubjectsLoading()) {
+                    Loading subjects…
+                  } @else if (mappingSubjects().length === 0) {
+                    No subjects for this department
+                  } @else {
+                    Select subject
+                  }
+                </option>
                 @for (s of mappingSubjects(); track s.id) {
-                  <option [ngValue]="s.id">{{ s.subjectCode }} - {{ s.subjectName }}</option>
+                  <option [ngValue]="s.id">{{ s.subjectCode }} — {{ s.subjectName }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              Case category *
+              <select
+                formControlName="caseCategoryId"
+                [compareWith]="selectIdCompare"
+                [disabled]="documentTypeMappingForm.controls.subjectId.getRawValue() < 1"
+              >
+                <option [ngValue]="0">Select case category</option>
+                @for (c of caseCategories(); track c.id) {
+                  <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
                 }
               </select>
             </label>
             <div class="row-actions">
-              <button type="button" class="btn btn-primary" (click)="loadDocumentTypeMappings()" [disabled]="busy()">
-                Load
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <section class="filter-card" aria-label="Add mapping item">
-          <h4>Add / Update Items</h4>
-          <form
-            class="filter-grid"
-            [formGroup]="documentTypeMappingItemForm"
-            (ngSubmit)="$event.preventDefault(); addDocumentTypeMappingItem()"
-          >
-            <label>
-              Document Type ID *
-              <input type="number" formControlName="documentTypeId" min="1" placeholder="12" />
-            </label>
-            <label>
-              Display Order *
-              <input type="number" formControlName="displayOrder" min="1" />
-            </label>
-            <label class="inline-check">
-              <input type="checkbox" formControlName="required" />
-              Required
-            </label>
-            <div class="row-actions">
-              <button type="button" class="btn btn-primary" (click)="addDocumentTypeMappingItem()" [disabled]="busy()">
-                Add Item
-              </button>
-              <button type="button" class="btn btn-primary" (click)="saveDocumentTypeMappings()" [disabled]="busy()">
-                Save Mapping
+              <button
+                type="button"
+                class="btn btn-secondary"
+                (click)="loadDocumentTypeMappings()"
+                [disabled]="busy() || !mappingWorkspaceReady()"
+              >
+                Reload mapping
               </button>
             </div>
           </form>
 
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Document Type ID</th>
-                  <th>Code</th>
-                  <th>Name</th>
-                  <th>Required</th>
-                  <th>Display Order</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                @if (documentTypeMappings().length === 0) {
-                  <tr>
-                    <td colspan="6" class="empty">No mapping items</td>
-                  </tr>
-                } @else {
-                  @for (item of documentTypeMappings(); track item.documentTypeId) {
+          @if (mappingContextLabel()) {
+            <p class="field-hint"><strong>Editing:</strong> {{ mappingContextLabel() }}</p>
+          }
+
+          @if (hasCurrentMappingLoaded()) {
+            <div class="current-mapping-table-block">
+              <h5>Saved documents for this subject &amp; case category</h5>
+              <div class="table-wrap">
+                <table class="data-table doc-mapping-table">
+                  <thead>
                     <tr>
-                      <td>{{ item.documentTypeId }}</td>
-                      <td>{{ item.documentType.code || '-' }}</td>
-                      <td>{{ item.documentType.name || '-' }}</td>
-                      <td>{{ item.required ? 'Yes' : 'No' }}</td>
-                      <td>{{ item.displayOrder }}</td>
-                      <td class="cell-actions">
-                        <button
-                          type="button"
-                          class="btn btn-secondary danger"
-                          (click)="removeDocumentTypeMappingItem(item.documentTypeId)"
-                          [disabled]="busy()"
-                        >
-                          Remove
-                        </button>
-                      </td>
+                      <th>#</th>
+                      <th>Code</th>
+                      <th>Document name</th>
+                      <th>Local name</th>
+                      <th>Required</th>
+                      <th>Display order</th>
                     </tr>
-                  }
-                }
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    @for (item of documentTypeMappings(); track item.documentTypeId; let i = $index) {
+                      <tr>
+                        <td>{{ i + 1 }}</td>
+                        <td>{{ mappingDocumentCode(item) }}</td>
+                        <td>{{ mappingDocumentName(item) }}</td>
+                        <td>{{ mappingDocumentLocalName(item) }}</td>
+                        <td>{{ item.required ? 'Yes' : 'No' }}</td>
+                        <td>{{ item.displayOrder }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
+
+          @if (mappingCategorySelected() && configuredSubjectsForCategoryTable().length > 0) {
+            <div class="configured-subjects-table-block">
+              <h5>Subjects with saved mappings (this case category)</h5>
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Subject code</th>
+                      <th>Subject name</th>
+                      <th>Mapped document names</th>
+                      <th>Count</th>
+                      <th>Required</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (s of configuredSubjectsForCategoryTable(); track s.subjectId) {
+                      <tr [class.current-subject-row]="s.isCurrent">
+                        <td>{{ s.subjectCode }}</td>
+                        <td>{{ s.subjectName }}</td>
+                        <td class="mapped-doc-names-cell">{{ configuredSubjectDocumentNames(s.subjectId) }}</td>
+                        <td>{{ s.mappedDocumentCount }}</td>
+                        <td>{{ s.requiredDocumentCount }}</td>
+                        <td class="cell-actions">
+                          @if (s.isCurrent) {
+                            <span class="badge">Current</span>
+                          } @else {
+                            <button
+                              type="button"
+                              class="btn btn-secondary btn-xs"
+                              (click)="selectConfiguredSubject(s)"
+                              [disabled]="busy()"
+                            >
+                              Open
+                            </button>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
         </section>
+
+        @if (mappingWorkspaceReady()) {
+          <section class="filter-card doc-mapping-workspace" aria-label="Map documents">
+            <h4>2. Add or edit documents</h4>
+            @if (documentTypes().length === 0) {
+              <p class="field-hint">No document types in master. Create them under <strong>Document Types</strong> first.</p>
+            } @else {
+              <div class="doc-mapping-panels">
+                <div class="doc-mapping-panel">
+                  <div class="doc-mapping-panel-head">
+                    <h5>Available documents</h5>
+                    <div class="row-actions">
+                      <label class="inline-check">
+                        <input
+                          type="checkbox"
+                          [checked]="allUnmappedDocumentsSelected()"
+                          (change)="toggleSelectAllUnmapped($any($event.target).checked)"
+                          [disabled]="busy() || unmappedDocumentTypes().length === 0"
+                        />
+                        Select all
+                      </label>
+                      <button
+                        type="button"
+                        class="btn btn-primary btn-xs"
+                        (click)="addPendingDocumentsToMapping()"
+                        [disabled]="busy() || pendingDocumentSelectionCount() === 0"
+                      >
+                        Add selected ({{ pendingDocumentSelectionCount() }})
+                      </button>
+                    </div>
+                  </div>
+                  <div class="table-wrap">
+                    <table class="data-table doc-mapping-table">
+                      <thead>
+                        <tr>
+                          <th></th>
+                          <th>Code</th>
+                          <th>Name</th>
+                          <th>Local name</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @if (unmappedDocumentTypes().length === 0) {
+                          <tr>
+                            <td colspan="4" class="empty">All master documents are already mapped</td>
+                          </tr>
+                        } @else {
+                          @for (doc of unmappedDocumentTypes(); track doc.id) {
+                            <tr [class.pending-row]="isDocumentPending(doc.id)">
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  [checked]="isDocumentPending(doc.id)"
+                                  (change)="togglePendingDocument(doc.id, $any($event.target).checked)"
+                                  [disabled]="busy()"
+                                />
+                              </td>
+                              <td>{{ doc.code }}</td>
+                              <td>{{ doc.name }}</td>
+                              <td>{{ doc.localName || '—' }}</td>
+                            </tr>
+                          }
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="doc-mapping-panel">
+                  <div class="doc-mapping-panel-head">
+                    <h5>Mapped documents ({{ documentTypeMappings().length }})</h5>
+                  </div>
+                  <div class="table-wrap">
+                    <table class="data-table doc-mapping-table">
+                      <thead>
+                        <tr>
+                          <th>Code</th>
+                          <th>Name</th>
+                          <th>Required</th>
+                          <th>Order</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @if (documentTypeMappings().length === 0) {
+                          <tr>
+                            <td colspan="5" class="empty">No documents mapped yet — select from the left and click Add selected</td>
+                          </tr>
+                        } @else {
+                          @for (item of documentTypeMappings(); track item.documentTypeId) {
+                            <tr class="mapped-row">
+                              <td>{{ mappingDocumentCode(item) }}</td>
+                              <td>{{ mappingDocumentName(item) }}</td>
+                              <td>
+                                <label class="inline-check">
+                                  <input
+                                    type="checkbox"
+                                    [checked]="item.required"
+                                    (change)="setMappingRequired(item.documentTypeId, $any($event.target).checked)"
+                                    [disabled]="busy()"
+                                  />
+                                  Required
+                                </label>
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  class="order-input"
+                                  min="1"
+                                  [value]="item.displayOrder"
+                                  (change)="setMappingDisplayOrder(item.documentTypeId, +$any($event.target).value)"
+                                  [disabled]="busy()"
+                                />
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  class="btn btn-secondary danger btn-xs"
+                                  (click)="removeDocumentTypeMappingItem(item.documentTypeId)"
+                                  [disabled]="busy()"
+                                >
+                                  Remove
+                                </button>
+                              </td>
+                            </tr>
+                          }
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row-actions" style="margin-top:12px">
+                <button type="button" class="btn btn-primary" (click)="saveDocumentTypeMappings()" [disabled]="busy()">
+                  {{ busy() ? 'Saving…' : 'Save mapping' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary danger"
+                  (click)="clearAndSaveDocumentTypeMappings()"
+                  [disabled]="busy() || documentTypeMappings().length === 0"
+                >
+                  Clear all &amp; save
+                </button>
+              </div>
+            }
+          </section>
+        }
       }
     }
 
@@ -1450,6 +1692,51 @@
                       </button>
                       <button type="button" class="btn btn-secondary" (click)="openEmployeePostings(row)" [disabled]="busy()">
                         Postings
+                      </button>
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        } @else if (selected() === 'DOCUMENT_TYPE') {
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Local name</th>
+                <th>Photo ID</th>
+                <th>Address</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @if (pagedDocumentTypeList().length === 0) {
+                <tr>
+                  <td colspan="7" class="empty">No document types</td>
+                </tr>
+              } @else {
+                @for (row of pagedDocumentTypeList(); track row.id) {
+                  <tr>
+                    <td>{{ row.id }}</td>
+                    <td>{{ row.code }}</td>
+                    <td>{{ row.name }}</td>
+                    <td>{{ row.localName || '—' }}</td>
+                    <td>{{ row.validForPhotoId ? 'Yes' : 'No' }}</td>
+                    <td>{{ row.validForAddress ? 'Yes' : 'No' }}</td>
+                    <td class="cell-actions">
+                      <button type="button" class="btn btn-secondary" (click)="startEditDocumentType(row)" [disabled]="busy()">
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-secondary danger"
+                        (click)="deleteDocumentType(row)"
+                        [disabled]="busy()"
+                      >
+                        Delete
                       </button>
                     </td>
                   </tr>

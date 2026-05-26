@@ -8,7 +8,7 @@
     <!-- ── Create / edit group ─────────────────────────────────────── -->
     <div class="mini-card vak-flow">
       <div class="mini-head">
-        <strong>Assign advocate to applicants</strong>
+        <strong>Vakaltnama groups</strong>
       </div>
 
       <!-- Applicant checkboxes -->
@@ -16,82 +16,62 @@
         <span class="vak-label">Select applicants</span>
         <div class="check-grid vak-checks">
           @for (a of applicants(); track a.id) {
-            <label class="check-item">
+            <label
+              class="check-item"
+              [class.disabled]="isApplicantAssigned(a.id)"
+            >
               <input
                 type="checkbox"
                 [checked]="selectedApplicantIds().includes(a.id)"
+                [disabled]="isApplicantAssigned(a.id)"
                 (change)="toggleApplicant(a.id, $any($event.target).checked)"
               />
-              <span>{{ a.name || ('Applicant ' + a.id) }}</span>
+              <span class="check-item-text">{{ a.name || ('Applicant ' + a.id) }}</span>
             </label>
           }
         </div>
       </div>
 
-      <!-- Primary advocate search -->
-      <div class="vak-block">
-        @if (advocatePickList().length > 0) {
-          <label class="vak-select-block">
-            <span class="vak-label">Primary advocate — pick from list</span>
-            <select
-              class="vak-select"
-              [value]="selectedAdvocate()?.barCouncilNumber ?? ''"
-              (change)="onPickPrimaryFromList($any($event.target).value)"
-            >
-              <option value="">— search below or select —</option>
-              @for (a of advocatePickList(); track a.barCouncilNumber) {
-                <option [value]="a.barCouncilNumber">{{ a.fullName }} ({{ a.barCouncilNumber }})</option>
-              }
-            </select>
-          </label>
+      <div class="vak-block vak-primary-block">
+        <span class="vak-label">Primary advocate (you)</span>
+        @if (loadingFilingAdvocate()) {
+          <p class="vak-picked muted">Loading…</p>
+        } @else if (primaryFilingAdvocate(); as adv) {
+          <p class="vak-picked vak-primary-readonly">
+            <strong>{{ adv.fullName }}</strong>
+            <span class="muted">&nbsp;· {{ adv.barCouncilNumber }}</span>
+            <span class="vak-you-badge">You</span>
+          </p>
         }
+        @if (advocateLookupError()) {
+          <p class="api-message error tight">{{ advocateLookupError() }}</p>
+        }
+      </div>
 
-        <span class="vak-label" style="margin-top:8px;display:block">Search by bar council number</span>
+      <div class="vak-block">
+        <span class="vak-label">Co-advocates (optional)</span>
         <div class="search-row">
           <label class="grow">
             <input
               type="text"
               [value]="barCouncilQuery()"
               (input)="setBarCouncilQuery($any($event.target).value)"
-              placeholder="e.g. MH123456"
-              [disabled]="advocateLookupLoading() || barCouncilSearchLoading()"
+              placeholder="Bar council number"
+              [disabled]="barCouncilSearchLoading() || loadingFilingAdvocate()"
             />
           </label>
-          <div class="search-actions">
-            <button
-              type="button"
-              class="btn btn-primary"
-              (click)="lookupAdvocate()"
-              [disabled]="advocateLookupLoading() || barCouncilSearchLoading()"
-            >
-              {{ advocateLookupLoading() ? 'Searching…' : 'Set as primary' }}
-            </button>
-            <button
-              type="button"
-              class="btn btn-secondary"
-              (click)="searchAndAddAdvocate()"
-              [disabled]="advocateLookupLoading() || barCouncilSearchLoading()"
-            >
-              {{ barCouncilSearchLoading() ? '…' : 'Add co-advocate' }}
-            </button>
-          </div>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="searchAndAddAdvocate()"
+            [disabled]="barCouncilSearchLoading() || loadingFilingAdvocate()"
+          >
+            {{ barCouncilSearchLoading() ? 'Searching…' : 'Add co-advocate' }}
+          </button>
         </div>
 
-        @if (advocateLookupError()) {
-          <p class="api-message error tight">{{ advocateLookupError() }}</p>
-        }
         @if (barCouncilSearchError()) {
           <p class="api-message error tight">{{ barCouncilSearchError() }}</p>
-        }
-
-        @if (selectedAdvocate(); as adv) {
-          <p class="vak-picked">
-            <strong>{{ adv.fullName }}</strong>
-            <span class="muted">&nbsp;· {{ adv.barCouncilNumber }}</span>
-            @if (isFilingAdvocate()) {
-              <span class="vak-you-badge">You</span>
-            }
-          </p>
         }
 
         @if (groupCoAdvocates().length > 0) {
@@ -107,7 +87,14 @@
       </div>
 
       <div class="vak-flow-actions">
-        <button type="button" class="btn btn-primary" (click)="createAssignment()">Add group</button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="createAssignment()"
+          [disabled]="loadingFilingAdvocate() || !primaryFilingAdvocate()"
+        >
+          Add group
+        </button>
       </div>
     </div>
 
@@ -117,7 +104,7 @@
         <strong>Vakalatnama groups</strong>
       </div>
       @if (assignments().length === 0) {
-        <p class="sub muted" style="margin-top:8px">No groups added yet. Use the form above to create the first group.</p>
+        <p class="empty-line muted">No groups yet.</p>
       } @else {
         <ul class="vak-group-list">
           @for (g of assignments(); track g.id; let i = $index) {
@@ -127,7 +114,11 @@
                   <strong>{{ g.advocate.fullName }}</strong>
                   <span class="muted">&nbsp;{{ g.advocate.barCouncilNumber }}</span>
                 </div>
-                <div class="vak-group-applicants">{{ applicantsLabel(g.applicantIds) }}</div>
+                <div class="vak-group-applicants">
+                  @for (id of g.applicantIds; track id) {
+                    <span class="vak-applicant-chip">{{ applicantNameById(id) }}</span>
+                  }
+                </div>
                 @if (g.coAdvocates.length > 0) {
                   <div class="vak-group-co muted">Co-advocates: {{ coAdvocateNames(g) }}</div>
                 }
@@ -172,9 +163,7 @@
       @if (barCouncilSearchError()) {
         <p class="api-message error tight">{{ barCouncilSearchError() }}</p>
       }
-      @if (coAdvocates().length === 0) {
-        <p class="sub muted" style="margin-top:8px">No co-advocates added.</p>
-      } @else {
+      @if (coAdvocates().length > 0) {
         <ul class="vak-chip-list">
           @for (c of coAdvocates(); track c.barCouncilNumber; let i = $index) {
             <li>
@@ -188,7 +177,6 @@
 
     <div class="vak-generate-row">
       <button type="button" class="btn btn-primary" (click)="generateVakaltnama()">Generate Vakalatnama</button>
-      <p class="generate-hint">Opens in a new tab. To save as PDF use browser Print → Save as PDF.</p>
     </div>
 
   }

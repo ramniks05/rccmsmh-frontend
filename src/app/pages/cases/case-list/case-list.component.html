@@ -1,102 +1,171 @@
 <section class="app-page">
   <header class="page-head">
     <div>
-      <h2>My Cases</h2>
-      <p class="sub">Role: {{ role }}</p>
+      <h2>{{ isOfficer ? 'Workbench' : 'My Cases' }}</h2>
+      <p class="sub">
+        @if (isOfficer) {
+          {{ isClerk ? 'Clerk' : 'Presiding Officer' }}
+        } @else {
+          Role: {{ role }}
+        }
+      </p>
     </div>
     @if (isAdvocate) {
       <a routerLink="/cases/new" class="btn btn-primary">File New Case</a>
     }
+    @if (isOfficer) {
+      <a routerLink="/officer/dashboard" class="btn btn-secondary">Dashboard</a>
+    }
   </header>
 
   @if (isOfficer) {
-    <section class="officer-layout">
+    <div
+      class="workbench-shell officer-shell"
+      [class.sidebar-collapsed]="sidebarCollapsed()"
+    >
 
-      <!-- ── Sidebar: action queues ── -->
-      <aside class="card sidebar">
-        <h3>Inbox</h3>
+      <aside
+        class="workbench-sidebar officer-sidebar"
+        [class.is-collapsed]="sidebarCollapsed()"
+        aria-label="Inbox queues"
+      >
+        <div class="sidebar-head">
+          <div class="sidebar-brand">
+            <span class="sidebar-brand-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4m16 0H4"/>
+              </svg>
+            </span>
+            <div class="sidebar-brand-text">
+              <strong>Inbox</strong>
+              <span>Action queues</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="sidebar-toggle"
+            (click)="toggleSidebar()"
+            [attr.aria-expanded]="!sidebarCollapsed()"
+            [attr.aria-label]="sidebarCollapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
+            [title]="sidebarCollapsed() ? 'Expand menu' : 'Collapse menu'"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              @if (sidebarCollapsed()) {
+                <path d="M9 5l7 7-7 7"/>
+              } @else {
+                <path d="M15 19l-7-7 7-7"/>
+              }
+            </svg>
+          </button>
+        </div>
+
         @if (loginRole) {
-          <p class="sidebar-role">{{ isClerk ? 'Clerk' : 'Presiding Officer' }}</p>
+          <p class="sidebar-role" [title]="isClerk ? 'Clerk' : 'Presiding Officer'">
+            {{ isClerk ? 'Clerk' : 'PO' }}
+          </p>
         }
 
-        <button type="button" class="menu-btn" [class.active]="officerMenu()==='ALL'" (click)="setOfficerMenu('ALL')">
-          All Applications <span class="menu-count">{{ menuCount('ALL') }}</span>
-        </button>
-
-        <!-- ── Filing Stage ─────────────────────── -->
-        @if (isClerk || isPO) {
-          <div class="menu-divider">Filing Stage</div>
-        }
-
-        @if (isClerk) {
-          <button type="button" class="menu-btn" [class.active]="officerMenu()==='CLERK_DESK'" (click)="setOfficerMenu('CLERK_DESK')">
-            Pending for Scrutiny <span class="menu-count">{{ menuCount('CLERK_DESK') }}</span>
-          </button>
-        }
-
-        @if (isPO) {
-          <button type="button" class="menu-btn" [class.active]="officerMenu()==='PO_DESK'" (click)="setOfficerMenu('PO_DESK')">
-            Pending for Approval <span class="menu-count">{{ menuCount('PO_DESK') }}</span>
-          </button>
-        }
-
-        <!-- ── Case Proceedings ─────────────────── -->
-        <div class="menu-divider">Case Proceedings</div>
-
-        @if (isPO) {
-          <button type="button" class="menu-btn" [class.active]="officerMenu()==='ASSIGN_HEARING'" (click)="setOfficerMenu('ASSIGN_HEARING')">
-            Pending Hearing Date <span class="menu-count">{{ menuCount('ASSIGN_HEARING') }}</span>
-          </button>
-        }
-
-        <button type="button" class="menu-btn" [class.active]="officerMenu()==='PENDING_NOTICE'" (click)="setOfficerMenu('PENDING_NOTICE')">
-          {{ isClerk ? 'Pending Draft Notice' : 'Pending Finalize Notice' }}
-          <span class="menu-count">{{ menuCount('PENDING_NOTICE') }}</span>
-        </button>
-
-        <button type="button" class="menu-btn" [class.active]="officerMenu()==='CAUSE_LIST'" (click)="setOfficerMenu('CAUSE_LIST')">
-          Cause List / Roznama
-        </button>
-
-        <button type="button" class="menu-btn" [class.active]="officerMenu()==='PENDING_ORDER_SHEET'" (click)="setOfficerMenu('PENDING_ORDER_SHEET')">
-          {{ isClerk ? 'Pending Roznama Scrutiny' : 'Pending Sign Roznama' }}
-          <span class="menu-count">{{ menuCount('PENDING_ORDER_SHEET') }}</span>
-        </button>
-
-        <button type="button" class="menu-btn" [class.active]="officerMenu()==='PENDING_JUDGMENT'" (click)="setOfficerMenu('PENDING_JUDGMENT')">
-          {{ isClerk ? 'Pending Draft Judgment' : 'Pending Publish Judgment' }}
-          <span class="menu-count">{{ menuCount('PENDING_JUDGMENT') }}</span>
-        </button>
-
-        @if (isPO) {
-          <button type="button" class="menu-btn" [class.active]="officerMenu()==='DISPOSED'" (click)="setOfficerMenu('DISPOSED')">
-            Disposed <span class="menu-count">{{ menuCount('DISPOSED') }}</span>
-          </button>
-        }
+        <nav class="sidebar-nav">
+          @for (entry of sidebarEntries(); track entry.type === 'divider' ? entry.label : entry.type === 'link' ? entry.route : entry.key) {
+            @if (entry.type === 'divider') {
+              <div class="nav-divider" [title]="entry.label">
+                <span class="nav-divider-text">{{ entry.label }}</span>
+              </div>
+            } @else if (entry.type === 'link') {
+              <a
+                [routerLink]="entry.route"
+                class="nav-item nav-link"
+                [title]="entry.label"
+              >
+                <span class="nav-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                    <path [attr.d]="entry.icon" />
+                  </svg>
+                </span>
+                <span class="nav-label">{{ entry.label }}</span>
+              </a>
+            } @else {
+              <button
+                type="button"
+                class="nav-item"
+                [class.active]="isSidebarMenuActive(entry.key)"
+                [title]="entry.label"
+                (click)="setOfficerMenu(entry.key)"
+              >
+                <span class="nav-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                    <path [attr.d]="entry.icon" />
+                  </svg>
+                </span>
+                <span class="nav-label">{{ entry.label }}</span>
+                @if (menuCount(entry.key) > 0) {
+                  <span class="nav-count">{{ menuCount(entry.key) }}</span>
+                }
+              </button>
+            }
+          }
+        </nav>
       </aside>
 
-      <!-- ── Application list ── -->
-      <article class="card">
-        <div class="inbox-head">
-          <h3>{{ officerMenu() === 'ALL' ? 'All Applications' :
-                 officerMenu() === 'CLERK_DESK' ? 'Pending for Scrutiny' :
-                 officerMenu() === 'PO_DESK' ? 'Pending for Approval' :
-                 officerMenu() === 'ASSIGN_HEARING' ? 'Pending Hearing Date' :
-                 officerMenu() === 'PENDING_NOTICE' ? (isClerk ? 'Pending Draft Notice' : 'Pending Finalize Notice') :
-                 officerMenu() === 'CAUSE_LIST' ? 'Cause List — Roznama' :
-                 officerMenu() === 'PENDING_ORDER_SHEET' ? (isClerk ? 'Pending Roznama Scrutiny' : 'Pending Sign Roznama') :
-                 officerMenu() === 'PENDING_JUDGMENT' ? (isClerk ? 'Pending Draft Judgment' : 'Pending Publish Judgment') : 'Disposed Cases' }}</h3>
+      <div class="workbench-main officer-main">
+      @if (!workflowPanelOpen()) {
+      <!-- ── Case list (menu queues) ── -->
+      <section class="card officer-queue">
+        <div class="card-head inbox-head">
+          <h3>{{ menuQueueTitle() }}</h3>
           @if (officerMenu() === 'CAUSE_LIST') {
             <button type="button" class="btn btn-secondary btn-xs" (click)="loadRoznamaTable()" [disabled]="roznamaTableLoading()">Refresh</button>
+          } @else if (officerMenu() === 'PENDING_NOTICE') {
+            <button type="button" class="btn btn-secondary btn-xs" (click)="loadPendingServeQueue()" [disabled]="pendingServeLoading()">Refresh</button>
           } @else {
             <button type="button" class="btn btn-secondary btn-xs" (click)="loadOfficerInbox()">Refresh</button>
           }
         </div>
 
-        @if (officerMenu() === 'CAUSE_LIST') {
+        @if (officerMenu() === 'PENDING_NOTICE') {
+          @if (pendingServeLoading()) {
+            <p class="muted">Loading notice queue…</p>
+          } @else if (pendingServeError()) {
+            <p class="error">{{ pendingServeError() }}</p>
+          } @else if (pendingServeRows().length === 0) {
+            <p class="muted">No hearings waiting for notice. Cases appear here after a hearing date is assigned.</p>
+          } @else {
+            <div class="table-scroll table-wrap">
+              <table class="data-table table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Case No</th>
+                    <th>Hearing</th>
+                    <th>Hearing date</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of pendingServeRows(); track row.hearingId) {
+                    <tr [class.selected-row]="selectedPendingServe()?.hearingId === row.hearingId">
+                      <td>{{ row.rowNo ?? $index + 1 }}</td>
+                      <td>{{ row.caseNo }}</td>
+                      <td>#{{ row.hearingNo }}</td>
+                      <td>{{ row.hearingDate.slice(0, 10) || row.queueDate }}</td>
+                      <td>
+                        <button type="button" class="btn btn-primary btn-xs" (click)="openPendingServeRow(row); $event.stopPropagation()">
+                          Open
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            @if (pendingServeRows().length > 0) {
+              <p class="muted notice-queue-hint">Click <strong>Open</strong> to serve notice for that hearing.</p>
+            }
+          }
+        } @else if (officerMenu() === 'CAUSE_LIST') {
           <div class="form-line" style="margin-bottom:12px">
             <label>Hearing Date</label>
-            <input type="date" [value]="roznamaTableDate()" (input)="roznamaTableDate.set($any($event.target).value); loadRoznamaTable()" />
+            <input type="date" [value]="roznamaTableDate()" (change)="roznamaTableDate.set($any($event.target).value); loadRoznamaTable()" />
           </div>
           @if (roznamaTableLoading()) {
             <p class="muted">Loading cause list…</p>
@@ -105,35 +174,46 @@
           } @else if (roznamaTableRows().length === 0) {
             <p class="muted">No hearings on this date.</p>
           } @else {
-            <div class="table-wrap">
-              <table class="table">
+            <div class="table-scroll table-wrap">
+              <table class="data-table table">
                 <thead>
-                  <tr><th>#</th><th>Case No</th><th>Hearing</th><th>Stage</th><th>Roznama</th><th></th></tr>
+                  <tr><th>#</th><th>Case No</th><th>Hearing</th><th>Notice</th><th>Stage</th><th>Roznama</th><th></th></tr>
                 </thead>
                 <tbody>
                   @for (row of roznamaTableRows(); track row.hearingId) {
-                    <tr>
+                    <tr [class.selected-row]="selectedCaseId() === row.caseId || selectedApplicationId() === row.filingApplicationId">
                       <td>{{ row.rowNo }}</td>
                       <td>{{ row.caseNo }}</td>
                       <td>{{ row.hearingDate }} (#{{ row.hearingNo }})</td>
+                      <td>{{ row.noticeServed === false ? 'Pending' : (row.noticeServed ? 'Served' : '—') }}</td>
                       <td><span class="badge">{{ row.proceedingStage }}</span></td>
                       <td>{{ row.roznamaStatus || '—' }}</td>
-                      <td><button type="button" class="btn btn-primary btn-xs" (click)="openRoznamaRow(row)">Open</button></td>
+                      <td>
+                        <button
+                          type="button"
+                          class="btn btn-primary btn-xs"
+                          (click)="openRoznamaRow(row); $event.stopPropagation()"
+                          [disabled]="!canOpenRoznamaRow(row)"
+                          [title]="!canOpenRoznamaRow(row) ? 'Serve notice before roznamma' : ''"
+                        >
+                          Open
+                        </button>
+                      </td>
                     </tr>
                   }
                 </tbody>
               </table>
             </div>
           }
-        } @else if (loadingOfficerInbox() || caseInboxLoading()) {
+        } @else if (officerMenu() !== 'PENDING_NOTICE' && (loadingOfficerInbox() || caseInboxLoading())) {
           <p class="muted">Loading…</p>
         } @else if (officerInboxError()) {
           <p class="error">{{ officerInboxError() }}</p>
         } @else if (filteredOfficerInbox().length === 0) {
           <p class="muted">No applications in this queue.</p>
         } @else {
-          <div class="table-wrap">
-            <table class="table">
+          <div class="table-scroll table-wrap">
+            <table class="data-table table">
               <thead>
                 <tr>
                   <th>App ID</th>
@@ -157,7 +237,11 @@
                     <td>{{ x.subjectName }}</td>
                     <td>{{ x.officeName }}</td>
                     <td>
-                      <button type="button" class="btn btn-primary btn-xs" (click)="viewOfficerApplication(x.applicationId)">
+                      <button
+                        type="button"
+                        class="btn btn-primary btn-xs"
+                        (click)="officerMenu() === 'PENDING_JUDGMENT' ? openJudgmentCase(x.applicationId, x.caseId ?? undefined) : viewOfficerApplication(x.applicationId, { caseId: x.caseId ?? undefined }); $event.stopPropagation()"
+                      >
                         Open
                       </button>
                     </td>
@@ -167,36 +251,32 @@
             </table>
           </div>
         }
-      </article>
-    </section>
-
-    <!-- ── Detail panel (shown after clicking Open) ── -->
-    <article class="card" id="application-details-card">
-      @if (!selectedApplicationId()) {
-        <p class="muted">Select an application from the list above to view details and take action.</p>
-      } @else if (loadingOfficerDetail()) {
-        <p class="muted">Loading application details…</p>
-      } @else if (officerDetailError()) {
-        <p class="error">{{ officerDetailError() }}</p>
-      } @else if (!officerDetail()) {
-        <p class="muted">No details available.</p>
+      </section>
       } @else {
-
-        <!-- Header row -->
-        <div class="detail-header">
-          <div>
-            <h3>{{ officerDetail()!.applicationNo || ('Application #' + officerDetail()!.applicationId) }}</h3>
-            <p class="sub">{{ officerDetail()!.caseCategoryName }} · {{ officerDetail()!.subjectName }} · <span class="badge">{{ caseStatusFor(selectedApplicationId()!) || officerDetail()!.status }}</span></p>
+    <!-- ── Workflow (full width; list hidden) ── -->
+    <section class="card workflow-panel officer-workflow is-active" id="application-details-card">
+        <header class="panel-head workflow-header">
+          <div class="workflow-header-text">
+            <h3>{{ workflowTitle() }}</h3>
+            <p class="workflow-meta">{{ workflowStageLabel() }}</p>
           </div>
-          <div class="action-row">
+          <div class="tab-group workflow-header-actions">
             <button type="button" class="tab-btn" [class.tab-active]="officerTab()==='action'" (click)="selectOfficerTab('action')">
               {{ actionTabLabel() }}
             </button>
             <button type="button" class="tab-btn" [class.tab-active]="officerTab()==='details'" (click)="selectOfficerTab('details')">
               Application Details
             </button>
+            <button type="button" class="btn btn-secondary btn-xs" (click)="closeWorkflow()">Back to list</button>
           </div>
-        </div>
+        </header>
+
+        @if (loadingOfficerDetail()) {
+          <p class="muted workflow-status">Loading case data…</p>
+        }
+        @if (officerDetailError()) {
+          <p class="error workflow-status">{{ officerDetailError() }}</p>
+        }
 
         @if (actionError()) { <p class="error">{{ actionError() }}</p> }
         @if (actionMessage()) { <p class="muted success-msg">✓ {{ actionMessage() }}</p> }
@@ -205,21 +285,199 @@
              ACTION TAB — one context-specific form
              ════════════════════════════════════════════ -->
         @if (officerTab() === 'action') {
-          <div class="form-preview">
+          <div class="form-preview workflow-action-body">
+
+            <!-- ─ Serve notice (Pending for Serve Notice → Open) ─ -->
+            @if (isNoticeWorkflow()) {
+              @if (loadingOfficerDetail()) {
+                <p class="muted workflow-status">Loading case for notice…</p>
+              }
+              <section class="preview-section notice-workflow-section">
+                <div class="officer-draft-workspace" [class.reference-collapsed]="caseReferenceCollapsed()">
+                  @if (!caseReferenceCollapsed()) {
+                    <ng-container *ngTemplateOutlet="officerCaseReferencePanel" />
+                  }
+                  <div class="officer-draft-main">
+                    <div class="reference-toolbar">
+                      <button type="button" class="btn btn-secondary btn-xs" (click)="toggleCaseReferencePanel()">
+                        {{ caseReferenceCollapsed() ? 'Show case reference' : 'Hide reference' }}
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-xs" (click)="openCaseReferenceTab('parties')">Parties</button>
+                      <button type="button" class="btn btn-secondary btn-xs" (click)="openCaseReferenceTab('land')">Land</button>
+                      <button type="button" class="btn btn-secondary btn-xs" (click)="openCaseReferenceTab('hearings')">Hearings</button>
+                    </div>
+                    <ng-container *ngTemplateOutlet="noticeServeForm" />
+                  </div>
+                </div>
+              </section>
+            }
+
+            <!-- ─ Roznama (single complete: content + sign + outcome) ─ -->
+            @else if (isRoznamaWorkflow()) {
+              <section class="preview-section roznama-workflow-section">
+                <div class="roznama-workflow-header">
+                  <div>
+                    <h4>Roznamma</h4>
+                    @if (workflowCaseNo()) {
+                      <p class="roznama-workflow-sub">
+                        {{ workflowCaseNo() }}
+                        @if (activeRoznamaHearingLabel() !== '—') {
+                          <span> · {{ activeRoznamaHearingLabel() }}</span>
+                        }
+                      </p>
+                    }
+                  </div>
+                  @if (currentOrderSheet()?.status || roznamaStatusLabel() !== '—') {
+                    <span class="roznama-status-chip">{{ roznamaStatusLabel() }}</span>
+                  }
+                </div>
+                @if (loadingOfficerDetail() || workflowContextLoading()) {
+                  <p class="muted workflow-status">Loading…</p>
+                }
+                @if (officerDetailError()) {
+                  <p class="error">{{ officerDetailError() }}</p>
+                }
+                @if (selectedRoznamaTableRow()?.noticeServed === false) {
+                  <p class="error">Notice must be served before roznamma.</p>
+                  <div class="officer-draft-workspace single-column">
+                    <ng-container *ngTemplateOutlet="officerCaseReferencePanel" />
+                  </div>
+                } @else {
+                <div class="officer-draft-workspace roznama-draft-layout" [class.reference-collapsed]="caseReferenceCollapsed()">
+                  @if (!caseReferenceCollapsed()) {
+                    <ng-container *ngTemplateOutlet="officerCaseReferencePanel" />
+                  }
+                  <div class="officer-draft-main roznama-editor-panel">
+                    <div class="reference-toolbar roznama-toolbar">
+                      <button type="button" class="btn btn-secondary btn-xs" (click)="toggleCaseReferencePanel()">
+                        {{ caseReferenceCollapsed() ? 'Reference' : 'Hide reference' }}
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-xs" (click)="openCaseReferenceTab('notices')">Notices</button>
+                      <button type="button" class="btn btn-secondary btn-xs" (click)="openCaseReferenceTab('parties')">Parties</button>
+                      <button type="button" class="btn btn-secondary btn-xs" (click)="openCaseReferenceTab('roznama')">Prior</button>
+                    </div>
+                @if (isRoznamaReadOnly()) {
+                  @if (showRoznamaAttendancePanel()) {
+                    <ng-container *ngTemplateOutlet="roznamaAttendancePanel; context: { readOnly: true }" />
+                  }
+                  <div class="roznama-block">
+                    <div class="table-wrap roznama-entry-table-wrap">
+                      <table class="table roznama-entry-table roznama-preview-table">
+                        <thead><tr><th>Date</th><th>Proceedings</th></tr></thead>
+                        <tbody>
+                          @for (row of roznamaEntryRows(); track roznamaRowTrack(row, $index)) {
+                            <tr [class.roznama-row-readonly]="row.readOnly">
+                              <td>{{ row.date || row.hearingDate || '—' }}</td>
+                              <td>{{ roznamaRowDisplayText(row) }}</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  @if (needsPostAdjournReschedule()) {
+                    <div class="roznama-block adjourn-reschedule-block">
+                      <label class="radio-label">
+                        <input
+                          type="radio"
+                          name="hearingOutcomeReadonly"
+                          value="ADJOURN"
+                          [checked]="hearingOutcomeInput()==='ADJOURN'"
+                          (change)="setHearingOutcome('ADJOURN')"
+                        />
+                        Adjourn — set next hearing date
+                      </label>
+                    @if (showAdjournRescheduleForm()) {
+                      <div class="form-line">
+                        <label>Next hearing date <span class="req">*</span></label>
+                        <input type="date" [value]="rescheduleDateInput()" [min]="minSelectableHearingDate()" (input)="rescheduleDateInput.set($any($event.target).value)" />
+                        @if (hearingDateAfterTodayError(rescheduleDateInput()); as dateErr) {
+                          <p class="error">{{ dateErr }}</p>
+                        }
+                      </div>
+                      <div class="form-line">
+                        <label>Remarks (optional)</label>
+                        <input type="text" [value]="rescheduleRemarksInput()" (input)="rescheduleRemarksInput.set($any($event.target).value)" />
+                      </div>
+                      <label class="checkbox-label">
+                        <input type="checkbox" [checked]="rescheduleNoticeGenerate()" (change)="rescheduleNoticeGenerate.set($any($event.target).checked)" />
+                        Generate notice for new hearing
+                      </label>
+                      <div class="roznama-editor-actions">
+                        <button type="button" class="btn btn-primary" (click)="submitRescheduleHearing()" [disabled]="rescheduleSubmitting() || !isFutureHearingDate(rescheduleDateInput())">
+                          {{ rescheduleSubmitting() ? 'Rescheduling…' : 'Reschedule hearing' }}
+                        </button>
+                      </div>
+                    }
+                    </div>
+                  }
+                } @else {
+                  <ng-container *ngTemplateOutlet="roznamaEditableForm" />
+                }
+                  </div>
+                </div>
+                }
+              </section>
+            }
+
+            <!-- ─ Judgment (dedicated module — workflow-context driven) ─ -->
+            @else if (isJudgmentWorkflow()) {
+              <section class="preview-section judgment-workflow-section" id="judgment-section">
+                <ng-container *ngTemplateOutlet="judgmentWorkflowPanel" />
+              </section>
+            }
+
+            @else {
+
+            <!-- ─ Filing application: Clerk document checklist ─ -->
+            @if (!caseIdForActions() && viewerFlowRole() === 'CLERK' && selectedApplicationId()) {
+              <section class="preview-section">
+                <app-mapped-documents-panel
+                  mode="clerk"
+                  [caseCategoryId]="officerDetail()?.caseCategoryId ?? 0"
+                  [subjectId]="officerFilingSubjectId()"
+                  [applicationId]="selectedApplicationId()"
+                  (checklistLoaded)="onDocumentChecklistLoaded($event)"
+                />
+              </section>
+            }
 
             <!-- ─ Filing application: Clerk scrutiny & forward to PO ─ -->
-            @if (!caseIdForActions() && canForwardToPo()) {
+            @if (!caseIdForActions() && canForwardToPoRole()) {
               <section class="preview-section">
                 <h4>Scrutiny — Forward to Presiding Officer</h4>
+                @if (!canForwardDocumentsOk() && officerDetail()?.documentChecklist?.documentsConfigured) {
+                  <p class="panel-warn" style="margin:0 0 12px">
+                    Forward to PO is disabled until all required documents are uploaded and clerk-verified.
+                  </p>
+                }
                 <div class="form-line">
                   <label>Remarks</label>
                   <textarea rows="2" [value]="actionRemarksInput()" (input)="actionRemarksInput.set($any($event.target).value)" placeholder="Add remarks for PO…"></textarea>
                 </div>
                 <div class="action-row">
-                  <button type="button" class="btn btn-primary" (click)="forwardToPo()" [disabled]="assigning()">
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    (click)="forwardToPo()"
+                    [disabled]="assigning() || !canForwardDocumentsOk()"
+                  >
                     {{ assigning() ? 'Forwarding…' : 'Forward to PO' }}
                   </button>
                 </div>
+              </section>
+            }
+
+            <!-- ─ Filing application: PO document checklist (read-only) ─ -->
+            @if (!caseIdForActions() && canPoReviewActions() && selectedApplicationId()) {
+              <section class="preview-section">
+                <app-mapped-documents-panel
+                  mode="readonly"
+                  [caseCategoryId]="officerDetail()?.caseCategoryId ?? 0"
+                  [subjectId]="officerFilingSubjectId()"
+                  [applicationId]="selectedApplicationId()"
+                  (checklistLoaded)="onDocumentChecklistLoaded($event)"
+                />
               </section>
             }
 
@@ -227,6 +485,14 @@
             @if (!caseIdForActions() && canPoReviewActions()) {
               <section class="preview-section">
                 <h4>Approval Decision</h4>
+                @if (applicationHistoryLoading()) {
+                  <p class="muted" style="margin:0 0 12px">Loading clerk remarks…</p>
+                } @else if (clerkForwardRemarks()) {
+                  <div class="clerk-remarks-banner">
+                    <strong>Clerk remarks (when forwarded to you)</strong>
+                    <p>{{ clerkForwardRemarks() }}</p>
+                  </div>
+                }
                 <div class="action-row">
                   <button type="button" class="btn btn-primary" (click)="approveAndGenerateCase()" [disabled]="approving() || isDisposedCase()">
                     {{ approving() ? 'Approving…' : 'Approve & Generate Case' }}
@@ -254,53 +520,40 @@
               </section>
             }
 
-            <!-- ─ ACTIVE / HEARING_SCHEDULED: Hearing schedule ─ -->
+            <!-- ─ ACTIVE: Schedule first hearing (PO only) ─ -->
             @if (showHearingSection()) {
               <section class="preview-section">
-                <h4>Hearing</h4>
-                @if (canScheduleHearing()) {
-                  <div class="form-line">
-                    <label>Hearing Date</label>
-                    <input type="date" [value]="hearingDateInput()" (input)="hearingDateInput.set($any($event.target).value)" />
-                  </div>
-                  <div class="form-line">
-                    <label>Remarks</label>
-                    <input type="text" [value]="hearingRemarksInput()" (input)="hearingRemarksInput.set($any($event.target).value)" placeholder="Optional" />
-                  </div>
-                  <div class="form-line checkbox">
-                    <label>
-                      <input type="checkbox" [checked]="hearingNoticeGenerate()" (change)="hearingNoticeGenerate.set($any($event.target).checked)" />
-                      Generate hearing notice
-                    </label>
-                  </div>
-                  <div class="action-row">
-                    <button type="button" class="btn btn-primary" (click)="scheduleHearing()" [disabled]="hearingsLoading()">
-                      {{ hearingsLoading() ? 'Scheduling…' : 'Schedule Hearing' }}
-                    </button>
-                  </div>
-                }
-                <div class="action-row" style="margin-top:8px">
-                  <button type="button" class="btn btn-secondary btn-xs" (click)="loadHearings()" [disabled]="hearingsLoading()">Refresh Hearings</button>
-                  <button type="button" class="btn btn-secondary btn-xs" (click)="loadTodayCauseList()" [disabled]="todayCauseListLoading()">Today Cause List</button>
+                <h4>Schedule hearing</h4>
+                <div class="form-line">
+                  <label>Hearing Date</label>
+                  <input type="date" [value]="hearingDateInput()" [min]="minSelectableHearingDate()" (input)="hearingDateInput.set($any($event.target).value)" />
+                  @if (hearingDateAfterTodayError(hearingDateInput()); as dateErr) {
+                    <p class="error">{{ dateErr }}</p>
+                  } @else {
+                    <p class="muted roznama-editor-footnote">Select a date after today.</p>
+                  }
                 </div>
-                @if (hearings().length > 0) {
-                  <div class="table-wrap" style="margin-top:8px">
-                    <table class="table">
-                      <thead><tr><th>No</th><th>Date</th><th>Status</th><th>Notice</th><th>Remarks</th></tr></thead>
-                      <tbody>
-                        @for (h of hearings(); track h.hearingId) {
-                          <tr><td>{{ h.hearingNo }}</td><td>{{ h.hearingDate }}</td><td>{{ h.status }}</td><td>{{ h.noticeGenerated ? 'Yes' : 'No' }}</td><td>{{ h.remarks || '-' }}</td></tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                }
+                <div class="form-line">
+                  <label>Remarks</label>
+                  <input type="text" [value]="hearingRemarksInput()" (input)="hearingRemarksInput.set($any($event.target).value)" placeholder="Optional" />
+                </div>
+                <div class="form-line checkbox">
+                  <label>
+                    <input type="checkbox" [checked]="hearingNoticeGenerate()" (change)="hearingNoticeGenerate.set($any($event.target).checked)" />
+                    Generate hearing notice
+                  </label>
+                </div>
+                <div class="action-row">
+                  <button type="button" class="btn btn-primary" (click)="scheduleHearing()" [disabled]="hearingsLoading() || !isFutureHearingDate(hearingDateInput())">
+                    {{ hearingsLoading() ? 'Scheduling…' : 'Schedule Hearing' }}
+                  </button>
+                </div>
               </section>
             }
 
-            @if (orderSheetStageBlockedHint()) {
+            @if (showProceedingStageHint()) {
               <section class="preview-section">
-                <h4>Case proceedings</h4>
+                <h4>Waiting for your step</h4>
                 <p class="muted" style="margin:0">
                   Current stage: <strong>{{ currentProceedingStage() || 'Notice (default)' }}</strong>.
                   {{ orderSheetStageBlockedHint() }}
@@ -308,151 +561,11 @@
               </section>
             }
 
-            <!-- ─ HEARING_SCHEDULED: Notice workflow ─ -->
-            @if (showNoticeSection()) {
-              <section class="preview-section">
-                <h4>Notices <span class="stage-chip">Clerk → PO → Served</span></h4>
-
-                <!-- ── CLERK VIEW ── -->
-                @if (viewerFlowRole() === 'CLERK') {
-                  @if (canDraftNotice()) {
-                    <!-- Draft form — shown only when no notice exists yet -->
-                    <div class="form-line">
-                      <label>Notice Type</label>
-                      <input type="text" [value]="noticeType()" (input)="noticeType.set($any($event.target).value)" placeholder="HEARING_NOTICE" />
-                    </div>
-                    <div class="form-line">
-                      <label>Hearing ID (optional)</label>
-                      <input type="number" [value]="noticeHearingIdInput()" (input)="noticeHearingIdInput.set($any($event.target).value)" />
-                    </div>
-                    <div class="form-line">
-                      <label>Select Parties to Notify</label>
-                      @if (partyOptions().length === 0) {
-                        <p class="muted" style="margin:4px 0">No parties found in application details.</p>
-                      } @else {
-                        <div class="party-check-list">
-                          @for (p of partyOptions(); track p.key) {
-                            <label class="party-check-item">
-                              <input type="checkbox"
-                                [checked]="isPartySelected(p.key)"
-                                (change)="toggleParty(p.key, $any($event.target).checked)" />
-                              {{ p.label }}
-                            </label>
-                          }
-                        </div>
-                      }
-                    </div>
-                    @if (selectedPartyKeys().size > 0) {
-                      <div class="action-row" style="gap:8px">
-                        <button type="button" class="btn btn-secondary" (click)="previewNotice()">Preview Notice (Marathi)</button>
-                        <button type="button" class="btn btn-primary" (click)="draftNotice()" [disabled]="noticeActionLoading()">
-                          {{ noticeActionLoading() ? 'Saving…' : 'Save Notice Draft' }}
-                        </button>
-                      </div>
-                    }
-                  } @else if (notices().length > 0) {
-                    @if (notices()[0].status === 'CLERK_DRAFT') {
-                      <!-- Revert banner — PO returned the notice -->
-                      @if (notices()[0].message && notices()[0].message!.toLowerCase().includes('revert')) {
-                        <div class="notice-reverted-banner">
-                          <strong>Presiding Officer returned this notice for correction.</strong>
-                          <p style="margin:4px 0 0">{{ notices()[0].message }}</p>
-                        </div>
-                      }
-                      <!-- Draft saved — Clerk must submit to PO -->
-                      <div class="notice-saved-info">
-                        <span class="badge badge-success">Draft Saved</span>
-                        <p class="muted" style="margin:4px 0 8px">Draft saved. Submit to Presiding Officer when ready.</p>
-                        <div class="action-row" style="gap:8px;margin-top:8px">
-                          <button type="button" class="btn btn-secondary btn-xs" (click)="previewNotice()">Preview Notice (Marathi)</button>
-                          <button type="button" class="btn btn-primary btn-xs"
-                            (click)="submitNoticeToPO(notices()[0].noticeId)"
-                            [disabled]="noticeSubmitting()">
-                            {{ noticeSubmitting() ? 'Submitting…' : 'Submit to Presiding Officer' }}
-                          </button>
-                        </div>
-                      </div>
-                    } @else {
-                      <!-- Submitted — read-only status for Clerk -->
-                      <div class="notice-saved-info">
-                        <span class="badge badge-success">Submitted to Presiding Officer</span>
-                        <p class="muted" style="margin:4px 0 8px">Notice is under PO review. Status: <strong>{{ notices()[0].status }}</strong></p>
-                        <button type="button" class="btn btn-secondary btn-xs" (click)="previewNotice()">Preview Notice (Marathi)</button>
-                      </div>
-                    }
-                  }
-                }
-
-                <!-- ── PRESIDING OFFICER VIEW ── -->
-                @if (viewerFlowRole() === 'PRESIDING_OFFICER') {
-                  @if (noticesLoading()) {
-                    <p class="muted">Loading notices…</p>
-                  } @else if (notices().length === 0) {
-                    <p class="muted">No notice drafted by clerk yet.</p>
-                  } @else {
-                    @for (n of notices(); track n.noticeId) {
-                      <div class="notice-card">
-                        <div class="notice-card-row">
-                          <span class="notice-label">Type:</span> {{ n.noticeType }}
-                          &nbsp;&nbsp;
-                          <span class="notice-label">Status:</span> <span class="badge">{{ n.status }}</span>
-                          @if (n.hearingId) { &nbsp;&nbsp;<span class="notice-label">Hearing:</span> {{ n.hearingId }} }
-                        </div>
-                        <div class="action-row" style="gap:8px;margin-top:8px">
-                          <button type="button" class="btn btn-secondary btn-xs" (click)="previewNotice()">Preview (Marathi)</button>
-                          @if (n.status === 'PO_SCRUTINY') {
-                            <button type="button" class="btn btn-primary btn-xs" (click)="finalizeNotice(n.noticeId)" [disabled]="noticeActionLoading()">
-                              {{ noticeActionLoading() ? 'Processing…' : 'Finalize Notice' }}
-                            </button>
-                          }
-                          @if (n.status === 'PO_FINALIZED') {
-                            <div class="form-inline">
-                              <input type="text" [value]="noticeSignRef()" (input)="noticeSignRef.set($any($event.target).value)" placeholder="Digital Signature Ref" style="width:200px" />
-                              <button type="button" class="btn btn-primary btn-xs" (click)="signNotice(n.noticeId)" [disabled]="noticeActionLoading()">
-                                {{ noticeActionLoading() ? 'Signing…' : 'Sign Notice' }}
-                              </button>
-                            </div>
-                          }
-                          @if (n.status === 'PO_SIGNED') {
-                            <button type="button" class="btn btn-primary btn-xs" (click)="serveNotice(n.noticeId)" [disabled]="noticeActionLoading()">
-                              {{ noticeActionLoading() ? 'Serving…' : 'Serve Notice' }}
-                            </button>
-                          }
-                        </div>
-                        <!-- Revert to Clerk — shown from PO_SCRUTINY onwards, hidden after SERVED -->
-                        @if (n.status === 'PO_SCRUTINY' || n.status === 'PO_FINALIZED' || n.status === 'PO_SIGNED') {
-                          <div class="revert-section">
-                            <label class="revert-label">Revert to Clerk (with remarks)</label>
-                            <div class="form-inline">
-                              <input type="text" class="form-control"
-                                [value]="noticeRevertReason()"
-                                (input)="noticeRevertReason.set($any($event.target).value)"
-                                placeholder="Enter reason for returning notice…"
-                                style="flex:1" />
-                              <button type="button" class="btn btn-warning btn-xs"
-                                (click)="revertNotice(n.noticeId)"
-                                [disabled]="noticeActionLoading() || !noticeRevertReason().trim()">
-                                {{ noticeActionLoading() ? 'Sending…' : 'Revert to Clerk' }}
-                              </button>
-                            </div>
-                          </div>
-                        }
-                      </div>
-                    }
-                    <div class="action-row" style="margin-top:6px">
-                      <button type="button" class="btn btn-secondary btn-xs" (click)="loadNotices()" [disabled]="noticesLoading()">Refresh</button>
-                    </div>
-                  }
-                }
-
-              </section>
-            }
-
-            <!-- ─ HEARING_SCHEDULED: Roznama (PO draft → Clerk edit → PO finalize → sign) ─ -->
+            <!-- ─ HEARING_SCHEDULED: Roznama (other menus / stages) ─ -->
             @if (showOrderSheetSection()) {
               <section class="preview-section">
-                <h4>Order Sheet (Roznama) <span class="stage-chip">One per case · Draft → Clerk → PO sign</span></h4>
-                <p class="muted" style="margin:0 0 4px">Proceeding stage: <strong>{{ currentProceedingStage() }}</strong></p>
+                <h4>Order Sheet (Roznama) <span class="stage-chip">Presiding Officer only · Notice served</span></h4>
+                <p class="muted" style="margin:0 0 4px">Proceeding stage: <strong>{{ currentProceedingStage() || 'ORDER_SHEET' }}</strong></p>
                 <p class="muted" style="margin:0 0 10px">{{ roznamaOnePerCaseHint() }}</p>
                 <div class="roznama-tabs" role="tablist">
                   <button type="button" class="roznama-tab" [class.active]="roznamaPanelTab()==='roznama'" (click)="setRoznamaPanelTab('roznama')">Roznama</button>
@@ -471,7 +584,12 @@
                     }
                     <div class="form-line">
                       <label>Next Hearing Date</label>
-                      <input type="date" [value]="rehearingDateInput()" (input)="rehearingDateInput.set($any($event.target).value)" />
+                      <input type="date" [value]="rehearingDateInput()" [min]="minSelectableHearingDate()" (input)="rehearingDateInput.set($any($event.target).value)" />
+                      @if (hearingDateAfterTodayError(rehearingDateInput()); as dateErr) {
+                        <p class="error">{{ dateErr }}</p>
+                      } @else {
+                        <p class="muted roznama-editor-footnote">Must be after today.</p>
+                      }
                     </div>
                     <div class="form-line">
                       <label>Remarks</label>
@@ -484,7 +602,7 @@
                       </label>
                     </div>
                     <div class="action-row">
-                      <button type="button" class="btn btn-primary" (click)="scheduleRehearing()" [disabled]="rehearingScheduling() || hasRoznamaInProgress()">
+                      <button type="button" class="btn btn-primary" (click)="scheduleRehearing()" [disabled]="rehearingScheduling() || hasRoznamaInProgress() || !isFutureHearingDate(rehearingDateInput())">
                         {{ rehearingScheduling() ? 'Scheduling…' : 'Schedule Rehearing' }}
                       </button>
                     </div>
@@ -522,19 +640,6 @@
                     <span class="badge badge-success">Signed</span>
                     <p class="muted" style="margin:4px 0">Case roznamah is signed. Schedule rehearing to add a new date row, or proceed to final judgment.</p>
                   </div>
-                  <div class="table-wrap roznama-entry-table-wrap">
-                    <table class="table roznama-entry-table">
-                      <thead><tr><th>Date</th><th>Roznama</th></tr></thead>
-                      <tbody>
-                        @for (row of roznamaEntryRows(); track $index) {
-                          <tr>
-                            <td class="roznama-date-col">{{ row.date || '—' }}</td>
-                            <td class="roznama-content-col">{{ row.content || '—' }}</td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
                 }
 
                 @if (currentOrderSheet() || isRoznamaReadOnly()) {
@@ -545,93 +650,112 @@
                   </div>
                 }
 
-                @if (canPoEditRoznama()) {
-                  @if (poRoznamaEditHint()) {
-                    <p class="muted" style="margin:8px 0 0">{{ poRoznamaEditHint() }}</p>
-                  }
-                  <div class="form-line">
-                    <label>Roznama register (date · proceedings) — updates same case document</label>
-                    <ng-container *ngTemplateOutlet="roznamaEntryTable" />
-                  </div>
-                  <div class="form-line">
-                    <label>Remarks</label>
-                    <input type="text" [value]="orderSheetRemarksInput()" (input)="orderSheetRemarksInput.set($any($event.target).value)" />
-                  </div>
-                  <div class="action-row" style="gap:8px; flex-wrap:wrap">
-                    <button type="button" class="btn btn-secondary" (click)="previewRoznama()">Preview Roznama (Marathi)</button>
-                    <button type="button" class="btn btn-primary" (click)="saveOrderSheet()" [disabled]="orderSheetSaving()">
-                      {{ orderSheetSaving() ? 'Saving…' : poRoznamaSaveLabel() }}
-                    </button>
-                    @if (canFinalizeOrderSheet()) {
-                      <button type="button" class="btn btn-primary" (click)="finalizeOrderSheet()" [disabled]="orderSheetFinalizing()">
-                        {{ orderSheetFinalizing() ? 'Finalizing…' : 'Finalize Roznama' }}
-                      </button>
-                    }
-                    @if (canSignOrderSheet()) {
-                      <button type="button" class="btn btn-primary" (click)="signOrderSheet()" [disabled]="orderSheetSigning() || !orderSheetSignRef().trim()">
-                        {{ orderSheetSigning() ? 'Signing…' : 'Sign Roznama' }}
-                      </button>
-                    }
-                  </div>
-                  @if (canSignOrderSheet()) {
-                    <div class="form-line" style="margin-top:8px">
-                      <label>Digital Signature Reference</label>
-                      <input type="text" [value]="orderSheetSignRef()" (input)="orderSheetSignRef.set($any($event.target).value)" placeholder="DSC_REF_2026_001" />
-                    </div>
-                  }
-                }
+                @if (canPoEditRoznama() || isRoznamaReadOnly()) {
+                  <div class="roznama-workspace">
+                    <aside class="roznama-docs-panel">
+                      <h5 class="roznama-docs-title">Case documents</h5>
+                      <p class="muted roznama-docs-hint">Reference while writing roznamah (including served notices).</p>
+                      <div class="roznama-doc-tabs" role="tablist">
+                        <button type="button" class="roznama-doc-tab" [class.active]="roznamaDocTab()==='summary'" (click)="setRoznamaDocTab('summary')">Summary</button>
+                        <button type="button" class="roznama-doc-tab" [class.active]="roznamaDocTab()==='notices'" (click)="setRoznamaDocTab('notices')">Notices</button>
+                        <button type="button" class="roznama-doc-tab" [class.active]="roznamaDocTab()==='hearings'" (click)="setRoznamaDocTab('hearings')">Hearings</button>
+                        <button type="button" class="roznama-doc-tab" [class.active]="roznamaDocTab()==='attachments'" (click)="setRoznamaDocTab('attachments')">Files</button>
+                      </div>
+                      <div class="roznama-docs-body">
+                        @if (roznamaPreviewLoading()) {
+                          <p class="muted">Loading case documents…</p>
+                        } @else if (roznamaDocTab() === 'summary') {
+                          <div class="kv-grid roznama-doc-kv">
+                            <div class="kv"><div class="kv-label">Application</div><div class="kv-value">{{ officerDetail()?.applicationNo || '—' }}</div></div>
+                            <div class="kv"><div class="kv-label">Case No</div><div class="kv-value">{{ generatedCase()?.caseNo || caseNoFor(selectedApplicationId()!) }}</div></div>
+                            <div class="kv"><div class="kv-label">Category</div><div class="kv-value">{{ officerDetail()?.caseCategoryName || '—' }}</div></div>
+                            <div class="kv"><div class="kv-label">Subject</div><div class="kv-value">{{ officerDetail()?.subjectName || '—' }}</div></div>
+                          </div>
+                          @if (detailApplicants().length) {
+                            <p class="roznama-doc-subhead">Applicants</p>
+                            <ul class="roznama-doc-list">
+                              @for (a of detailApplicants(); track $index) {
+                                <li>{{ a['name'] || '—' }}</li>
+                              }
+                            </ul>
+                          }
+                          @if (detailRespondents().length) {
+                            <p class="roznama-doc-subhead">Respondents</p>
+                            <ul class="roznama-doc-list">
+                              @for (r of detailRespondents(); track $index) {
+                                <li>{{ r['name'] || '—' }}</li>
+                              }
+                            </ul>
+                          }
+                        } @else if (roznamaDocTab() === 'notices') {
+                          @if (servedNoticesForRoznama().length === 0) {
+                            <p class="muted">No served notices yet.</p>
+                          } @else {
+                            @for (n of servedNoticesForRoznama(); track n.noticeId) {
+                              <div class="roznama-doc-card">
+                                <strong>{{ n.noticeType }}</strong>
+                                <span class="badge">{{ n.status }}</span>
+                                @if (n.servedAt) { <span class="muted"> · Served {{ toPrettyDate(n.servedAt) }}</span> }
+                                <button type="button" class="btn btn-secondary btn-xs" (click)="openNoticeDocumentPreview(n)">View notice</button>
+                              </div>
+                            }
+                          }
+                        } @else if (roznamaDocTab() === 'hearings') {
+                          @if (hearings().length === 0) {
+                            <p class="muted">No hearings on record.</p>
+                          } @else {
+                            <table class="table roznama-mini-table">
+                              <thead><tr><th>#</th><th>Date</th><th>Status</th></tr></thead>
+                              <tbody>
+                                @for (h of hearings(); track h.hearingId) {
+                                  <tr><td>{{ h.hearingNo }}</td><td>{{ h.hearingDate.slice(0, 10) }}</td><td>{{ h.status }}</td></tr>
+                                }
+                              </tbody>
+                            </table>
+                          }
+                        } @else {
+                          @if (detailAttachments().length === 0) {
+                            <p class="muted">No attachments on file.</p>
+                          } @else {
+                            <ul class="roznama-doc-list">
+                              @for (f of detailAttachments(); track $index) {
+                                <li>{{ f['fileName'] || f['name'] || ('Attachment ' + ($index + 1)) }}</li>
+                              }
+                            </ul>
+                          }
+                        }
+                      </div>
+                    </aside>
 
-                @if (viewerFlowRole() === 'CLERK') {
-                  @if (!currentOrderSheet() && !canClerkEditRoznama() && !isRoznamaReadOnly()) {
-                    <p class="muted" style="margin-top:8px">Presiding Officer has not saved the case roznamah draft yet.</p>
-                  } @else if (canClerkEditRoznama()) {
-                    <div class="form-line" style="margin-top:8px">
-                      <label>Edit Roznama (from PO draft)</label>
-                      <ng-container *ngTemplateOutlet="roznamaEntryTable" />
-                    </div>
-                    <div class="form-line">
-                      <label>Remarks</label>
-                      <input type="text" [value]="orderSheetRemarksInput()" (input)="orderSheetRemarksInput.set($any($event.target).value)" />
-                    </div>
-                    <div class="action-row" style="gap:8px">
-                      <button type="button" class="btn btn-secondary" (click)="previewRoznama()">Preview Roznama (Marathi)</button>
-                      <button type="button" class="btn btn-secondary" (click)="saveOrderSheet()" [disabled]="orderSheetSaving()">
-                        {{ orderSheetSaving() ? 'Saving…' : 'Update Roznama' }}
-                      </button>
-                      @if (canClerkSubmitOrderSheetToPo()) {
-                        <button type="button" class="btn btn-primary" (click)="submitOrderSheetToPO()" [disabled]="orderSheetSubmitting()">
-                          {{ orderSheetSubmitting() ? 'Submitting…' : 'Submit to PO for Scrutiny' }}
-                        </button>
+                    <div class="roznama-editor-panel">
+                      @if (canPoEditRoznama()) {
+                        <ng-container *ngTemplateOutlet="roznamaEditableForm" />
+                      } @else if (isRoznamaReadOnly()) {
+                        @if (showRoznamaAttendancePanel()) {
+                          <ng-container *ngTemplateOutlet="roznamaAttendancePanel; context: { readOnly: true }" />
+                        }
+                        <div class="table-wrap roznama-entry-table-wrap">
+                          <table class="table roznama-entry-table">
+                            <thead><tr><th>Hearing</th><th>Date</th><th>Outcome</th><th>Roznama</th></tr></thead>
+                            <tbody>
+                              @for (row of roznamaEntryRows(); track roznamaRowTrack(row, $index)) {
+                                <tr [class.roznama-row-readonly]="row.readOnly">
+                                  <td>{{ row.hearingNo ? ('#' + row.hearingNo) : '—' }}</td>
+                                  <td>{{ row.date || row.hearingDate || '—' }}</td>
+                                  <td>{{ roznamaRowOutcomeLabel(row) }}</td>
+                                  <td>{{ roznamaRowDisplayText(row) }}</td>
+                                </tr>
+                              }
+                            </tbody>
+                          </table>
+                        </div>
+                      } @else {
+                        <p class="muted">Roznamah cannot be edited at this step. Check proceeding stage or refresh after loading completes.</p>
                       }
                     </div>
-                  } @else if (currentOrderSheet()?.status === 'PO_SCRUTINY') {
-                    <div class="notice-saved-info" style="margin-top:8px">
-                      <span class="badge badge-success">Submitted to PO</span>
-                      <p class="muted" style="margin:4px 0">Roznama is with Presiding Officer for finalization.</p>
-                    </div>
-                  } @else if (currentOrderSheet()?.status === 'PO_FINALIZED' || currentOrderSheet()?.status === 'PO_SIGNED') {
-                    <p class="muted" style="margin-top:8px">Roznama finalized. Status: {{ currentOrderSheet()!.status }}</p>
-                  }
-                }
-
-                <!-- PO: Revert order sheet to Clerk (on PO_FINALIZED or PO_SIGNED) -->
-                @if (viewerFlowRole() === 'PRESIDING_OFFICER' &&
-                     currentOrderSheet() && (currentOrderSheet()?.status === 'PO_SCRUTINY' || currentOrderSheet()?.status === 'PO_FINALIZED')) {
-                  <div class="revert-section">
-                    <label class="revert-label">Revert Order Sheet to Clerk (with reason)</label>
-                    <div class="form-inline">
-                      <input type="text" class="form-control"
-                        [value]="orderSheetRevertReason()"
-                        (input)="orderSheetRevertReason.set($any($event.target).value)"
-                        placeholder="Enter reason…"
-                        style="flex:1" />
-                      <button type="button" class="btn btn-warning btn-xs"
-                        (click)="revertOrderSheet()"
-                        [disabled]="!orderSheetRevertReason().trim()">
-                        Revert to Clerk
-                      </button>
-                    </div>
                   </div>
+                } @else if (isRoznamaWorkflow()) {
+                  <p class="muted workflow-status">Preparing roznamah editor…</p>
                 }
 
                 <div class="action-row" style="margin-top:8px; gap:8px">
@@ -695,12 +819,17 @@
               </section>
             }
 
-            <!-- ─ Judgment (order sheet PO_SIGNED → Clerk draft → PO finalize → PO publish) ─ -->
-            @if (showJudgmentSection()) {
+            <!-- ─ Judgment (legacy mixed view — not on dedicated roznamma/judgment panels) ─ -->
+            @if (showJudgmentSection() && !isJudgmentWorkflow()) {
               <section class="preview-section" id="judgment-section">
-                <h4>Judgment <span class="stage-chip">One per case · Draft → Submit → Finalize → Publish</span></h4>
-                <p class="muted" style="margin:0 0 6px">{{ judgmentOnePerCaseHint() }}</p>
-                <p class="muted" style="margin:0 0 10px">{{ judgmentStepHint() }}</p>
+                <h4>Judgment <span class="stage-chip">PO draft → Clerk edit → PO finalize</span></h4>
+                @if (officerRole() === 'PRESIDING_OFFICER') {
+                  <p class="muted" style="margin:0 0 6px">{{ judgmentOnePerCaseHint() }}</p>
+                  <p class="muted" style="margin:0 0 10px">{{ judgmentStepHint() }}</p>
+                }
+                @if (officerRole() === 'CLERK') {
+                  <p class="muted" style="margin:0 0 10px">{{ judgmentStepHint() }}</p>
+                }
 
                 @if (judgmentWorkflow()) {
                   <div class="kv-grid">
@@ -715,6 +844,12 @@
                 @if (canDraftJudgment()) {
                   <div class="form-line" style="margin-top:8px">
                     <label>Judgment / Order Text (Marathi template body)</label>
+                    @if (canPoDraftJudgment()) {
+                      <p class="muted" style="margin:0 0 6px">Presiding Officer: save the initial draft. Clerk will edit this same text next.</p>
+                    }
+                    @if (canClerkEditJudgment()) {
+                      <p class="muted" style="margin:0 0 6px">Clerk: edit the PO draft, save, then submit to Presiding Officer.</p>
+                    }
                     <textarea rows="10" [value]="judgmentSummaryInput()" (input)="judgmentSummaryInput.set($any($event.target).value)" placeholder="Generate template or enter final judgment / order text…"></textarea>
                   </div>
                   <div class="action-row" style="gap:8px; flex-wrap:wrap">
@@ -727,11 +862,11 @@
                       Preview Judgment (Marathi)
                     </button>
                     <button type="button" class="btn btn-primary" (click)="saveDraftJudgment()" [disabled]="judgmentSaving()">
-                      {{ judgmentSaving() ? 'Saving…' : 'Save Judgment Draft' }}
+                      {{ judgmentSaving() ? 'Saving…' : (canPoDraftJudgment() ? 'Save Initial Draft (PO)' : 'Save Judgment Draft') }}
                     </button>
                     @if (canClerkSubmitJudgmentToPo()) {
                       <button type="button" class="btn btn-primary" (click)="submitJudgmentToPO()" [disabled]="judgmentSubmitting() || judgmentSaving()">
-                        {{ judgmentSubmitting() ? 'Submitting…' : 'Submit to PO for Scrutiny' }}
+                        {{ judgmentSubmitting() ? 'Submitting…' : 'Submit to Presiding Officer' }}
                       </button>
                     }
                   </div>
@@ -748,7 +883,10 @@
                     </button>
                   </div>
                   @if (viewerFlowRole() === 'CLERK' && judgmentStatusLabel() === 'PO_SCRUTINY') {
-                    <p class="muted" style="margin:4px 0">Submitted to Presiding Officer. Waiting for finalize and publish.</p>
+                    <p class="muted" style="margin:4px 0">Submitted to Presiding Officer. PO may revert to you for further edits, then finalize.</p>
+                  }
+                  @if (viewerFlowRole() === 'PRESIDING_OFFICER' && judgmentStatusLabel() === 'CLERK_DRAFT') {
+                    <p class="muted" style="margin:4px 0">Clerk is editing the draft. Use Revert below to send back with remarks (as many times as needed).</p>
                   }
                 }
 
@@ -765,7 +903,7 @@
 
                 @if (canRevertJudgment()) {
                   <div class="revert-section">
-                    <label class="revert-label">Revert Judgment to Clerk (with reason)</label>
+                    <label class="revert-label">Revert to Clerk for correction (with reason — may repeat)</label>
                     <div class="form-inline">
                       <input type="text" class="form-control"
                         [value]="judgmentRevertReason()"
@@ -795,9 +933,19 @@
               </section>
             }
 
-            <!-- ─ No action available ─ -->
-            @if (!canForwardToPo() && !canPoReviewActions() && !showHearingSection() && !showNoticeSection() && !showOrderSheetSection() && !showJudgmentSection()) {
-              <p class="muted">No action required for current status: <strong>{{ caseStatusFor(selectedApplicationId()!) || officerDetail()!.status }}</strong></p>
+            @if (!hasAuthorizedActionOnTab() && !loadingOfficerDetail()) {
+              <section class="preview-section">
+                <h4>No action for you</h4>
+                <p class="muted" style="margin:0">
+                  Nothing is assigned to <strong>{{ officerRole() === 'CLERK' ? 'Clerk' : officerRole() === 'PRESIDING_OFFICER' ? 'Presiding Officer' : 'your role' }}</strong> at this step.
+                  Open <strong>Application Details</strong> for full history, or check again when the case is assigned to you.
+                </p>
+                @if (currentProceedingStage()) {
+                  <p class="muted" style="margin:0.5rem 0 0">Proceeding stage: <strong>{{ currentProceedingStage() }}</strong></p>
+                }
+              </section>
+            }
+
             }
 
           </div>
@@ -807,6 +955,9 @@
              DETAILS TAB — read-only application summary
              ════════════════════════════════════════════ -->
         @if (officerTab() === 'details') {
+          @if (!officerDetail()) {
+            <p class="muted workflow-status">Loading application summary…</p>
+          } @else {
           <div class="form-preview">
 
             <section class="preview-section">
@@ -850,6 +1001,8 @@
               <section class="preview-section">
                 <h4>Disputed Order</h4>
                 <div class="kv-grid">
+                  <div class="kv"><div class="kv-label">Search type</div><div class="kv-value">{{ detailSearchModeLabel() }}</div></div>
+                  <div class="kv"><div class="kv-label">Search value</div><div class="kv-value">{{ detailDisputedOrder()!['searchValue'] || detailDisputedOrder()!['searchDisplayText'] || '-' }}</div></div>
                   <div class="kv"><div class="kv-label">Inward Number</div><div class="kv-value">{{ inwardNumberForNotice9() || '-' }}</div></div>
                   <div class="kv"><div class="kv-label">Mutation Found</div><div class="kv-value">{{ detailDisputedOrder()!['mutationFound'] ? 'Yes' : 'No' }}</div></div>
                   <div class="kv"><div class="kv-label">Manual Inward No</div><div class="kv-value">{{ detailDisputedOrder()!['manualInwardNumber'] || '-' }}</div></div>
@@ -913,7 +1066,7 @@
                   <table class="table">
                     <thead>
                       <tr>
-                        <th>#</th><th>Land Type</th><th>District</th><th>Taluka / Office</th><th>Village</th><th>Survey / CTS</th><th></th>
+                        <th>#</th><th>Land Type</th><th>District</th><th>Office</th><th>Village</th><th>Parent / Sub CTS</th><th></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -924,7 +1077,13 @@
                           <td>{{ d['districtName'] || d['districtCode'] || '-' }}</td>
                           <td>{{ d['talukaName'] || d['officeName'] || '-' }}</td>
                           <td>{{ d['villageName'] || '-' }}</td>
-                          <td>{{ d['surveyPin'] || d['ctsNo'] || '-' }}</td>
+                          <td>
+                            @if (d['surveyPin']) {
+                              {{ d['surveyPin'] }}
+                            } @else {
+                              {{ d['parentCtsNo'] || '—' }} / {{ d['subCtsNo'] || d['ctsNo'] || '—' }}
+                            }
+                          </td>
                           <td><button type="button" class="btn btn-secondary btn-xs" (click)="viewLandDetails(d)">View</button></td>
                         </tr>
                       }
@@ -934,11 +1093,14 @@
                 @if (landDetailLoading()) { <p class="muted">Loading land details…</p> }
                 @else if (landDetailError()) { <p class="error">{{ landDetailError() }}</p> }
                 @else if (landDetailPayload()) {
-                  <div class="kv land-detail-box" style="margin-top:8px">
-                    <div class="kv-label">{{ landDetailTitle() }}</div>
-                    <div class="kv-grid">
-                      @for (r of landDetailRows(); track $index) {
-                        <div class="kv"><div class="kv-label">{{ r.label }}</div><div class="kv-value">{{ r.value }}</div></div>
+                  <div class="land-detail-panel">
+                    <div class="land-detail-title">{{ landDetailTitle() }}</div>
+                    <div class="land-detail-grid">
+                      @for (r of landDetailRows(); track r.label) {
+                        <div class="land-detail-item">
+                          <span class="land-detail-label">{{ r.label }}</span>
+                          <span class="land-detail-value">{{ r.value }}</span>
+                        </div>
                       }
                     </div>
                   </div>
@@ -961,10 +1123,13 @@
             }
 
           </div>
+          }
         }
 
+    </section>
       }
-    </article>
+      </div>
+    </div>
 
   } @else {
     <article class="card">
@@ -973,23 +1138,698 @@
   }
 </section>
 
+<ng-template #noticeServeForm>
+  <section class="notice-inline-panel">
+    <h4 class="notice-inline-title">Serve hearing notice</h4>
+    @if (selectedPendingServe(); as ps) {
+      <p class="notice-case-line">
+        Case <strong>{{ ps.caseNo }}</strong> · Hearing #{{ ps.hearingNo }}
+        · {{ ps.hearingDate ? (ps.hearingDate.length >= 10 ? ps.hearingDate.slice(0, 10) : ps.hearingDate) : ps.queueDate }}
+      </p>
+    } @else if (pendingServeHearingLabel()) {
+      <p class="notice-case-line">{{ pendingServeHearingLabel() }}</p>
+    }
+
+    @if (actionError()) {
+      <p class="error">{{ actionError() }}</p>
+    }
+    @if (actionMessage()) {
+      <p class="muted success-msg">✓ {{ actionMessage() }}</p>
+    }
+
+    <p class="notice-party-label">Parties to notify <span class="required-mark">*</span></p>
+    <p class="notice-party-hint muted">
+      Select at least <strong>one applicant</strong> and <strong>one respondent</strong> (required).
+    </p>
+
+    <div class="notice-party-toolbar">
+      <button type="button" class="btn btn-secondary btn-xs" (click)="toggleSelectAllNoticeParties()" [disabled]="noticePartyRows().length === 0">
+        {{ allNoticePartiesSelected() ? 'Deselect all' : 'Select all' }}
+      </button>
+      <button type="button" class="btn btn-secondary btn-xs" (click)="reloadNoticeParties()">Reload parties</button>
+      <span class="muted notice-party-count">{{ selectedPartyKeys().length }} / {{ noticePartyRows().length }} selected</span>
+    </div>
+    @if (noticePartyValidationError(); as partyErr) {
+      <p class="error notice-party-validation">{{ partyErr }}</p>
+    }
+
+    @if (noticePartiesLoading()) {
+      <p class="notice-party-status muted">Loading party names…</p>
+    }
+    @if (noticePartiesError()) {
+      <p class="error notice-party-status">{{ noticePartiesError() }}</p>
+    }
+
+    <div class="table-wrap notice-party-table-wrap">
+      <table class="table notice-party-table">
+        <thead>
+          <tr>
+            <th class="notice-col-check"></th>
+            <th>Party name</th>
+            <th>Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (!noticePartiesLoading() && noticePartyRows().length === 0) {
+            <tr>
+              <td colspan="3" class="notice-table-empty">No parties loaded — click <strong>Reload parties</strong>.</td>
+            </tr>
+          }
+          @for (p of noticePartyRows(); track p.key) {
+            <tr [class.selected-row]="isPartySelected(p.key)">
+              <td class="notice-col-check">
+                <input
+                  type="checkbox"
+                  [id]="noticePartyInputId(p.key)"
+                  [checked]="isPartySelected(p.key)"
+                  (change)="onNoticePartyCheckboxChange(p.key, $event)"
+                />
+              </td>
+              <td>
+                <label class="notice-table-name" [for]="noticePartyInputId(p.key)">{{ p.name }}</label>
+              </td>
+              <td><span class="notice-table-role">{{ p.role }}</span></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (selectedPartyNamesForNotice().length > 0) {
+      <p class="notice-selected-parties">
+        <strong>Selected:</strong> {{ selectedPartyNamesForNotice().join(', ') }}
+      </p>
+    }
+
+    <div class="notice-serve-actions">
+      <button type="button" class="btn btn-secondary" (click)="previewNotice()">Preview notice (Marathi)</button>
+      <button
+        type="button"
+        class="btn btn-primary"
+        (click)="serveNoticeToParties()"
+        [disabled]="noticeSubmitting() || !canServeNoticeToParties()"
+      >
+        {{ noticeSubmitting() ? 'Serving…' : 'Serve notice' }}
+      </button>
+    </div>
+  </section>
+</ng-template>
+
+<ng-template #judgmentWorkflowPanel>
+  <div class="judgment-workflow-header">
+    <div>
+      <h4>Judgment</h4>
+      @if (workflowCaseNo()) {
+        <p class="judgment-workflow-sub">
+          {{ workflowCaseNo() }}
+          @if (workflowContext()?.caseStatus) {
+            <span> · {{ workflowContext()!.caseStatus }}</span>
+          }
+          @if (judgmentBlueprintLabel()) {
+            <span> · {{ judgmentBlueprintLabel() }}</span>
+          }
+        </p>
+      }
+    </div>
+    @if (judgmentStatusLabel() !== '—') {
+      <span class="judgment-status-chip">{{ judgmentStatusLabel() }}</span>
+    }
+  </div>
+
+  @if (loadingOfficerDetail() || judgmentLoading() || workflowContextLoading()) {
+    <p class="muted workflow-status">Loading…</p>
+  }
+  @if (officerDetailError()) {
+    <p class="error">{{ officerDetailError() }}</p>
+  }
+  @if (judgmentContextMessage(); as jMsg) {
+    <p class="workflow-notice">{{ jMsg }}</p>
+  }
+
+  <div class="officer-draft-workspace judgment-draft-layout" [class.reference-collapsed]="caseReferenceCollapsed()">
+    @if (!caseReferenceCollapsed()) {
+      <ng-container *ngTemplateOutlet="officerCaseReferencePanel" />
+    }
+    <div class="officer-draft-main judgment-editor-panel">
+      <div class="reference-toolbar judgment-toolbar">
+        <button type="button" class="btn btn-secondary btn-xs" (click)="toggleCaseReferencePanel()">
+          {{ caseReferenceCollapsed() ? 'Reference' : 'Hide reference' }}
+        </button>
+        <button type="button" class="btn btn-secondary btn-xs" (click)="openCaseReferenceTab('parties')">Parties</button>
+        <button type="button" class="btn btn-secondary btn-xs" (click)="openCaseReferenceTab('roznama')">Prior</button>
+        <button type="button" class="btn btn-secondary btn-xs" (click)="openCaseReferenceTab('notices')">Notices</button>
+      </div>
+
+      @if (!hasAnyJudgmentAction() && !judgmentLoading() && !workflowContextLoading()) {
+        <p class="muted judgment-empty">No action available at this step.</p>
+      }
+
+      <div class="judgment-form">
+        @if (judgmentWorkflow()) {
+          <div class="judgment-meta-bar">
+            <div class="judgment-meta-item">
+              <span class="judgment-meta-label">Case</span>
+              <span class="judgment-meta-value">{{ judgmentWorkflow()!.caseNo || workflowCaseNo() || '—' }}</span>
+            </div>
+            @if (judgmentWorkflow()!.publishedAt) {
+              <div class="judgment-meta-item">
+                <span class="judgment-meta-label">Published</span>
+                <span class="judgment-meta-value">{{ toPrettyDate(judgmentWorkflow()!.publishedAt) }}</span>
+              </div>
+            }
+          </div>
+        }
+
+        @if (canSaveJudgmentDraft() || showJudgmentReadOnly()) {
+          <div class="judgment-block" [class.judgment-readonly-block]="showJudgmentReadOnly()">
+            <div class="form-line">
+              <label>Judgment / order text</label>
+              @if (canSaveJudgmentDraft()) {
+                <app-rich-text-editor
+                  [ngModel]="judgmentSummaryInput()"
+                  (ngModelChange)="judgmentSummaryInput.set($event)"
+                  placeholder="Enter judgment / order text (Marathi)…"
+                  minHeight="280px"
+                />
+              } @else {
+                <app-rich-text-editor
+                  [ngModel]="judgmentSummaryInput()"
+                  minHeight="240px"
+                  [disabled]="true"
+                />
+              }
+            </div>
+
+            @if (canRevertJudgment()) {
+              <div class="judgment-revert-inline">
+                <label class="judgment-revert-label">Return to clerk</label>
+                <div class="judgment-revert-row">
+                  <input
+                    type="text"
+                    class="form-control"
+                    [value]="judgmentRevertReason()"
+                    (input)="judgmentRevertReason.set($any($event.target).value)"
+                    placeholder="Remarks (required)…"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-warning btn-xs"
+                    (click)="revertJudgment()"
+                    [disabled]="!judgmentRevertReason().trim() || judgmentSaving()"
+                  >
+                    Return to clerk
+                  </button>
+                </div>
+              </div>
+            }
+
+            @if (canSignAndPublishJudgment()) {
+              <div class="judgment-sign-inline">
+                <label class="judgment-revert-label">Digital signature</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  [value]="judgmentSignatureRef()"
+                  (input)="judgmentSignatureRef.set($any($event.target).value)"
+                  placeholder="PO-SIGN-xxx (required for Save & sign)"
+                />
+              </div>
+            }
+
+            <div class="judgment-editor-actions">
+              <div class="judgment-actions-group">
+                @if (canSaveJudgmentDraft()) {
+                  @if (canGenerateJudgmentTemplate()) {
+                    <button type="button" class="btn btn-secondary" (click)="generateJudgmentTemplate()">
+                      {{ hasJudgmentContent() ? 'Regenerate template' : 'Generate template' }}
+                    </button>
+                  }
+                  <button type="button" class="btn btn-secondary" (click)="previewJudgment()" [disabled]="!hasJudgmentContent()">Preview</button>
+                  <button type="button" class="btn btn-primary" (click)="saveDraftJudgment()" [disabled]="judgmentSaving()">
+                    {{ judgmentSaving() ? 'Saving…' : judgmentSaveButtonLabel() }}
+                  </button>
+                  @if (canSendJudgmentToClerk()) {
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      (click)="sendJudgmentToClerk()"
+                      [disabled]="judgmentSubmitting() || judgmentSaving() || !hasJudgmentContent()"
+                    >
+                      {{ judgmentSubmitting() ? 'Sending…' : 'Send to clerk' }}
+                    </button>
+                  }
+                  @if (canClerkSubmitJudgmentToPo()) {
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      (click)="submitJudgmentToPO()"
+                      [disabled]="judgmentSubmitting() || judgmentSaving()"
+                    >
+                      {{ judgmentSubmitting() ? 'Submitting…' : 'Submit to PO' }}
+                    </button>
+                  }
+                } @else {
+                  <button type="button" class="btn btn-secondary" (click)="previewJudgment()" [disabled]="!hasJudgmentContent()">Preview</button>
+                }
+                @if (canFinalizeJudgment()) {
+                  <button type="button" class="btn btn-primary" (click)="finalizeJudgment()" [disabled]="judgmentSaving()">
+                    {{ judgmentSaving() ? 'Finalizing…' : 'Finalize' }}
+                  </button>
+                }
+                @if (canSignAndPublishJudgment()) {
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    (click)="signAndPublishJudgment()"
+                    [disabled]="judgmentSaving() || !judgmentSignatureRef().trim()"
+                  >
+                    {{ judgmentSaving() ? 'Signing…' : 'Save & sign' }}
+                  </button>
+                }
+                @if (canPublishJudgment()) {
+                  <button type="button" class="btn btn-primary" (click)="publishJudgment()" [disabled]="judgmentSaving()">
+                    {{ judgmentSaving() ? 'Publishing…' : 'Publish' }}
+                  </button>
+                }
+              </div>
+              <button type="button" class="btn btn-secondary btn-xs judgment-refresh-btn" (click)="loadJudgmentModule()">Refresh</button>
+            </div>
+          </div>
+        } @else if (canFinalizeJudgment() || canPublishJudgment() || canSignAndPublishJudgment()) {
+          <div class="judgment-block">
+            @if (canRevertJudgment()) {
+              <div class="judgment-revert-inline">
+                <label class="judgment-revert-label">Return to clerk</label>
+                <div class="judgment-revert-row">
+                  <input
+                    type="text"
+                    class="form-control"
+                    [value]="judgmentRevertReason()"
+                    (input)="judgmentRevertReason.set($any($event.target).value)"
+                    placeholder="Remarks (required)…"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-warning btn-xs"
+                    (click)="revertJudgment()"
+                    [disabled]="!judgmentRevertReason().trim() || judgmentSaving()"
+                  >
+                    Return to clerk
+                  </button>
+                </div>
+              </div>
+            }
+            @if (canSignAndPublishJudgment()) {
+              <div class="judgment-sign-inline">
+                <label class="judgment-revert-label">Digital signature</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  [value]="judgmentSignatureRef()"
+                  (input)="judgmentSignatureRef.set($any($event.target).value)"
+                  placeholder="PO-SIGN-xxx (required for Save & sign)"
+                />
+              </div>
+            }
+            <div class="judgment-editor-actions">
+              <div class="judgment-actions-group">
+                @if (canFinalizeJudgment()) {
+                  <button type="button" class="btn btn-primary" (click)="finalizeJudgment()" [disabled]="judgmentSaving()">
+                    {{ judgmentSaving() ? 'Finalizing…' : 'Finalize' }}
+                  </button>
+                }
+                @if (canSignAndPublishJudgment()) {
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    (click)="signAndPublishJudgment()"
+                    [disabled]="judgmentSaving() || !judgmentSignatureRef().trim()"
+                  >
+                    {{ judgmentSaving() ? 'Signing…' : 'Save & sign' }}
+                  </button>
+                }
+                @if (canPublishJudgment()) {
+                  <button type="button" class="btn btn-primary" (click)="publishJudgment()" [disabled]="judgmentSaving()">
+                    {{ judgmentSaving() ? 'Publishing…' : 'Publish' }}
+                  </button>
+                }
+              </div>
+              <button type="button" class="btn btn-secondary btn-xs judgment-refresh-btn" (click)="loadJudgmentModule()">Refresh</button>
+            </div>
+          </div>
+        }
+      </div>
+
+      <details class="judgment-history-details">
+        <summary>History</summary>
+        @if (judgmentHistoryLoading()) {
+          <p class="muted">Loading…</p>
+        } @else if (judgmentHistory().length === 0) {
+          <p class="muted">No entries yet.</p>
+        } @else {
+          <div class="table-wrap">
+            <table class="table roznama-mini-table">
+              <thead><tr><th>When</th><th>Action</th><th>Status</th><th>By</th><th>Remarks</th></tr></thead>
+              <tbody>
+                @for (h of judgmentHistory(); track h.historyId ?? h.id ?? $index) {
+                  <tr>
+                    <td>{{ toPrettyDate(h.createdAt) }}</td>
+                    <td>{{ h.action || h.actionCode || '—' }}</td>
+                    <td>{{ h.status || (h.fromStatus && h.toStatus ? h.fromStatus + ' → ' + h.toStatus : '—') }}</td>
+                    <td>{{ h.actorLoginId || h.actorRole || '—' }}</td>
+                    <td>{{ h.remarks || '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </details>
+    </div>
+  </div>
+</ng-template>
+
+<ng-template #officerCaseReferencePanel>
+  <aside class="roznama-docs-panel case-reference-panel">
+    <div class="case-reference-head">
+      <h5 class="roznama-docs-title">Case reference</h5>
+      <button type="button" class="btn btn-secondary btn-xs" (click)="toggleCaseReferencePanel()" title="Hide panel">✕</button>
+    </div>
+    @if (!isRoznamaWorkflow() && !isJudgmentWorkflow()) {
+      <p class="muted roznama-docs-hint">Parties, land, notices, and prior proceedings.</p>
+    }
+    <div class="roznama-doc-tabs" role="tablist">
+      <button type="button" class="roznama-doc-tab" [class.active]="roznamaDocTab()==='summary'" (click)="setRoznamaDocTab('summary')">Summary</button>
+      <button type="button" class="roznama-doc-tab" [class.active]="roznamaDocTab()==='parties'" (click)="setRoznamaDocTab('parties')">Parties</button>
+      <button type="button" class="roznama-doc-tab" [class.active]="roznamaDocTab()==='notices'" (click)="setRoznamaDocTab('notices')">Notices</button>
+      <button type="button" class="roznama-doc-tab" [class.active]="roznamaDocTab()==='hearings'" (click)="setRoznamaDocTab('hearings')">Hearings</button>
+      <button type="button" class="roznama-doc-tab" [class.active]="roznamaDocTab()==='land'" (click)="setRoznamaDocTab('land')">Land</button>
+      <button type="button" class="roznama-doc-tab" [class.active]="roznamaDocTab()==='roznama'" (click)="setRoznamaDocTab('roznama')">Roznamma</button>
+      <button type="button" class="roznama-doc-tab" [class.active]="roznamaDocTab()==='attachments'" (click)="setRoznamaDocTab('attachments')">Files</button>
+      @if (selectedApplicationId()) {
+        <button type="button" class="roznama-doc-tab" [class.active]="roznamaDocTab()==='documents'" (click)="setRoznamaDocTab('documents')">Docs</button>
+      }
+      <button type="button" class="roznama-doc-tab" [class.active]="roznamaDocTab()==='history'" (click)="setRoznamaDocTab('history')">History</button>
+    </div>
+    <div class="roznama-docs-body">
+      @if (roznamaPreviewLoading()) {
+        <p class="muted">Loading reference data…</p>
+      } @else if (roznamaDocTab() === 'summary') {
+        <div class="kv-grid roznama-doc-kv">
+          <div class="kv"><div class="kv-label">Application</div><div class="kv-value">{{ officerDetail()?.applicationNo || '—' }}</div></div>
+          <div class="kv"><div class="kv-label">Case No</div><div class="kv-value">{{ generatedCase()?.caseNo || workflowCaseNo() || '—' }}</div></div>
+          <div class="kv"><div class="kv-label">Category</div><div class="kv-value">{{ officerDetail()?.caseCategoryName || '—' }}</div></div>
+          <div class="kv"><div class="kv-label">Subject</div><div class="kv-value">{{ officerDetail()?.subjectName || '—' }}</div></div>
+          <div class="kv"><div class="kv-label">Office</div><div class="kv-value">{{ officerDetail()?.officeName || '—' }}</div></div>
+          <div class="kv"><div class="kv-label">Case status</div><div class="kv-value">{{ currentCaseStatus() || '—' }}</div></div>
+          <div class="kv"><div class="kv-label">Proceeding</div><div class="kv-value">{{ workflowContext()?.proceedingStage || currentProceedingStage() || '—' }}</div></div>
+          <div class="kv"><div class="kv-label">This hearing</div><div class="kv-value">{{ latestHearingLabel() }}</div></div>
+        </div>
+      } @else if (roznamaDocTab() === 'parties') {
+        @if (detailApplicants().length === 0 && detailRespondents().length === 0) {
+          <p class="muted">No parties loaded.</p>
+        } @else {
+          @if (detailApplicants().length) {
+            <p class="roznama-doc-subhead">Applicants</p>
+            <ul class="roznama-doc-list party-detail-list">
+              @for (a of detailApplicants(); track $index) {
+                <li>
+                  <strong>{{ a['name'] || '—' }}</strong>
+                  @if (a['mobile']) { <span class="muted"> · {{ a['mobile'] }}</span> }
+                  @if (a['address']) { <div class="party-address">{{ a['address'] }}</div> }
+                </li>
+              }
+            </ul>
+          }
+          @if (detailRespondents().length) {
+            <p class="roznama-doc-subhead">Respondents</p>
+            <ul class="roznama-doc-list party-detail-list">
+              @for (r of detailRespondents(); track $index) {
+                <li>
+                  <strong>{{ r['name'] || '—' }}</strong>
+                  @if (r['mobile']) { <span class="muted"> · {{ r['mobile'] }}</span> }
+                  @if (r['address']) { <div class="party-address">{{ r['address'] }}</div> }
+                </li>
+              }
+            </ul>
+          }
+        }
+      } @else if (roznamaDocTab() === 'notices') {
+        @if (servedNoticesForRoznama().length === 0) {
+          <p class="muted">No served notices yet.</p>
+        } @else {
+          @for (n of servedNoticesForRoznama(); track n.noticeId) {
+            <div class="roznama-doc-card">
+              <strong>{{ n.noticeType }}</strong>
+              <span class="badge">{{ n.status }}</span>
+              @if (n.servedAt) { <span class="muted"> · Served {{ toPrettyDate(n.servedAt) }}</span> }
+              <button type="button" class="btn btn-secondary btn-xs" (click)="openNoticeDocumentPreview(n)">View notice</button>
+            </div>
+          }
+        }
+      } @else if (roznamaDocTab() === 'hearings') {
+        @if (hearings().length === 0) {
+          <p class="muted">No hearings on record.</p>
+        } @else {
+          <table class="table roznama-mini-table">
+            <thead><tr><th>#</th><th>Date</th><th>Status</th></tr></thead>
+            <tbody>
+              @for (h of hearings(); track h.hearingId) {
+                <tr [class.current-hearing-row]="isCurrentReferenceHearing(h.hearingId)">
+                  <td>{{ h.hearingNo }}</td>
+                  <td>{{ h.hearingDate.slice(0, 10) }}</td>
+                  <td>{{ h.status }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      } @else if (roznamaDocTab() === 'land') {
+        @if (detailDisputedLands().length === 0) {
+          <p class="muted">No disputed land on file.</p>
+        } @else {
+          @for (d of detailDisputedLands(); track $index) {
+            <div class="roznama-doc-card">
+              <strong>{{ d['landType'] || 'Land' }}</strong>
+              <span class="muted">
+                {{ d['districtName'] || d['districtCode'] || '' }}
+                @if (d['villageName']) { · {{ d['villageName'] }} }
+                @if (d['surveyPin'] || d['ctsNo']) { · {{ d['surveyPin'] || d['ctsNo'] }} }
+              </span>
+              <button type="button" class="btn btn-secondary btn-xs" (click)="viewLandDetails(d)">View details</button>
+            </div>
+          }
+        }
+      } @else if (roznamaDocTab() === 'roznama') {
+        @if (orderSheetHistory().length === 0) {
+          <p class="muted">No prior roznamma versions.</p>
+        } @else {
+          @for (h of orderSheetHistory(); track h.historyId) {
+            <div class="roznama-doc-card">
+              <strong>Hearing {{ h.hearingNo || '—' }}</strong>
+              <span class="muted"> · {{ h.hearingDate?.slice(0, 10) || '—' }} · {{ h.status || '—' }}</span>
+              @if (h.remarks) { <p class="muted" style="margin:4px 0 0">{{ h.remarks }}</p> }
+            </div>
+          }
+        }
+        @if (currentOrderSheet()?.content || currentOrderSheet()?.finalContent) {
+          <button type="button" class="btn btn-secondary btn-xs" style="margin-top:8px" (click)="previewRoznama()">Preview current roznamma (Marathi)</button>
+        }
+      } @else if (roznamaDocTab() === 'documents') {
+        @if (!selectedApplicationId()) {
+          <p class="muted">No application linked.</p>
+        } @else {
+          <app-mapped-documents-panel
+            mode="readonly"
+            [caseCategoryId]="officerDetail()?.caseCategoryId ?? 0"
+            [subjectId]="officerFilingSubjectId()"
+            [applicationId]="selectedApplicationId()"
+            (checklistLoaded)="onDocumentChecklistLoaded($event)"
+          />
+        }
+      } @else if (roznamaDocTab() === 'history') {
+        @if (referenceHistoryEntries().length === 0) {
+          <p class="muted">No history entries.</p>
+        } @else {
+          <ul class="roznama-doc-list history-ref-list">
+            @for (e of referenceHistoryEntries(); track $index) {
+              <li>
+                <strong>{{ e.action }}</strong>
+                <span class="muted"> · {{ e.at }}</span>
+                @if (e.remarks) { <div class="party-address">{{ e.remarks }}</div> }
+              </li>
+            }
+          </ul>
+        }
+      } @else {
+        @if (detailAttachments().length === 0) {
+          <p class="muted">No attachments on file.</p>
+        } @else {
+          <ul class="roznama-doc-list">
+            @for (f of detailAttachments(); track $index) {
+              <li>
+                <strong>{{ f['kind'] || 'File' }}</strong> — {{ f['fileName'] || f['name'] || ('Attachment ' + ($index + 1)) }}
+                @if (f['mimeType']) { <span class="muted"> · {{ f['mimeType'] }}</span> }
+              </li>
+            }
+          </ul>
+        }
+      }
+    </div>
+  </aside>
+</ng-template>
+
+<ng-template #roznamaEditableForm>
+  <div class="roznama-form">
+    @if (showRoznamaAttendancePanel()) {
+      <ng-container *ngTemplateOutlet="roznamaAttendancePanel" />
+    }
+
+    @if (priorRoznamaTableRows().length > 0) {
+      <div class="roznama-block roznama-prior-block">
+        <h5 class="roznama-block-title">Prior proceedings</h5>
+        <div class="table-wrap roznama-entry-table-wrap">
+          <table class="table roznama-entry-table roznama-preview-table">
+            <thead>
+              <tr><th>Date</th><th>Proceedings</th></tr>
+            </thead>
+            <tbody>
+              @for (row of priorRoznamaTableRows(); track roznamaRowTrack(row, $index)) {
+                <tr class="roznama-row-readonly">
+                  <td>{{ row.date || row.hearingDate || '—' }}</td>
+                  <td>{{ roznamaRowDisplayText(row) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <div class="roznama-block">
+      <div class="roznama-meta-bar">
+        <div class="roznama-meta-item">
+          <span class="roznama-meta-label">Hearing</span>
+          <span class="roznama-meta-value">{{ activeRoznamaHearingLabel() }}</span>
+        </div>
+        <div class="roznama-meta-item">
+          <span class="roznama-meta-label">Date</span>
+          <span class="roznama-meta-value">{{ primaryRoznamaDate() || '—' }}</span>
+        </div>
+      </div>
+
+      <div class="form-line">
+        <label>Proceedings</label>
+        <app-rich-text-editor
+          [ngModel]="primaryRoznamaContent()"
+          (ngModelChange)="setPrimaryRoznamaContent($event)"
+          placeholder="Write roznamah proceedings…"
+          minHeight="240px"
+          [disabled]="!canPoEditRoznama()"
+        />
+      </div>
+
+      <div class="form-line">
+        <label>Outcome <span class="req">*</span></label>
+        <div class="outcome-radios outcome-radios--compact">
+          <label class="outcome-option">
+            <input type="radio" name="hearingOutcome" value="FINAL" [checked]="hearingOutcomeInput()==='FINAL'" (change)="setHearingOutcome('FINAL')" [disabled]="!canPoEditRoznama()" />
+            <span>Final</span>
+          </label>
+          <label class="outcome-option">
+            <input type="radio" name="hearingOutcome" value="ADJOURN" [checked]="hearingOutcomeInput()==='ADJOURN'" (change)="setHearingOutcome('ADJOURN')" [disabled]="!canPoEditRoznama()" />
+            <span>Adjourn</span>
+          </label>
+        </div>
+      </div>
+
+      @if (hearingOutcomeInput() === 'ADJOURN' && canPoEditRoznama()) {
+        <div class="form-line adjourn-inline">
+          <label>Next hearing date</label>
+          <input type="date" [value]="nextHearingDateOnRoznama()" [min]="minSelectableHearingDate()" (input)="nextHearingDateOnRoznama.set($any($event.target).value)" />
+          @if (hearingDateAfterTodayError(nextHearingDateOnRoznama()); as dateErr) {
+            <p class="error">{{ dateErr }}</p>
+          }
+        </div>
+      }
+
+      @if (showAdjournRescheduleForm()) {
+        <div class="roznama-block adjourn-reschedule-block">
+          <div class="form-line">
+            <label>Next hearing date <span class="req">*</span></label>
+            <input type="date" [value]="rescheduleDateInput()" [min]="minSelectableHearingDate()" (input)="rescheduleDateInput.set($any($event.target).value)" />
+            @if (hearingDateAfterTodayError(rescheduleDateInput()); as dateErr) {
+              <p class="error">{{ dateErr }}</p>
+            }
+          </div>
+          <div class="form-line">
+            <label>Remarks (optional)</label>
+            <input type="text" [value]="rescheduleRemarksInput()" (input)="rescheduleRemarksInput.set($any($event.target).value)" />
+          </div>
+          <label class="checkbox-label">
+            <input type="checkbox" [checked]="rescheduleNoticeGenerate()" (change)="rescheduleNoticeGenerate.set($any($event.target).checked)" />
+            Generate notice for new hearing
+          </label>
+          <div class="roznama-editor-actions">
+            <button type="button" class="btn btn-primary" (click)="submitRescheduleHearing()" [disabled]="rescheduleSubmitting() || !isFutureHearingDate(rescheduleDateInput())">
+              {{ rescheduleSubmitting() ? 'Rescheduling…' : 'Reschedule hearing' }}
+            </button>
+          </div>
+        </div>
+      }
+
+      <div class="form-line">
+        <label>Remarks (optional)</label>
+        <input type="text" [value]="orderSheetRemarksInput()" (input)="orderSheetRemarksInput.set($any($event.target).value)" placeholder="Internal note" [disabled]="!canPoEditRoznama()" />
+      </div>
+
+      <div class="roznama-editor-actions">
+        <div class="roznama-actions-group">
+          <button type="button" class="btn btn-secondary" (click)="previewRoznama()">Preview</button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            (click)="completeRoznama()"
+            [disabled]="!canCompleteRoznama()"
+          >
+            {{ roznamaCompleting() ? 'Signing…' : 'Sign & complete' }}
+          </button>
+        </div>
+        <button type="button" class="btn btn-secondary btn-xs roznama-refresh-btn" (click)="loadCurrentOrderSheet(); loadWorkflowContext()">Refresh</button>
+      </div>
+      @if (attendanceRequired() && !attendanceComplete()) {
+        <p class="error roznama-inline-error">Mark attendance for all parties before signing.</p>
+      }
+    </div>
+  </div>
+</ng-template>
+
 <ng-template #roznamaEntryTable>
   <div class="table-wrap roznama-entry-table-wrap">
     <table class="table roznama-entry-table">
       <thead>
-        <tr><th class="roznama-date-col">Date</th><th>Roznama content</th><th></th></tr>
+        <tr><th class="roznama-date-col">Date</th><th>Hearing</th><th>Roznama content</th><th></th></tr>
       </thead>
       <tbody>
-        @for (row of roznamaEntryRows(); track $index) {
-          <tr>
+        @for (row of roznamaEntryRows(); track roznamaRowTrack(row, $index)) {
+          <tr [class.roznama-row-readonly]="row.readOnly">
             <td class="roznama-date-col">
-              <input type="date" [value]="row.date" (input)="updateRoznamaRowDate($index, $event)" />
+              @if (isRoznamaRowEditable($index)) {
+                <input type="date" [value]="row.date" (input)="updateRoznamaRowDate($index, $event)" />
+              } @else {
+                {{ row.date || row.hearingDate || '—' }}
+              }
             </td>
+            <td>{{ row.hearingNo ? ('#' + row.hearingNo) : '—' }}</td>
             <td class="roznama-content-col">
-              <textarea rows="3" [value]="row.content" (input)="updateRoznamaRowContent($index, $event)" placeholder="Proceedings for this date…"></textarea>
+              @if (isRoznamaRowEditable($index)) {
+                <textarea rows="3" [value]="row.content" (input)="updateRoznamaRowContent($index, $event)" placeholder="Proceedings for this date…"></textarea>
+              } @else {
+                {{ roznamaRowDisplayText(row) }}
+              }
             </td>
             <td class="roznama-actions-col">
-              @if (roznamaEntryRows().length > 1) {
+              @if (isRoznamaRowEditable($index) && roznamaEntryRows().length > 1) {
                 <button type="button" class="btn btn-secondary btn-xs" (click)="removeRoznamaTableRow($index)">Remove</button>
               }
             </td>
@@ -998,5 +1838,82 @@
       </tbody>
     </table>
     <button type="button" class="btn btn-secondary btn-xs" style="margin-top:8px" (click)="addRoznamaTableRow()">Add row</button>
+  </div>
+</ng-template>
+
+<ng-template #roznamaAttendancePanel let-readOnly="readOnly">
+  <div
+    class="roznama-attendance-panel"
+    [class.attendance-readonly]="readOnly"
+    [class.attendance-highlight]="attendancePanelHighlight()"
+    id="roznama-attendance-panel"
+  >
+    <div class="roznama-attendance-header">
+      <h5 class="roznama-attendance-title">
+        Attendance
+        @if (!readOnly) {
+          <span class="req">*</span>
+        }
+      </h5>
+      @if (!readOnly) {
+        <span class="badge" [class.badge-success]="attendanceComplete()">
+          {{ attendanceComplete() ? 'Complete' : 'Pending' }}
+        </span>
+      }
+    </div>
+    @if (!readOnly) {
+      <p class="muted roznama-attendance-hint">Mark present or absent for each party.</p>
+    }
+    @if (attendanceValidationError()) {
+      <p class="error">{{ attendanceValidationError() }}</p>
+    }
+    <div class="table-scroll">
+      <table class="table roznama-attendance-table">
+        <thead>
+          <tr>
+            <th>Party name</th>
+            <th>Type</th>
+            <th class="roznama-attendance-present-col">Present</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (entry of attendanceEntries(); track attendancePartyKey(entry)) {
+            <tr [class.attendance-row-incomplete]="!readOnly && attendanceRowIncomplete(entry)">
+              <td>{{ entry.partyName }}</td>
+              <td>{{ attendancePartyTypeLabel(entry.partyType) }}</td>
+              <td class="roznama-attendance-present-col">
+                @if (readOnly || !canSaveRoznamaAttendance()) {
+                  <span [class.text-success]="entry.present === true" [class.text-muted]="entry.present === false">
+                    {{ attendancePresentLabel(entry) }}
+                  </span>
+                } @else {
+                  <label class="checkbox-label attendance-checkbox">
+                    <input
+                      type="checkbox"
+                      [checked]="entry.present === true"
+                      (change)="onAttendancePresentChange(entry, $any($event.target).checked)"
+                    />
+                    <span>{{ entry.present === true ? 'Present' : entry.present === false ? 'Absent' : 'Mark' }}</span>
+                  </label>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    @if (!readOnly && canSaveRoznamaAttendance()) {
+      <div class="roznama-attendance-actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="saveRoznamaAttendance()"
+          [disabled]="attendanceSaving()"
+        >
+          {{ attendanceSaving() ? 'Saving…' : 'Save attendance' }}
+        </button>
+        <button type="button" class="btn btn-secondary btn-xs" (click)="refreshRoznamaAttendance()">Refresh</button>
+      </div>
+    }
   </div>
 </ng-template>

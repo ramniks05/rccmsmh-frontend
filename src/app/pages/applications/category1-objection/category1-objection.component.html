@@ -1,20 +1,51 @@
 <div class="rccms-app">
   <article class="card">
     <header class="card-head">
-      <div>
+      <div class="card-head-main">
         <h3>Applicant objection — disputed order</h3>
-        <p class="sub">{{ activeStep().title }} — {{ activeStepHint() }}</p>
+        <p class="sub step-title">{{ activeStep().title }}</p>
+        @if (activeStepHint()) {
+          <p class="step-hint">{{ activeStepHint() }}</p>
+        }
       </div>
       <div class="step-meta">Step {{ stepIndex() + 1 }} / {{ steps.length }}</div>
     </header>
 
     <nav class="stepper" aria-label="Application steps">
-      @for (s of steps; track s.key; let i = $index) {
-        <button type="button" class="step" [class.active]="i === stepIndex()" (click)="selectStep(i)">
-          <span class="num">{{ i + 1 }}</span>
-          <span class="label">{{ s.title }}</span>
-        </button>
-      }
+      <div class="stepper-progress-wrap" aria-hidden="true">
+        <div class="stepper-progress-track">
+          <div class="stepper-progress-fill" [style.width.%]="stepProgressPercent()"></div>
+        </div>
+      </div>
+      <div class="stepper-scroll">
+        <div class="stepper-inner">
+          @for (s of steps; track s.key; let i = $index; let last = $last) {
+            <div class="step-wrap">
+              <button
+                type="button"
+                class="step"
+                [class.active]="i === stepIndex()"
+                [class.done]="i < stepIndex()"
+                [class.upcoming]="i > stepIndex()"
+                [attr.aria-current]="i === stepIndex() ? 'step' : null"
+                (click)="selectStep(i)"
+              >
+                <span class="step-ring">
+                  @if (i < stepIndex()) {
+                    <span class="step-check" aria-hidden="true">✓</span>
+                  } @else {
+                    <span class="step-num">{{ i + 1 }}</span>
+                  }
+                </span>
+                <span class="step-label">{{ s.title }}</span>
+              </button>
+            </div>
+            @if (!last) {
+              <span class="step-segment" [class.filled]="i < stepIndex()" aria-hidden="true"></span>
+            }
+          }
+        </div>
+      </div>
     </nav>
 
     @if (apiError()) {
@@ -243,10 +274,6 @@
               <div class="mini-head" style="margin-top: 8px">
                 <strong>Eferfar (7/12) search criteria</strong>
               </div>
-              <p class="sub sub-tight">
-                ई-फेरफार / 7/12: जिल्हा → तालुका → गाव निवडा, सर्वे क्रमांक टाकून शोधा. खाली निवडलेल्या नोंदीचे तपशील पाहा.
-              </p>
-
               <div class="grid">
                 <label>
                   District *
@@ -298,8 +325,6 @@
                 </button>
               </div>
 
-            } @else if (form.controls.subjectId.getRawValue() > 0) {
-              <p class="sub">Search criteria is available for ePICS (002) and Eferfar / rural 7/12 subjects.</p>
             }
 
             @if (isRural712Subject()) {
@@ -308,11 +333,9 @@
                   <strong>Eferfar / 7/12 order details</strong>
                 </div>
 
-                @if (!rural712Searched()) {
-                  <p class="sub sub-tight">Complete the search above to view 7/12 record details for this disputed order.</p>
-                } @else if (rural712SubSurveyRows().length === 0) {
+                @if (rural712Searched() && rural712SubSurveyRows().length === 0) {
                   <p class="api-message error tight">No 7/12 records found for the given survey number.</p>
-                } @else {
+                } @else if (rural712Searched()) {
                   <div class="grid">
                     <div class="kv span-2">
                       <span class="k">Location</span>
@@ -323,10 +346,12 @@
                         <span class="k">Selected survey (pin)</span>
                         <span class="v">{{ sel.pin }}</span>
                       </div>
-                      <div class="kv span-2">
-                        <span class="k">Sub-survey parts</span>
-                        <span class="v muted">{{ rural712PinLabel(sel) }}</span>
-                      </div>
+                      @if (rural712SubPartsLabel(sel); as sub) {
+                        <div class="kv">
+                          <span class="k">Sub-survey</span>
+                          <span class="v">{{ sub }}</span>
+                        </div>
+                      }
                     }
                   </div>
 
@@ -351,49 +376,19 @@
                     </div>
                   }
 
-                  @if (loadingRural712SatbaraCheck()) {
-                    <p class="sub sub-tight-top">Checking digitally signed Satbara (7/12)…</p>
-                  }
                   @if (rural712SatbaraCheckError()) {
                     <p class="api-message error tight">{{ rural712SatbaraCheckError() }}</p>
-                  } @else if (rural712SatbaraSigned() === true) {
-                    <p class="api-message success tight">
-                      Digitally signed Satbara is available for this survey row.
-                      @if (rural712SatbaraMessage()) {
-                        <span class="muted"> {{ rural712SatbaraMessage() }}</span>
-                      }
-                    </p>
-                  } @else if (rural712SatbaraSigned() === false) {
-                    <p class="sub sub-tight-top muted">
-                      Signed check reported not digitally signed.
-                      @if (rural712SatbaraMessage()) {
-                        {{ rural712SatbaraMessage() }}
-                      }
-                      Use <strong>View Satbara PDF</strong> above to try loading the document.
-                    </p>
-                  }
-
-                  @if (loadingRural712SatbaraPdf()) {
-                    <p class="sub sub-tight-top">Loading Satbara PDF…</p>
                   }
                   @if (rural712SatbaraPdfError()) {
                     <p class="api-message error tight">{{ rural712SatbaraPdfError() }}</p>
                   }
-                  @if (rural712SatbaraPdfUrl()) {
-                    <p class="sub sub-tight-top">
-                      Satbara PDF is ready. Use <strong>View Satbara PDF</strong> to open in a new tab, or
-                      <strong>Download Satbara PDF</strong> to save a copy.
-                    </p>
-                  }
-
-                  <p class="sub sub-tight-top">Select which 7/12 row is the disputed order. You may also add plots to the disputed land step.</p>
                   <div class="table-wrap" style="margin-top: 10px">
                     <table class="simple-table">
                       <thead>
                         <tr>
                           <th></th>
                           <th>Survey (pin)</th>
-                          <th>Sub-parts</th>
+                          <th>Sub-survey</th>
                           <th></th>
                         </tr>
                       </thead>
@@ -472,26 +467,6 @@
                     <span class="k">Status</span>
                     <span class="v">{{ details.status }}</span>
                   </div>
-                  <div class="kv">
-                    <span class="k">Notice 9 dispatch date</span>
-                    <span class="v">{{ details.notice9DispatchDate || '-' }}</span>
-                  </div>
-                  <div class="kv">
-                    <span class="k">Notice 9 dispatch number</span>
-                    <span class="v">{{ details.notice9DispatchNumber || '-' }}</span>
-                  </div>
-                  <div class="kv">
-                    <span class="k">CTS number</span>
-                    <span class="v">{{ details.ctsNumber || '-' }}</span>
-                  </div>
-                  <div class="kv">
-                    <span class="k">Mobile</span>
-                    <span class="v">{{ details.mobileNumber || '-' }}</span>
-                  </div>
-                  <div class="kv">
-                    <span class="k">Pin code</span>
-                    <span class="v">{{ details.pinCode || '-' }}</span>
-                  </div>
                 </div>
 
                 @if (details.attachFileUrl) {
@@ -503,40 +478,19 @@
                 <p class="api-message error">Mutation details: Data not available.</p>
               }
 
-              <div class="mini-head" style="margin-top: 10px">
-                <strong>Notice 9</strong>
-              </div>
-              @if (searchedMutation() && loadingNotice9()) {
-                <p class="sub">Fetching Notice 9...</p>
-              } @else if (notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
-                @if (isNotice9ImagePreview(noticeUrl)) {
-                  <div class="pdf-panel">
-                    <img [src]="noticeUrl" alt="Notice 9 preview" style="max-width: 100%; border-radius: 10px" />
-                  </div>
-                }
-                @if (isNotice9PdfPreview(noticeUrl)) {
-                  <div class="pdf-panel">
-                    <iframe
-                      [src]="noticeUrl"
-                      title="Notice 9 PDF"
-                      style="width: 100%; min-height: 480px; border: 1px solid #ccc; border-radius: 10px"
-                    ></iframe>
-                  </div>
-                }
-                <div class="row-actions">
-                  <a class="btn btn-secondary btn-compact" [href]="noticeUrl" target="_blank" rel="noopener noreferrer">Open Notice 9</a>
-                  @if (notice9Resolved().sourceKind === 'data') {
-                    <a class="btn btn-primary btn-compact" [href]="noticeUrl" download="notice-9">Download Notice 9</a>
-                  }
+              <div class="notice9-row">
+                <div class="mini-head notice9-row-head">
+                  <strong>Notice 9</strong>
                 </div>
-                @if (isNotice9PdfPreview(noticeUrl) && !isNotice9ImagePreview(noticeUrl)) {
-                  <p class="sub">PDF notice is ready. Use Open Notice 9 to view in a new tab.</p>
-                }
-              } @else if (searchedMutation() && !loadingSearch()) {
-                <p class="sub">Data not available.</p>
-              } @else {
-                <p class="sub">Search mutation details first to view Notice 9.</p>
-              }
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-compact"
+                  (click)="openNotice9Preview()"
+                  [disabled]="!canPreviewNotice9()"
+                >
+                  Preview Notice 9
+                </button>
+              </div>
             </div>
           }
         </section>
@@ -596,8 +550,7 @@
           @if (mutationSuggestions().length > 0) {
             <div class="mini-card suggestion-panel">
               <div class="suggestion-panel-head">
-                <span class="suggestion-title">&#x1F4CB; People found in mutation record</span>
-                <span class="suggestion-sub">Click a button to pre-fill a row. You can still edit or fill manually.</span>
+                <span class="suggestion-title">People from mutation record</span>
               </div>
               <div class="suggestion-list">
                 @for (sug of mutationSuggestions(); track $index) {
@@ -617,7 +570,6 @@
                     <div class="sug-actions">
                       @if (suggestionAppliedAs(sug); as appliedRole) {
                         <span class="sug-applied-badge">&#x2713; Added as {{ appliedRole }}</span>
-                        <span class="sug-applied-hint">Remove the {{ appliedRole }} row to re-enable</span>
                       } @else {
                         <button type="button" class="btn btn-primary btn-compact" (click)="applySuggestion(sug, 'applicant')">
                           + Applicant
@@ -641,7 +593,7 @@
             </div>
 
             <div class="repeat-list" formArrayName="applicants">
-              @for (_ of applicants.controls; track $index; let i = $index) {
+              @for (ctrl of applicants.controls; track partyRowTempId(ctrl); let i = $index) {
                 <div class="repeat-card" [formGroupName]="i">
                   <div class="mini-head">
                     <strong>Applicant {{ i + 1 }}</strong>
@@ -731,10 +683,7 @@
                       </div>
                     </div>
 
-                    @if (partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).loading) {
-                      <p class="sub span-2">Fetching pincode details...</p>
-                    }
-                    @if (partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).error; as e) {
+                    @if (partyLookupState('applicant', partyRowTempId(ctrl)).error; as e) {
                       <p class="api-message error span-2">{{ e }}</p>
                     }
 
@@ -744,7 +693,7 @@
                         Village *
                         <select formControlName="villageValue" (change)="onVillageSelectionChange('applicant', i)">
                           <option [ngValue]="''">Select village</option>
-                          @for (po of partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).postOffices; track po.value) {
+                          @for (po of partyLookupState('applicant', partyRowTempId(ctrl)).postOffices; track po.value) {
                             <option [ngValue]="po.value">{{ po.name }}</option>
                           }
                         </select>
@@ -757,7 +706,7 @@
                         Taluka *
                         <select formControlName="taluka">
                           <option [ngValue]="''">Select taluka</option>
-                          @for (t of partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).talukas; track t) {
+                          @for (t of partyLookupState('applicant', partyRowTempId(ctrl)).talukas; track t) {
                             <option [ngValue]="t">{{ t }}</option>
                           }
                         </select>
@@ -770,7 +719,7 @@
                         District *
                         <select formControlName="district">
                           <option [ngValue]="''">Select district</option>
-                          @for (d of partyLookupState('applicant', $any(applicants.at(i)).controls.tempId.value).districts; track d) {
+                          @for (d of partyLookupState('applicant', partyRowTempId(ctrl)).districts; track d) {
                             <option [ngValue]="d">{{ d }}</option>
                           }
                         </select>
@@ -779,7 +728,7 @@
                         State
                         <input
                           type="text"
-                          [value]="partyStateLabel('applicant', $any(applicants.at(i)).controls.tempId.value)"
+                          [value]="partyStateLabel('applicant', partyRowTempId(ctrl))"
                           readonly
                         />
                       </label>
@@ -831,18 +780,10 @@
                       </label>
                     </div>
 
-                    <!--
-                      Occupation: the English select triggers translation.
-                      The Marathi input is a plain editable field — no (change) handler,
-                      so the user can override the auto-filled value freely without
-                      triggering a re-entrant translation call.
-                    -->
                     <div class="input-pair">
                       <label>
                         Occupation
-                        <select
-                          formControlName="occupation"
-                        >
+                        <select formControlName="occupation">
                           <option [ngValue]="''">Select occupation</option>
                           @for (opt of occupations(); track opt.id) {
                             <option [ngValue]="opt.name">{{ opt.name }}</option>
@@ -854,7 +795,6 @@
                         <input
                           type="text"
                           formControlName="occupationMr"
-                          placeholder="Marathi translation"
                           (input)="onMarathiFieldManualEdit('applicant', i, 'occupationMr')"
                         />
                       </label>
@@ -874,7 +814,7 @@
             </div>
 
             <div class="repeat-list" formArrayName="respondents">
-              @for (_ of respondents.controls; track $index; let i = $index) {
+              @for (ctrl of respondents.controls; track partyRowTempId(ctrl); let i = $index) {
                 <div class="repeat-card" [formGroupName]="i">
                   <div class="mini-head">
                     <strong>Respondent {{ i + 1 }}</strong>
@@ -964,10 +904,7 @@
                       </div>
                     </div>
 
-                    @if (partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).loading) {
-                      <p class="sub span-2">Fetching pincode details...</p>
-                    }
-                    @if (partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).error; as e) {
+                    @if (partyLookupState('respondent', partyRowTempId(ctrl)).error; as e) {
                       <p class="api-message error span-2">{{ e }}</p>
                     }
 
@@ -977,7 +914,7 @@
                         Village *
                         <select formControlName="villageValue" (change)="onVillageSelectionChange('respondent', i)">
                           <option [ngValue]="''">Select village</option>
-                          @for (po of partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).postOffices; track po.value) {
+                          @for (po of partyLookupState('respondent', partyRowTempId(ctrl)).postOffices; track po.value) {
                             <option [ngValue]="po.value">{{ po.name }}</option>
                           }
                         </select>
@@ -986,7 +923,7 @@
                         Taluka *
                         <select formControlName="taluka">
                           <option [ngValue]="''">Select taluka</option>
-                          @for (t of partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).talukas; track t) {
+                          @for (t of partyLookupState('respondent', partyRowTempId(ctrl)).talukas; track t) {
                             <option [ngValue]="t">{{ t }}</option>
                           }
                         </select>
@@ -999,7 +936,7 @@
                         District *
                         <select formControlName="district">
                           <option [ngValue]="''">Select district</option>
-                          @for (d of partyLookupState('respondent', $any(respondents.at(i)).controls.tempId.value).districts; track d) {
+                          @for (d of partyLookupState('respondent', partyRowTempId(ctrl)).districts; track d) {
                             <option [ngValue]="d">{{ d }}</option>
                           }
                         </select>
@@ -1008,7 +945,7 @@
                         State
                         <input
                           type="text"
-                          [value]="partyStateLabel('respondent', $any(respondents.at(i)).controls.tempId.value)"
+                          [value]="partyStateLabel('respondent', partyRowTempId(ctrl))"
                           readonly
                         />
                       </label>
@@ -1060,18 +997,10 @@
                       </label>
                     </div>
 
-                    <!--
-                      Occupation: the English select triggers translation.
-                      The Marathi input is a plain editable field — no (change) handler,
-                      so the user can override the auto-filled value freely without
-                      triggering a re-entrant translation call.
-                    -->
                     <div class="input-pair">
                       <label>
                         Occupation
-                        <select
-                          formControlName="occupation"
-                        >
+                        <select formControlName="occupation">
                           <option [ngValue]="''">Select occupation</option>
                           @for (opt of occupations(); track opt.id) {
                             <option [ngValue]="opt.name">{{ opt.name }}</option>
@@ -1083,7 +1012,6 @@
                         <input
                           type="text"
                           formControlName="occupationMr"
-                          placeholder="Marathi translation"
                           (input)="onMarathiFieldManualEdit('respondent', i, 'occupationMr')"
                         />
                       </label>
@@ -1116,6 +1044,9 @@
           <app-disputed-land-panel
             [disputedLands]="disputedLands()"
             (disputedLandsChange)="onDisputedLandsChange($event)"
+            [landModeFromStep1]="isRural712Subject() ? 'RURAL_7_12' : 'URBAN_PROPERTY_CARD'"
+            [ruralPlotsFromStep1]="rural712SubSurveyRows()"
+            [ruralContext]="ruralDisputedLandContext()"
             [prefilledDistrictCode]="form.controls.urbanDistrictCode.getRawValue()"
             [prefilledOfficeCode]="form.controls.urbanOfficeCode.getRawValue()"
             [prefilledVillageCode]="form.controls.urbanVillageCode.getRawValue()"
@@ -1127,240 +1058,129 @@
       }
 
       @case ('APPLICATION_DESCRIPTION') {
-        <section class="section">
-          <div class="mini-card">
-            <div class="mini-head">
-              <strong>Filing session</strong>
-            </div>
-            <p class="sub sub-tight">
-              Data is kept in this browser tab's session until you clear it or successfully <strong>Submit</strong> the
-              application (submit clears the form for a new filing). Use the same client ref for draft API updates.
-            </p>
-            <div class="grid">
-              <div class="kv span-2">
-                <span class="k">clientApplicationRef</span>
-                <span class="v muted">{{ filingClientRef() }}</span>
-              </div>
-              @if (serverApplicationId()) {
-                <div class="kv span-2">
-                  <span class="k">applicationId (server)</span>
-                  <span class="v">{{ serverApplicationId() }}</span>
+        <section class="section filing-final-step">
+          <div class="filing-blocks">
+            <article class="filing-block mini-card">
+              <header class="filing-block-head">
+                <span class="filing-step-num" aria-hidden="true">1</span>
+                <div class="filing-block-titles">
+                  <h4 class="filing-block-title">Application description</h4>
                 </div>
-              }
-            </div>
-            <div class="row-actions" style="margin-top: 10px">
-              <button type="button" class="btn btn-secondary danger" (click)="hardResetFiling()">
-                Clear session & start over
+              </header>
+              <div class="filing-block-body">
+                <app-paragraph-list-editor
+                  [paragraphs]="descriptionParagraphs()"
+                  (paragraphsChange)="onDescriptionParagraphsChange($event)"
+                />
+              </div>
+            </article>
+
+            <article class="filing-block mini-card" [formGroup]="form">
+              <header class="filing-block-head">
+                <span class="filing-step-num" aria-hidden="true">2</span>
+                <div class="filing-block-titles">
+                  <h4 class="filing-block-title">Affidavit</h4>
+                </div>
+                <div class="filing-block-toolbar">
+                  @if (affidavitFormatUrl) {
+                    <a class="btn btn-secondary btn-compact" [href]="affidavitFormatUrl" target="_blank" rel="noopener">
+                      Download format
+                    </a>
+                  }
+                  <button type="button" class="btn btn-secondary btn-compact" (click)="loadAffidavitTemplate()">
+                    Load sample
+                  </button>
+                </div>
+              </header>
+              <div class="filing-block-body">
+                <label class="filing-textarea-label">
+                  Affidavit <span class="req">*</span>
+                  <textarea
+                    class="filing-textarea"
+                    formControlName="affidavitText"
+                    rows="7"
+                    placeholder="Enter or paste affidavit text…"
+                  ></textarea>
+                </label>
+              </div>
+            </article>
+
+            <article class="filing-block mini-card" [formGroup]="form">
+              <header class="filing-block-head">
+                <span class="filing-step-num" aria-hidden="true">3</span>
+                <div class="filing-block-titles">
+                  <h4 class="filing-block-title">Prayer</h4>
+                </div>
+                <div class="filing-block-toolbar">
+                  @if (prayerFormatUrl) {
+                    <a class="btn btn-secondary btn-compact" [href]="prayerFormatUrl" target="_blank" rel="noopener">
+                      Download format
+                    </a>
+                  }
+                  <button type="button" class="btn btn-secondary btn-compact" (click)="loadPrayerTemplate()">
+                    Load sample
+                  </button>
+                </div>
+              </header>
+              <div class="filing-block-body">
+                <label class="filing-textarea-label">
+                  Prayer <span class="req">*</span>
+                  <textarea
+                    class="filing-textarea"
+                    formControlName="prayerText"
+                    rows="6"
+                    placeholder="Enter or paste prayer text…"
+                  ></textarea>
+                </label>
+              </div>
+            </article>
+
+            <article class="filing-block mini-card filing-block-docs">
+              <header class="filing-block-head">
+                <span class="filing-step-num" aria-hidden="true">4</span>
+                <div class="filing-block-titles">
+                  <h4 class="filing-block-title">Mapped documents</h4>
+                </div>
+              </header>
+              <div class="filing-block-body filing-block-body-flush">
+                <app-mapped-documents-panel
+                  class="panel-embedded"
+                  mode="applicant"
+                  [caseCategoryId]="caseCategoryId()"
+                  [subjectId]="filingSubjectId()"
+                  [initialAttachments]="mappedAttachments()"
+                  (attachmentsChange)="onMappedAttachmentsChange($event)"
+                />
+              </div>
+            </article>
+          </div>
+
+          <footer class="filing-final-footer">
+            <button
+              type="button"
+              class="btn btn-secondary danger"
+              (click)="hardResetFiling()"
+              [disabled]="saveInProgress()"
+            >
+              Reset form
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="previewApplication()"
+              [disabled]="saveInProgress()"
+            >
+              {{ saveInProgress() ? 'Please wait…' : 'Preview application' }}
+            </button>
+            <div class="filing-final-footer-primary">
+              <button type="button" class="btn btn-secondary" (click)="saveDraft()" [disabled]="saveInProgress()">
+                {{ saveInProgress() ? 'Saving…' : 'Save draft' }}
+              </button>
+              <button type="button" class="btn btn-primary" (click)="finalSubmit()" [disabled]="saveInProgress()">
+                {{ saveInProgress() ? 'Submitting…' : 'Submit application' }}
               </button>
             </div>
-          </div>
-
-          <div class="mini-card" [formGroup]="form">
-            <div class="mini-head">
-              <strong>Application description</strong>
-            </div>
-            <label>
-              Description * (minimum 10 characters)
-              <textarea
-                formControlName="applicationDescription"
-                rows="5"
-                placeholder="Enter application summary/description"
-              ></textarea>
-            </label>
-          </div>
-
-          <div class="mini-card">
-            <div class="mini-head">
-              <strong>Full form preview</strong>
-            </div>
-            <div class="grid">
-              <label class="span-2">
-                Subject
-                <input type="text" [value]="selectedSubjectLabel()" readonly />
-              </label>
-              <label>
-                Search mode
-                <input type="text" [value]="form.controls.searchMode.getRawValue() || ''" readonly />
-              </label>
-              <label>
-                Search value
-                <input type="text" [value]="form.controls.searchValue.getRawValue() || ''" readonly />
-              </label>
-              <label>
-                Act
-                <input type="text" [value]="selectedActLabel()" readonly />
-              </label>
-              <label>
-                Section
-                <input type="text" [value]="selectedSectionLabel()" readonly />
-              </label>
-              <label class="span-2">
-                Application description (preview)
-                <div class="preview-text">{{ form.controls.applicationDescription.value || '—' }}</div>
-              </label>
-            </div>
-
-            <div class="mini-head" style="margin-top: 12px">
-              <strong>Applicant details</strong>
-            </div>
-            @for (a of applicants.controls; track a; let i = $index) {
-              <div class="repeat-card">
-                <div class="mini-head">
-                  <strong>Applicant {{ i + 1 }}</strong>
-                </div>
-                <div class="grid">
-                  <label class="span-2">
-                    Full Name
-                    <input
-                      type="text"
-                      [value]="(($any(a).controls.firstName.value || '') + ' ' + ($any(a).controls.middleName.value || '') + ' ' + ($any(a).controls.lastName.value || '')).trim()"
-                      readonly
-                    />
-                  </label>
-                  <label>
-                    Pin code
-                    <input type="text" [value]="$any(a).controls.pincode.value || ''" readonly />
-                  </label>
-                  <label>
-                    Village
-                    <input type="text" [value]="$any(a).controls.village.value || ''" readonly />
-                  </label>
-                  <label>
-                    Taluka
-                    <input type="text" [value]="$any(a).controls.taluka.value || ''" readonly />
-                  </label>
-                  <label>
-                    District
-                    <input type="text" [value]="$any(a).controls.district.value || ''" readonly />
-                  </label>
-                  <label>
-                    Mobile Number
-                    <input type="text" [value]="$any(a).controls.mobile.value || ''" readonly />
-                  </label>
-                  <label>
-                    Address
-                    <input type="text" [value]="$any(a).controls.address.value || ''" readonly />
-                  </label>
-                </div>
-              </div>
-            }
-
-            <div class="mini-head" style="margin-top: 12px">
-              <strong>Respondent details</strong>
-            </div>
-            @for (r of respondents.controls; track r; let i = $index) {
-              <div class="repeat-card">
-                <div class="mini-head">
-                  <strong>Respondent {{ i + 1 }}</strong>
-                </div>
-                <div class="grid">
-                  <label class="span-2">
-                    Full Name
-                    <input
-                      type="text"
-                      [value]="(($any(r).controls.firstName.value || '') + ' ' + ($any(r).controls.middleName.value || '') + ' ' + ($any(r).controls.lastName.value || '')).trim()"
-                      readonly
-                    />
-                  </label>
-                  <label>
-                    Pin code
-                    <input type="text" [value]="$any(r).controls.pincode.value || ''" readonly />
-                  </label>
-                  <label>
-                    Village
-                    <input type="text" [value]="$any(r).controls.village.value || ''" readonly />
-                  </label>
-                  <label>
-                    Taluka
-                    <input type="text" [value]="$any(r).controls.taluka.value || ''" readonly />
-                  </label>
-                  <label>
-                    District
-                    <input type="text" [value]="$any(r).controls.district.value || ''" readonly />
-                  </label>
-                  <label>
-                    Mobile Number
-                    <input type="text" [value]="$any(r).controls.mobile.value || ''" readonly />
-                  </label>
-                  <label>
-                    Address
-                    <input type="text" [value]="$any(r).controls.address.value || ''" readonly />
-                  </label>
-                </div>
-              </div>
-            }
-
-            <div class="mini-head" style="margin-top: 12px">
-              <strong>Vakaltnama groups</strong>
-            </div>
-            @if (vakaltnamaAssignments().length === 0) {
-              <p class="sub sub-tight-top">No vakaltnama groups created.</p>
-            } @else {
-              @for (g of vakaltnamaAssignments(); track g.id; let i = $index) {
-                <div class="repeat-card">
-                  <div class="mini-head">
-                    <strong>Group {{ i + 1 }}</strong>
-                  </div>
-                  <div class="grid">
-                    <label class="span-2">
-                      Advocate
-                      <input type="text" [value]="g.advocate.fullName + ' (' + g.advocate.barCouncilNumber + ')'" readonly />
-                    </label>
-                    <label>
-                      Applicants
-                      <input type="text" [value]="assignmentApplicantsLabel(g.applicantIds)" readonly />
-                    </label>
-                    <label>
-                      Co-advocates count
-                      <input type="text" [value]="g.coAdvocates.length" readonly />
-                    </label>
-                  </div>
-                </div>
-              }
-            }
-
-            <div class="mini-head" style="margin-top: 12px">
-              <strong>Disputed land details</strong>
-            </div>
-            @if (disputedLands().length === 0) {
-              <p class="sub sub-tight-top">No disputed land added.</p>
-            } @else {
-              @for (x of disputedLands(); track i; let i = $index) {
-                <div class="repeat-card">
-                  <div class="mini-head">
-                    <strong>Land {{ i + 1 }}</strong>
-                  </div>
-                  <div class="grid">
-                    <label>
-                      Type
-                      <input type="text" [value]="x.type === 'RURAL_7_12' ? '7/12' : 'Property card'" readonly />
-                    </label>
-                    <label class="span-2">
-                      Location
-                      <input
-                        type="text"
-                        [value]="x.type === 'RURAL_7_12' ? (x.districtName + ' / ' + x.talukaName + ' / ' + x.villageName) : (x.districtName + ' / ' + x.officeName + ' / ' + x.villageName)"
-                        readonly
-                      />
-                    </label>
-                    <label>
-                      Identifier
-                      <input type="text" [value]="x.type === 'RURAL_7_12' ? ('Pin ' + x.pin) : ('CTS ' + x.ctsNo)" readonly />
-                    </label>
-                  </div>
-                </div>
-              }
-            }
-          </div>
-
-          <div class="row-actions">
-            <button type="button" class="btn btn-secondary" (click)="saveDraft()" [disabled]="saveInProgress()">
-              {{ saveInProgress() ? 'Saving…' : 'Save draft' }}
-            </button>
-            <button type="button" class="btn btn-primary" (click)="finalSubmit()" [disabled]="saveInProgress()">
-              {{ saveInProgress() ? 'Submitting…' : 'Submit' }}
-            </button>
-          </div>
+          </footer>
         </section>
       }
     }
@@ -1372,4 +1192,57 @@
       }
     </footer>
   </article>
+
+  @if (notice9ModalOpen()) {
+    <div
+      class="notice9-modal-backdrop"
+      role="presentation"
+      (click)="onNotice9ModalBackdropClick($event)"
+    >
+      <div
+        class="notice9-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notice9-modal-title"
+        (click)="$event.stopPropagation()"
+      >
+        <header class="notice9-modal-header">
+          <h4 id="notice9-modal-title">Notice 9</h4>
+          <button type="button" class="notice9-modal-close" (click)="closeNotice9Modal()" aria-label="Close">×</button>
+        </header>
+
+        <div class="notice9-modal-body">
+          @if (loadingNotice9()) {
+            <p class="api-message">Loading Notice 9…</p>
+          } @else if (notice9ModalError()) {
+            <p class="api-message error">{{ notice9ModalError() }}</p>
+          } @else if (notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
+            @if (isNotice9ImagePreview(noticeUrl)) {
+              <img class="notice9-modal-preview" [src]="noticeUrl" alt="Notice 9 preview" />
+            } @else if (isNotice9PdfPreview(noticeUrl)) {
+              <iframe class="notice9-modal-iframe" [src]="noticeUrl" title="Notice 9 PDF"></iframe>
+            } @else {
+              <p class="api-message">Preview is not supported for this file type. Use Open or Download below.</p>
+            }
+          } @else {
+            <p class="api-message error">Notice 9 is not available for this inward number.</p>
+          }
+        </div>
+
+        @if (notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
+          <footer class="notice9-modal-footer">
+            <a class="btn btn-secondary btn-compact" [href]="noticeUrl" target="_blank" rel="noopener noreferrer">Open</a>
+            @if (notice9Resolved().sourceKind === 'data') {
+              <a class="btn btn-primary btn-compact" [href]="noticeUrl" download="notice-9">Download</a>
+            }
+            <button type="button" class="btn btn-secondary btn-compact" (click)="closeNotice9Modal()">Close</button>
+          </footer>
+        } @else {
+          <footer class="notice9-modal-footer">
+            <button type="button" class="btn btn-secondary btn-compact" (click)="closeNotice9Modal()">Close</button>
+          </footer>
+        }
+      </div>
+    </div>
+  }
 </div>

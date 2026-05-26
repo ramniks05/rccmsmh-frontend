@@ -266,11 +266,47 @@ export interface DocumentTypeRecord {
   sourceUrl: string | null;
 }
 
+export interface CreateOrUpdateDocumentTypeRequest {
+  code: string;
+  name: string;
+  localName?: string;
+  validForPhotoId?: boolean;
+  validForAddress?: boolean;
+  sourceUrl?: string;
+}
+
+export interface AdminCaseCategoryRecord {
+  id: number;
+  code: string;
+  name: string;
+  localName: string | null;
+  sequenceNo?: number;
+}
+
+export interface ConfiguredSubjectSummary {
+  subjectId: number;
+  subjectCode: string;
+  subjectName: string;
+  mappedDocumentCount: number;
+  requiredDocumentCount: number;
+}
+
 export interface DocumentTypeMappingItemRecord {
+  mappingId?: number | null;
   documentTypeId: number;
   required: boolean;
   displayOrder: number;
   documentType: DocumentTypeRecord;
+}
+
+export interface DocumentTypeMappingResponse {
+  caseCategoryId: number;
+  caseCategoryCode: string;
+  caseCategoryName: string;
+  subjectId: number;
+  subjectCode: string;
+  subjectName: string;
+  items: DocumentTypeMappingItemRecord[];
 }
 
 export interface ReplaceDocumentTypeMappingsRequest {
@@ -378,7 +414,7 @@ export class AdminMastersService {
 
   getSubjects(departmentId?: number): Observable<SubjectRecord[]> {
     return this.http.get<SubjectRecord[]>(`${this.apiBaseUrl}/api/admin/masters/subjects`, {
-      params: departmentId ? { departmentId } : {}
+      params: departmentId ? { departmentId: String(departmentId) } : {}
     });
   }
 
@@ -508,17 +544,48 @@ export class AdminMastersService {
     return this.http.get<OfficeBranchRecord>(`${this.apiBaseUrl}/api/admin/branches/${branchId}`);
   }
 
-  getDocumentTypeMappings(
-    caseCategoryId: number,
-    subjectId: number
-  ): Observable<DocumentTypeMappingItemRecord[]> {
-    return this.http.get<DocumentTypeMappingItemRecord[]>(`${this.apiBaseUrl}/api/admin/document-type-mappings`, {
+  getCaseCategories(): Observable<AdminCaseCategoryRecord[]> {
+    return this.http.get<AdminCaseCategoryRecord[]>(`${this.apiBaseUrl}/api/admin/masters/case-categories`);
+  }
+
+  getDocumentTypes(filters?: { validForPhotoId?: boolean; validForAddress?: boolean }): Observable<DocumentTypeRecord[]> {
+    const params: Record<string, string> = {};
+    if (filters?.validForPhotoId) params['validForPhotoId'] = 'true';
+    if (filters?.validForAddress) params['validForAddress'] = 'true';
+    return this.http.get<DocumentTypeRecord[]>(`${this.apiBaseUrl}/api/admin/masters/document-types`, { params });
+  }
+
+  getDocumentType(id: number): Observable<DocumentTypeRecord> {
+    return this.http.get<DocumentTypeRecord>(`${this.apiBaseUrl}/api/admin/masters/document-types/${id}`);
+  }
+
+  createDocumentType(payload: CreateOrUpdateDocumentTypeRequest): Observable<DocumentTypeRecord> {
+    return this.http.post<DocumentTypeRecord>(`${this.apiBaseUrl}/api/admin/masters/document-types`, payload);
+  }
+
+  updateDocumentType(id: number, payload: CreateOrUpdateDocumentTypeRequest): Observable<DocumentTypeRecord> {
+    return this.http.put<DocumentTypeRecord>(`${this.apiBaseUrl}/api/admin/masters/document-types/${id}`, payload);
+  }
+
+  deleteDocumentType(id: number): Observable<DeleteResponse> {
+    return this.http.delete<DeleteResponse>(`${this.apiBaseUrl}/api/admin/masters/document-types/${id}`);
+  }
+
+  getConfiguredSubjectsForCategory(caseCategoryId: number): Observable<ConfiguredSubjectSummary[]> {
+    return this.http.get<ConfiguredSubjectSummary[]>(
+      `${this.apiBaseUrl}/api/admin/document-type-mappings/configured-subjects`,
+      { params: { caseCategoryId } }
+    );
+  }
+
+  getDocumentTypeMappings(caseCategoryId: number, subjectId: number): Observable<DocumentTypeMappingResponse> {
+    return this.http.get<DocumentTypeMappingResponse>(`${this.apiBaseUrl}/api/admin/document-type-mappings`, {
       params: { caseCategoryId, subjectId }
     });
   }
 
-  replaceDocumentTypeMappings(payload: ReplaceDocumentTypeMappingsRequest): Observable<MessageResponse> {
-    return this.http.put<MessageResponse>(`${this.apiBaseUrl}/api/admin/document-type-mappings`, payload);
+  replaceDocumentTypeMappings(payload: ReplaceDocumentTypeMappingsRequest): Observable<DocumentTypeMappingResponse> {
+    return this.http.put<DocumentTypeMappingResponse>(`${this.apiBaseUrl}/api/admin/document-type-mappings`, payload);
   }
 
   getDocumentTypesForCaseCategorySubject(

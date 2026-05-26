@@ -1,0 +1,238 @@
+:host {
+  display: block;
+}
+
+:host(.panel-embedded) .mapped-documents-panel {
+  margin-top: 0;
+}
+
+:host(.panel-embedded) .panel-head {
+  display: none;
+}
+
+:host(.panel-embedded) .panel-title {
+  display: none;
+}
+
+:host(.panel-embedded) .panel-hint {
+  display: none;
+}
+
+.mapped-documents-panel {
+  margin-top: 12px;
+}
+
+.panel-head {
+  margin-bottom: 10px;
+}
+
+.panel-title {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.panel-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.panel-error {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #991b1b;
+}
+
+.panel-message {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+}
+
+.panel-warn {
+  margin: 10px 0 0;
+  font-size: 0.88rem;
+  color: #b45309;
+}
+
+.checklist-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid #eef2f7;
+  text-align: left;
+  vertical-align: top;
+}
+
+.data-table th {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.data-table tbody tr:hover {
+  background: #fafbfe;
+}
+
+.table-wrap {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: auto;
+}
+
+.req-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(239, 68, 68, 0.12);
+  color: #991b1b;
+}
+
+.opt-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.row-complete td {
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.row-missing td {
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.upload-cell {
+  min-width: 7.5rem;
+  width: 7.5rem;
+}
+
+.file-upload-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 6.75rem;
+  max-width: 100%;
+  padding: 0.45rem 0.7rem;
+  border: 1.5px dashed #93c5fd;
+  border-radius: 8px;
+  background: #f8fbff;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #0b3d91;
+  line-height: 1.2;
+  transition: background 120ms, border-color 120ms;
+}
+
+.file-upload-label:hover:not(.is-busy) {
+  background: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.file-upload-label.is-busy {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.file-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
+}
+
+.file-input:disabled {
+  cursor: not-allowed;
+}
+
+.file-upload-text {
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.status-cell {
+  white-space: normal;
+  min-width: 10rem;
+  max-width: 14rem;
+}
+
+.uploaded-name {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+
+.btn-link {
+  border: none;
+  background: none;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 0.82rem;
+  padding: 0;
+}
+
+.btn-link.danger {
+  color: #b91c1c;
+}
+
+.inline-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+}
+
+.reject-check {
+  color: #991b1b;
+}
+
+.remarks-input {
+  width: 100%;
+  min-width: 120px;
+  border-radius: 8px;
+  border: 1px solid rgba(31, 41, 55, 0.18);
+  padding: 6px 8px;
+}
+
+.row-actions {
+  margin-top: 12px;
+}

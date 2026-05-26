@@ -1,0 +1,88 @@
+.rte-shell {
+  border: 1px solid rgba(31, 41, 55, 0.16);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.rte-shell.rte-focused {
+  border-color: rgba(37, 99, 235, 0.55);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.rte-shell.rte-disabled {
+  opacity: 0.65;
+  pointer-events: none;
+  background: #f9fafb;
+}
+
+.rte-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(31, 41, 55, 0.1);
+  background: #f8fafc;
+}
+
+.rte-btn {
+  border: 1px solid rgba(31, 41, 55, 0.14);
+  background: #fff;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #374151;
+  line-height: 1.3;
+}
+
+.rte-btn:hover:not(:disabled) {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.rte-btn:disabled {
+  cursor: not-allowed;
+}
+
+.rte-sep {
+  width: 1px;
+  height: 22px;
+  background: rgba(31, 41, 55, 0.12);
+  margin: 0 4px;
+}
+
+.rte-u {
+  text-decoration: underline;
+}
+
+.rte-surface {
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.65;
+  outline: none;
+  overflow: auto;
+  max-height: 520px;
+  color: #111827;
+  word-break: break-word;
+}
+
+.rte-surface:empty::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+.rte-surface p {
+  margin: 0 0 0.65em;
+}
+
+.rte-surface ul,
+.rte-surface ol {
+  margin: 0 0 0.65em 1.25em;
+  padding: 0;
+}

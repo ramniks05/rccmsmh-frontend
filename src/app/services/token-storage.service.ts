@@ -50,6 +50,9 @@ export class TokenStorageService {
       const storedProfile = localStorage.getItem(PROFILE_COMPLETE_KEY);
       this.profileComplete = storedProfile === null ? null : storedProfile === 'true';
     }
+    if (this.accessToken) {
+      this.syncClaimsFromJwt();
+    }
     this.isLoggedIn.set(!!this.accessToken);
     this.refreshSessionSignals();
   }
@@ -79,13 +82,7 @@ export class TokenStorageService {
         this.setOrRemove(PROFILE_COMPLETE_KEY, this.profileComplete ? 'true' : 'false');
       }
     }
-    const jwtRole = this.getRoleFromToken();
-    if (jwtRole) {
-      this.role = jwtRole;
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(ROLE_KEY, jwtRole);
-      }
-    }
+    this.syncClaimsFromJwt();
     this.isLoggedIn.set(true);
     this.refreshSessionSignals();
   }
@@ -94,12 +91,14 @@ export class TokenStorageService {
     return this.accessToken;
   }
 
+  /** JWT `role` claim, else value from login response. */
   getRole(): string | null {
-    return this.role;
+    return this.jwtStringClaim('role') ?? this.role;
   }
 
+  /** JWT `name` claim, else login `displayName`. */
   getDisplayName(): string | null {
-    return this.displayName;
+    return this.jwtStringClaim('name') ?? this.displayName;
   }
 
   /** Decodes the JWT payload (no verification — client-side display only). */
@@ -114,11 +113,45 @@ export class TokenStorageService {
     }
   }
 
-  /** Bar council number from the JWT payload claim (null if not present or not an advocate). */
-  getBarCouncilNumber(): string | null {
+  private jwtStringClaim(...keys: string[]): string | null {
     const p = this.decodeTokenPayload();
     if (!p) return null;
-    return (p['barCouncilNumber'] as string | undefined) ?? null;
+    for (const key of keys) {
+      const raw = p[key];
+      if (typeof raw === 'string' && raw.trim()) return raw.trim();
+    }
+    return null;
+  }
+
+  /** JWT `barEnrollmentNumber` claim (e.g. MAH/2026/1234). */
+  getBarEnrollmentNumber(): string | null {
+    return this.jwtStringClaim('barEnrollmentNumber');
+  }
+
+  /** Alias used by advocate lookup (`GET /api/advocates/by-bar-council`). */
+  getBarCouncilNumber(): string | null {
+    return this.getBarEnrollmentNumber();
+  }
+
+  /**
+   * Copies JWT session claims into stored role/display name for UI and reload.
+   * Expected advocate payload: `{ role, name, barEnrollmentNumber }`.
+   */
+  private syncClaimsFromJwt(): void {
+    const jwtRole = this.jwtStringClaim('role');
+    const jwtName = this.jwtStringClaim('name');
+    if (jwtRole) {
+      this.role = jwtRole;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(ROLE_KEY, jwtRole);
+      }
+    }
+    if (jwtName) {
+      this.displayName = jwtName;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(DISPLAY_NAME_KEY, jwtName);
+      }
+    }
   }
 
   getDesignationName(): string | null { return this.designationName; }
@@ -153,22 +186,14 @@ export class TokenStorageService {
     return this.computeIsAdvocate();
   }
 
-  /** Role from JWT when login response omits or mislabels role. */
+  /** Role from JWT (`role` claim). */
   getRoleFromToken(): string | null {
-    const p = this.decodeTokenPayload();
-    if (!p) return null;
-    const raw =
-      (p['role'] as string | undefined) ??
-      (p['userType'] as string | undefined) ??
-      (p['authorities'] as string[] | undefined)?.find((a) =>
-        String(a).toUpperCase().includes('ADVOCATE')
-      );
-    return raw ? String(raw).trim() : null;
+    return this.jwtStringClaim('role');
   }
 
   private refreshSessionSignals(): void {
-    this.sessionDisplayName.set(this.displayName);
-    this.sessionRole.set(this.role);
+    this.sessionDisplayName.set(this.getDisplayName());
+    this.sessionRole.set(this.getRole());
     this.sessionDesignation.set(this.designationName);
     this.sessionOfficeName.set(this.officeName);
     this.sessionIsAdvocate.set(this.computeIsAdvocate());
@@ -176,15 +201,24 @@ export class TokenStorageService {
   }
 
   private computeIsAdvocate(): boolean {
-    const stored = (this.role || '').trim().toUpperCase();
-    if (stored === 'ADVOCATE') return true;
-    const fromToken = (this.getRoleFromToken() || '').trim().toUpperCase();
-    return fromToken === 'ADVOCATE' || fromToken.includes('ADVOCATE');
+    const r = (this.getRole() || '').trim().toUpperCase();
+    return r === 'ADVOCATE';
   }
 
-  /** True when logged-in role is Officer (case-insensitive match on stored role string). */
+  /** True when logged-in role is Officer (JWT `role` or stored role). */
   isOfficer(): boolean {
-    return (this.role || '').trim().toUpperCase() === 'OFFICER';
+    return (this.getRole() || '').trim().toUpperCase() === 'OFFICER';
+  }
+
+  /** PO = designation id 1, or name contains presiding / PO. */
+  isPresidingOfficer(): boolean {
+    if (this.getDesignationId() === 1) return true;
+    const d = String(this.getDesignationName() || '').toLowerCase();
+    return d.includes('presid') || d === 'po' || d.includes('presiding');
+  }
+
+  isClerkOfficer(): boolean {
+    return this.isOfficer() && !this.isPresidingOfficer();
   }
 
   clear(): void {

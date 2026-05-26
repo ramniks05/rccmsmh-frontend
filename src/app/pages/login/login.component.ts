@@ -114,7 +114,7 @@ export class LoginComponent {
   private dashboardRoute(role: string | null): string {
     switch ((role || '').toUpperCase()) {
       case 'OFFICER':
-        return '/cases';
+        return '/officer/dashboard';
       case 'ADMIN':
         return '/admin/masters';
       default:

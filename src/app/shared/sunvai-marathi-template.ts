@@ -60,6 +60,78 @@ export function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/** Plain text from HTML editor content (for validation). */
+export function stripHtmlToPlainText(html: string): string {
+  const raw = (html || '').trim();
+  if (!raw) return '';
+  if (typeof document !== 'undefined') {
+    const d = document.createElement('div');
+    d.innerHTML = raw;
+    return (d.textContent || d.innerText || '').replace(/\u00a0/g, ' ').trim();
+  }
+  return raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function sanitizeRoznamaHtml(html: string): string {
+  if (typeof document === 'undefined') {
+    return escapeHtml(html);
+  }
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  d.querySelectorAll('script, style, iframe, object, embed, link').forEach((n) => n.remove());
+  d.querySelectorAll('*').forEach((el) => {
+    for (const attr of [...el.attributes]) {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith('on') || name === 'style' || name === 'href' || name === 'src') {
+        el.removeAttribute(attr.name);
+      }
+    }
+  });
+  return d.innerHTML;
+}
+
+/** If proceedings were stored as a JSON rows array in one cell, extract plain text. */
+export function unwrapRoznamaCellContent(raw: string): string {
+  const text = (raw || '').trim();
+  if (!text.startsWith('[')) return raw;
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (!Array.isArray(parsed) || parsed.length === 0) return raw;
+    if (parsed.length === 1) {
+      const o = parsed[0] as Record<string, unknown>;
+      return String(o['content'] ?? o['text'] ?? raw);
+    }
+    return parsed
+      .map((item) => String((item as Record<string, unknown>)['content'] ?? ''))
+      .filter((part) => part.trim())
+      .join('\n\n');
+  } catch {
+    return raw;
+  }
+}
+
+/** Normalize row proceedings — never keep JSON array string in content. */
+export function normalizeRoznamaEntryRow(row: RoznamaEntryRow): RoznamaEntryRow {
+  return {
+    ...row,
+    content: unwrapRoznamaCellContent(row.content || '')
+  };
+}
+
+export function normalizeRoznamaEntryRows(rows: RoznamaEntryRow[]): RoznamaEntryRow[] {
+  return rows.map((row) => normalizeRoznamaEntryRow(row));
+}
+
+/** Roznamah cell HTML — supports rich-text editor output or plain text. */
+export function roznamaContentToDisplayHtml(content: string): string {
+  const raw = unwrapRoznamaCellContent(content || '').trim();
+  if (!raw) return '<span class="muted-body">—</span>';
+  if (!/<[a-z][\s\S]*>/i.test(raw)) {
+    return escapeHtml(raw).replace(/\n/g, '<br>');
+  }
+  return sanitizeRoznamaHtml(raw);
+}
+
 function escDev(text: string): string {
   return escapeHtml(toDevanagariDigits(text));
 }
@@ -378,6 +450,13 @@ export function buildMarathiSunvaniNoticeHtml(v: any): string {
 export interface RoznamaEntryRow {
   date: string;
   content: string;
+  lineNo?: number;
+  hearingId?: number;
+  hearingNo?: number;
+  hearingDate?: string;
+  status?: string;
+  hearingOutcome?: string | null;
+  readOnly?: boolean;
 }
 
 /** Header + case context for roznama preview (same letterhead as notice). */
@@ -430,9 +509,17 @@ export function parseRoznamaContent(raw: string, defaultDate = ''): RoznamaEntry
       if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed.map((item) => {
           const o = item as Record<string, unknown>;
+          const date = String(o['date'] ?? o['hearingDate'] ?? defaultDate).slice(0, 10);
           return {
-            date: String(o['date'] ?? o['hearingDate'] ?? defaultDate).slice(0, 10),
-            content: String(o['content'] ?? o['text'] ?? '')
+            lineNo: typeof o['lineNo'] === 'number' ? o['lineNo'] : undefined,
+            hearingId: typeof o['hearingId'] === 'number' ? o['hearingId'] : undefined,
+            hearingNo: typeof o['hearingNo'] === 'number' ? o['hearingNo'] : undefined,
+            hearingDate: String(o['hearingDate'] ?? o['date'] ?? '').slice(0, 10) || undefined,
+            date,
+            content: String(o['content'] ?? o['text'] ?? ''),
+            status: o['status'] != null ? String(o['status']) : undefined,
+            hearingOutcome: o['hearingOutcome'] != null ? String(o['hearingOutcome']) : null,
+            readOnly: o['readOnly'] === true
           };
         });
       }
@@ -454,11 +541,14 @@ export function parseRoznamaContent(raw: string, defaultDate = ''): RoznamaEntry
   return [{ date: defaultDate, content: text }];
 }
 
-/** Serialize table rows for PUT /roznama content field. */
+/** Serialize table rows for POST /roznama — date and content only. */
 export function serializeRoznamaContent(rows: RoznamaEntryRow[]): string {
   const cleaned = rows
-    .map((r) => ({ date: (r.date || '').slice(0, 10), content: (r.content || '').trim() }))
-    .filter((r) => r.date || r.content);
+    .map((r) => ({
+      date: (r.date || r.hearingDate || '').slice(0, 10),
+      content: r.content ?? ''
+    }))
+    .filter((r) => stripHtmlToPlainText(r.content).trim());
   if (cleaned.length === 0) return '';
   if (cleaned.length === 1 && !cleaned[0].date) {
     return cleaned[0].content;
@@ -472,15 +562,22 @@ function buildRoznamaTableHtml(rows: RoznamaEntryRow[], fallbackContent: string)
       ? rows
       : parseRoznamaContent(fallbackContent, '');
 
-  if (effective.length === 0) {
+  const previewRows = effective
+    .map((row) => ({
+      date: (row.date || row.hearingDate || '').slice(0, 10),
+      content: row.content ?? ''
+    }))
+    .filter((row) => stripHtmlToPlainText(row.content).trim());
+
+  if (previewRows.length === 0) {
     return '<p class="muted-body">( रोजनामा मजकूर भरा )</p>';
   }
 
-  const body = effective
+  const body = previewRows
     .map((row) => {
       const dateCell = formatRoznamaDateForDisplay(row.date);
       const contentCell = row.content
-        ? escapeHtml(row.content).replace(/\n/g, '<br>')
+        ? roznamaContentToDisplayHtml(row.content)
         : '<span class="muted-body">—</span>';
       return `<tr>
         <td class="col-date">${dateCell || '—'}</td>
@@ -502,28 +599,8 @@ function buildRoznamaTableHtml(rows: RoznamaEntryRow[], fallbackContent: string)
   </table>`;
 }
 
-/** Roznama preview: notice letterhead + subject + editable body. */
+/** Roznama preview — date and proceedings table only. */
 export function buildMarathiRoznamaPreviewHtml(v: RoznamaPreviewVars): string {
-  const phone = orBlank(v.phoneNumber);
-  const email = orBlank(v.emailId);
-  const refNo = orBlank(v.referenceNumber);
-  const refYy = orBlank(v.referenceYearTwoDigits);
-  const noticeDay = orBlank(v.noticeDateDay);
-  const noticeMonth = orBlank(v.noticeDateMonth);
-  const noticeYear = orBlank(v.noticeDateYear);
-  const actSection = orBlank(v.actSection);
-  const village = orBlank(v.villageNameMoje);
-  const taluka = orBlank(v.taluka);
-  const district = orBlank(v.district);
-  const hearingDate = orBlank(v.hearingDateDisplay);
-  const sigName = orBlank(v.signatoryName);
-  const sigDesig = orBlank(v.signatoryDesignation);
-  const sigOffice = orBlank(v.signatoryOffice);
-
-  const noticeDateFull = [noticeDay, noticeMonth, noticeYear ? `२०${toDevanagariDigits(noticeYear)}` : '']
-    .filter(Boolean)
-    .join(' / ');
-  const refYyFull = refYy ? toDevanagariDigits(refYy) : '';
   const bodyHtml = buildRoznamaTableHtml(v.roznamaRows || [], v.roznamaContent || '');
 
   return `<!DOCTYPE html>
@@ -532,7 +609,7 @@ export function buildMarathiRoznamaPreviewHtml(v: RoznamaPreviewVars): string {
     <meta charset="UTF-8">
     <title>रोजनामा</title>
     <style>
-        @page { size: A4; margin: 10mm 12mm; }
+        @page { size: A4; margin: 12mm; }
         html, body { margin: 0; padding: 0; background: #fff; }
         body {
             font-family: 'Noto Serif Devanagari', 'Mangal', serif;
@@ -543,55 +620,16 @@ export function buildMarathiRoznamaPreviewHtml(v: RoznamaPreviewVars): string {
         .container {
             width: 182mm;
             margin: 0 auto;
-            border: 1px solid #000;
-            padding: 6mm 8mm;
+            padding: 4mm 0;
             box-sizing: border-box;
         }
         @media screen { .container { margin: 10px auto; } }
-        .gov-header {
-            text-align: center;
-            border-bottom: 2px solid #000;
-            padding-bottom: 10px;
-            margin-bottom: 10px;
-        }
-        .dept-name { font-size: 18pt; font-weight: bold; margin-bottom: 2px; }
-        .dept-sub { font-size: 12pt; }
-        .office-name { font-size: 14pt; font-weight: bold; margin: 8px auto; }
-        .office-address { font-size: 11pt; line-height: 1.4; }
-        .contact-info {
-            display: flex;
-            justify-content: space-between;
-            font-size: 10pt;
-            border-top: 1px solid #ccc;
-            padding-top: 4px;
-            margin-bottom: 6px;
-        }
-        .ref-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 4px;
-            font-size: 12pt;
-        }
         .notice-title {
             text-align: center;
-            font-size: 18pt;
+            font-size: 16pt;
             font-weight: bold;
             text-decoration: underline;
-            margin: 14px 0;
-        }
-        .subject-box {
-            background-color: #f2f2f2;
-            border: 1px solid #333;
-            padding: 10px 12px;
-            margin: 12px 0;
-            font-size: 12pt;
-            line-height: 1.8;
-        }
-        .main-content {
-            margin: 16px 0 24px;
-            font-size: 12pt;
-            line-height: 1.8;
-            min-height: 40mm;
+            margin: 0 0 14px;
         }
         .roznama-table {
             width: 100%;
@@ -619,55 +657,12 @@ export function buildMarathiRoznamaPreviewHtml(v: RoznamaPreviewVars): string {
             text-align: justify;
         }
         .muted-body { color: #666; font-style: italic; }
-        .footer-row {
-            display: flex;
-            justify-content: flex-end;
-            align-items: flex-end;
-            margin-top: 30px;
-        }
-        .sig-block { text-align: center; min-width: 200px; }
-        .sig-name {
-            border-top: 1px solid #000;
-            padding-top: 4px;
-            font-weight: bold;
-            font-size: 12pt;
-            margin-bottom: 4px;
-        }
-        .sig-detail { font-size: 11pt; text-align: left; line-height: 1.8; }
     </style>
 </head>
 <body>
 <div class="container">
-    <div class="gov-header">
-        <div class="dept-name">महाराष्ट्र शासन</div>
-        <div class="dept-sub">महसूल व वन विभाग</div>
-        <div class="office-name">जमाबंदी आयुक्त आणि संचालक भूमी अभिलेख (म.राज्य), पुणे</div>
-        <div class="office-address">दूसरा व तिसरा मजला, नवीन प्रशासकीय इमारत, विधान भवन समोर, कॅम्प, पुणे - ४११००१</div>
-    </div>
-    <div class="contact-info">
-        <div>दूरध्वनी क्र. : ${phone ? `<strong>${escapeHtml(phone)}</strong>` : ''}</div>
-        <div>Email ID : ${email ? `<strong>${escapeHtml(email)}</strong>` : ''}</div>
-    </div>
-    <div class="ref-row">
-        <div>क्र. ${refNo ? `<strong>${escapeHtml(refNo)}</strong>` : ''} / २०${refYyFull}</div>
-        <div>दिनांक : ${noticeDateFull ? `<strong>${noticeDateFull}</strong>` : ''}</div>
-    </div>
     <div class="notice-title">रोजनामा</div>
-    <div class="subject-box">
-        <strong>विषय :</strong> महाराष्ट्र जमीन महसूल अधिनियम, १९६६ चे कलम ${actSection ? `<strong>${escDev(actSection)}</strong>` : ''} अन्वये दाखल अर्जाबाबत.<br>
-        मिळकत : मौजे ${village ? `<strong>${escDev(village)}</strong>` : ''}, ता. ${taluka ? `<strong>${escDev(taluka)}</strong>` : ''}, जि. ${district ? `<strong>${escDev(district)}</strong>` : ''}.<br>
-        सुनावणी दिनांक : ${hearingDate ? `<strong>${escDev(hearingDate)}</strong>` : ''}
-    </div>
     <div class="main-content">${bodyHtml}</div>
-    <div class="footer-row">
-        <div class="sig-block">
-            <div class="sig-name">( ${sigName ? escDev(sigName) : ''} )</div>
-            <div class="sig-detail">
-                पदनाम : ${sigDesig ? `<strong>${escDev(sigDesig)}</strong>` : ''}<br>
-                कार्यालय : ${sigOffice ? `<strong>${escDev(sigOffice)}</strong>` : ''}
-            </div>
-        </div>
-    </div>
 </div>
 </body>
 </html>`;

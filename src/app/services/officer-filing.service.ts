@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
 import { ApplicationHistoryResponse } from './filing-application.service';
+import { DocumentChecklist } from './mapped-documents.service';
 
 export interface OfficerInboxItem {
   applicationId: number;
@@ -55,6 +56,7 @@ export interface OfficerApplicationDetail {
   processingStageLabel?: string;
   currentAssigneeRole?: 'CLERK' | 'PRESIDING_OFFICER' | string;
   applicationHistory?: ApplicationHistoryResponse;
+  documentChecklist?: DocumentChecklist | null;
 }
 
 @Injectable({
