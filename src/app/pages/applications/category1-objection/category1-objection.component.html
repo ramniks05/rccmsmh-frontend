@@ -222,6 +222,36 @@
                       }
                     </select>
                   </label>
+
+                  <!-- ── CTS lookup (mirrors Survey/CTS mode) ── -->
+                  <label>
+                    Parent CTS number *
+                    <input type="text" formControlName="ctsNoInput" placeholder="e.g. 80" />
+                  </label>
+                  <div class="row-actions" style="align-items: end">
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-compact"
+                      (click)="loadUrbanSubCtsRows()"
+                      [disabled]="loadingUrbanSearchChain() || loadingUrbanMutationTypes()"
+                    >
+                      Load sub CTS
+                    </button>
+                  </div>
+                  <label class="span-2">
+                    Sub CTS number *
+                    <select
+                      formControlName="selectedSubCtsNo"
+                      [disabled]="urbanSearchSubCtsRows().length === 0 || loadingUrbanSearchChain() || loadingUrbanMutationTypes()"
+                    >
+                      <option [ngValue]="''">Select sub CTS</option>
+                      @for (r of urbanSearchSubCtsRows(); track ctsRowLabel(r)) {
+                        <option [ngValue]="ctsRowLabel(r)">{{ ctsRowLabel(r) }}</option>
+                      }
+                    </select>
+                  </label>
+                  <!-- ── end CTS lookup ── -->
+
                   <label class="span-2">
                     Mutation type *
                     <select
@@ -243,7 +273,7 @@
                       type="button"
                       class="btn btn-secondary btn-compact"
                       (click)="loadUrbanMutationsByMutationType()"
-                      [disabled]="loadingUrbanSearchChain() || !form.controls.selectedUrbanMutationTypeCode.value"
+                      [disabled]="loadingUrbanSearchChain() || !form.controls.selectedUrbanMutationTypeCode.value || !form.controls.selectedSubCtsNo.value"
                     >
                       Load inward numbers
                     </button>
@@ -265,7 +295,12 @@
                 </div>
 
                 <div class="row-actions">
-                  <button type="button" class="btn btn-primary" (click)="searchBySelectedInward()" [disabled]="loadingSearch() || !form.controls.selectedInwardNumber.value">
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    (click)="searchBySelectedInward()"
+                    [disabled]="loadingSearch() || !form.controls.selectedInwardNumber.value"
+                  >
                     {{ loadingSearch() ? 'Searching…' : 'Search by selected inward' }}
                   </button>
                 </div>
