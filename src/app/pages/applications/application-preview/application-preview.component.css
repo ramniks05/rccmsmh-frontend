@@ -242,6 +242,117 @@
 
 .attachment-row:last-child { border-bottom: none; }
 
+.attachment-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.meta-line {
+  margin-top: 0.15rem;
+}
+
+/* ── Preview sections (application tab) ─────────────────────────── */
+.preview-section {
+  margin-top: 1.35rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.preview-section:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.preview-section h4 {
+  margin: 0 0 0.85rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #f97316;
+}
+
+.preview-section .info-grid {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.sub-grid {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed #e8edf5;
+}
+
+.party-card {
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.65rem;
+  background: #f8fafc;
+  border: 1px solid #e8edf5;
+  border-radius: 12px;
+}
+
+.party-card:last-child {
+  margin-bottom: 0;
+}
+
+.party-card-title {
+  margin: 0 0 0.55rem;
+  font-size: 0.92rem;
+}
+
+.party-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.45rem 1rem;
+  font-size: 0.82rem;
+  color: #334155;
+}
+
+.party-card-grid .info-label {
+  display: inline;
+  margin-right: 0.25rem;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.78rem;
+}
+
+.party-card-grid .span-2 {
+  grid-column: 1 / -1;
+}
+
+.description-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.description-para {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #1e293b;
+}
+
+.pre-wrap {
+  white-space: pre-wrap;
+}
+
+.text-block {
+  margin-top: 1rem;
+}
+
+.text-block h5 {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 /* ── Table ────────────────────────────────────────────────────── */
 .table-wrap {
   overflow-x: auto;

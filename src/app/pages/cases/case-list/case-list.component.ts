@@ -21,6 +21,7 @@ import {
   CaseJudgmentWorkflowResponse,
   judgmentTextFromResponse,
   judgmentWorkflowStatus,
+  buildJudgmentSignPublishBody,
   CaseNoticeItem,
   CaseWorkflowContext,
   CompleteRoznamaRequest,
@@ -36,7 +37,9 @@ import {
   PendingServeNoticeRow,
   RoznamaAttendanceEntry,
   RoznamaAttendanceSaveEntry,
-  RoznamaResponse
+  RoznamaResponse,
+  RoznamaTableRow,
+  workflowActiveHearing
 } from '../../../services/officer-case-stage.service';
 import { LandRecordsService, NoticeNineViewResponse, RuralSubSurveyRow, UrbanCtsRow } from '../../../services/land-records.service';
 import { TokenStorageService } from '../../../services/token-storage.service';
@@ -47,6 +50,9 @@ import {
   buildMarathiSunvaniNoticeHtml,
   JudgmentPreviewVars,
   parseRoznamaContent,
+  normalizeRoznamaEntryRow,
+  normalizeRoznamaEntryRows,
+  unwrapRoznamaCellContent,
   RoznamaEntryRow,
   RoznamaPreviewVars,
   serializeRoznamaContent,
@@ -54,6 +60,7 @@ import {
   SunvaniNoticeVars,
   toDevanagariDigits
 } from '../../../shared/sunvai-marathi-template';
+import { formatSearchModeLabel } from '../../../shared/application-preview.util';
 import { landDetailDisplayFields } from '../../../shared/land-display.util';
 import { RichTextEditorComponent } from '../../../shared/rich-text-editor/rich-text-editor.component';
 import { MappedDocumentsPanelComponent } from '../../applications/mapped-documents-panel/mapped-documents-panel.component';
@@ -229,6 +236,7 @@ export class CaseListComponent implements OnInit {
   protected readonly judgmentSubmitting = signal(false);
   protected readonly judgmentHistory = signal<JudgmentHistoryRow[]>([]);
   protected readonly judgmentHistoryLoading = signal(false);
+  protected readonly judgmentSignatureRef = signal('');
 
   // ── Order sheet finalize / sign ────────────────────────────────────────────
   protected readonly orderSheetFinalizing = signal(false);
@@ -653,10 +661,35 @@ export class CaseListComponent implements OnInit {
 
   private latestHearingFromList(rows: CaseHearingResponse[]): CaseHearingResponse | null {
     if (!rows.length) return null;
-    return rows.reduce((a, b) => (b.hearingNo > a.hearingNo ? b : a));
+    const active = rows.filter((h) => this.upStage(h.hearingStatus ?? h.status) !== 'COMPLETED');
+    const pool = active.length ? active : rows;
+    return pool.reduce((a, b) => (b.hearingNo > a.hearingNo ? b : a));
+  }
+
+  protected activeHearingFromWorkflowContext(): { hearingId: number; hearingDate: string } | null {
+    const h = workflowActiveHearing(this.workflowContext());
+    if (!h?.hearingId) return null;
+    return { hearingId: h.hearingId, hearingDate: (h.hearingDate || '').slice(0, 10) };
   }
 
   protected latestHearingRef(): { hearingId: number; hearingDate: string } | null {
+    const editable = this.roznamaEntryRows().find((r) => r.readOnly === false && r.hearingId);
+    if (editable?.hearingId) {
+      return {
+        hearingId: editable.hearingId,
+        hearingDate: (editable.date || editable.hearingDate || '').slice(0, 10)
+      };
+    }
+    const fromCtx = this.activeHearingFromWorkflowContext();
+    if (fromCtx) return fromCtx;
+    const os = this.currentOrderSheet();
+    if (os?.hearingId) {
+      const linked = this.roznamaEntryRows().find((r) => r.hearingId === os.hearingId);
+      return {
+        hearingId: os.hearingId,
+        hearingDate: (linked?.date || linked?.hearingDate || this.assignedHearingDate()).slice(0, 10)
+      };
+    }
     const ctx = this.selectedRoznamaHearing();
     if (ctx?.hearingId) return { hearingId: ctx.hearingId, hearingDate: ctx.hearingDate };
     const hid = Number(this.orderSheetHearingIdInput().trim());
@@ -699,10 +732,10 @@ export class CaseListComponent implements OnInit {
   protected syncAssignedHearingDateToRoznama(): void {
     const d = this.assignedHearingDate();
     if (!d) return;
-    this.roznamaEntryRows.update((rows) => {
-      const first = rows[0] ?? { date: d, content: '' };
-      return [{ ...first, date: d }, ...rows.slice(1)];
-    });
+    const idx = this.editableRoznamaRowIndex();
+    this.roznamaEntryRows.update((rows) =>
+      rows.map((r, i) => (i === idx ? { ...r, date: d, hearingDate: d } : r))
+    );
     this.orderSheetContentInput.set(this.roznamaContentForApi());
   }
 
@@ -797,17 +830,32 @@ export class CaseListComponent implements OnInit {
 
   /** Active roznamah still in workflow — blocks scheduling rehearing. */
   protected hasRoznamaInProgress(): boolean {
+    const editable = this.roznamaEntryRows().find((r) => r.readOnly === false);
+    if (editable) {
+      const st = this.upStage(editable.status);
+      return st === 'CLERK_DRAFT' || st === 'PO_SCRUTINY' || st === 'PO_FINALIZED' || st === 'PO_DRAFT';
+    }
     const st = this.upStage(this.currentOrderSheet()?.status);
     return st === 'CLERK_DRAFT' || st === 'PO_SCRUTINY' || st === 'PO_FINALIZED';
   }
 
-  /** Signed and no newer rehearing — view only. After rehearing, same register can be updated. */
+  /** Signed and no editable row for a newer hearing. */
   protected isRoznamaReadOnly(): boolean {
+    if (this.roznamaEntryRows().some((r) => r.readOnly === false)) {
+      return false;
+    }
+    if (this.roznamaEntryRows().some((r) => r.readOnly === true)) {
+      return true;
+    }
     if (this.upStage(this.currentOrderSheet()?.status) !== 'PO_SIGNED') return false;
     return !this.hasNewerHearingAfterSigned();
   }
 
   protected roznamaStatusLabel(): string {
+    const editable = this.roznamaEntryRows().find((r) => r.readOnly === false);
+    if (editable?.status) return editable.status;
+    const signed = this.roznamaEntryRows().find((r) => r.readOnly === true && r.status);
+    if (signed?.status) return signed.status;
     return this.currentOrderSheet()?.status || '—';
   }
 
@@ -818,6 +866,9 @@ export class CaseListComponent implements OnInit {
 
   /** Rehearing scheduled after the case roznamah was signed. */
   protected hasNewerHearingAfterSigned(): boolean {
+    if (this.roznamaEntryRows().some((r) => r.readOnly === false)) {
+      return true;
+    }
     if (!this.isCurrentHearingRoznamaSigned()) return false;
     const os = this.currentOrderSheet();
     const linkedId = os?.hearingId;
@@ -839,14 +890,23 @@ export class CaseListComponent implements OnInit {
   }
 
   protected hasAllowedAction(action: string): boolean {
-    const actions = this.workflowContext()?.allowedActions ?? [];
-    return actions.some((a) => this.upStage(a) === this.upStage(action));
+    const want = this.upStage(action);
+    const sources = [
+      ...(this.workflowContext()?.allowedActions ?? []),
+      ...(this.workflowContext()?.roznama?.allowedActions ?? []),
+      ...(this.workflowContext()?.notice?.allowedActions ?? [])
+    ];
+    return sources.some((a) => this.upStage(a) === want);
   }
 
-  /** Judgment actions from workflow-context.judgment.allowedActions (preferred). */
+  /** Judgment actions from workflow-context.judgment + judgment workflow response. */
   protected judgmentAllowedActionsList(): string[] {
     const j = this.workflowContext()?.judgment?.allowedActions ?? [];
-    if (j.length) return j.map((a) => this.upStage(a));
+    const fromWorkflow = this.judgmentWorkflow()?.allowedActions ?? [];
+    const merged = [...j, ...fromWorkflow];
+    if (merged.length) {
+      return [...new Set(merged.map((a) => this.upStage(a)))];
+    }
     const top = this.workflowContext()?.allowedActions ?? [];
     return top
       .map((a) => this.upStage(a))
@@ -859,7 +919,12 @@ export class CaseListComponent implements OnInit {
 
   protected hasJudgmentAllowedAction(action: string): boolean {
     const want = this.upStage(action);
-    return this.judgmentAllowedActionsList().some((a) => a === want || a.includes(want));
+    const list = this.judgmentAllowedActionsList();
+    if (list.some((a) => a === want || want.includes(a) || a.includes(want))) {
+      return true;
+    }
+    const top = (this.workflowContext()?.allowedActions ?? []).map((a) => this.upStage(a));
+    return top.some((a) => a === want || a.includes(want));
   }
 
   protected loadWorkflowContext(): void {
@@ -873,7 +938,16 @@ export class CaseListComponent implements OnInit {
       .getWorkflowContext(caseId, hearingId ?? undefined)
       .pipe(finalize(() => this.workflowContextLoading.set(false)))
       .subscribe({
-        next: (ctx) => this.workflowContext.set(ctx),
+        next: (ctx) => {
+          this.workflowContext.set(ctx);
+          const ctxStatus = this.upStage(ctx?.judgment?.workflowStatus ?? ctx?.judgment?.status);
+          if (ctxStatus && !judgmentWorkflowStatus(this.judgmentWorkflow())) {
+            const current = this.judgmentWorkflow();
+            if (current) {
+              this.judgmentWorkflow.set({ ...current, workflowStatus: ctxStatus, status: ctxStatus });
+            }
+          }
+        },
         error: () => this.workflowContext.set(null)
       });
   }
@@ -1199,8 +1273,33 @@ export class CaseListComponent implements OnInit {
     );
   }
 
+  protected effectiveJudgmentWorkflowStatus(): string {
+    const j = this.workflowContext()?.judgment;
+    const fromCtx = this.upStage(j?.workflowStatus ?? j?.status);
+    const fromWorkflow = judgmentWorkflowStatus(this.judgmentWorkflow());
+    return fromCtx || fromWorkflow;
+  }
+
+  protected isJudgmentClerkDraftStage(): boolean {
+    return this.effectiveJudgmentWorkflowStatus() === 'CLERK_DRAFT';
+  }
+
+  protected clerkJudgmentEditActions(): string[] {
+    return [
+      'CLERK_UPDATE_JUDGMENT',
+      'CLERK_DRAFT_JUDGMENT',
+      'UPDATE_CLERK_JUDGMENT',
+      'EDIT_JUDGMENT',
+      'SUBMIT_JUDGMENT_TO_PO'
+    ];
+  }
+
+  protected hasClerkJudgmentEditAction(): boolean {
+    return this.clerkJudgmentEditActions().some((a) => this.hasJudgmentAllowedAction(a));
+  }
+
   protected judgmentStatusLabel(): string {
-    return judgmentWorkflowStatus(this.judgmentWorkflow()) || '—';
+    return this.effectiveJudgmentWorkflowStatus() || '—';
   }
 
   protected judgmentStepHint(): string {
@@ -2559,11 +2658,11 @@ export class CaseListComponent implements OnInit {
       return false;
     }
     const ctx = this.workflowContext();
-    if (ctx?.allowedActions?.length) {
-      return ctx.allowedActions.some((a) => {
-        const u = this.upStage(a);
-        return u.includes('SERVE') && u.includes('NOTICE');
-      });
+    const noticeActions = ctx?.notice?.allowedActions ?? [];
+    const topActions = ctx?.allowedActions ?? [];
+    const sources = [...noticeActions, ...topActions];
+    if (sources.length) {
+      return sources.some((a) => this.upStage(a) === 'SERVE_NOTICE_TO_PARTY');
     }
     return true;
   }
@@ -2835,9 +2934,9 @@ export class CaseListComponent implements OnInit {
     return this.canPoDraftNotice();
   }
 
-  /** PO saves or updates judgment draft. */
+  /** PO saves or updates judgment draft — driven by allowedActions. */
   protected canPoDraftJudgment(): boolean {
-    if (this.viewerFlowRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
+    if (this.officerRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
       return false;
     }
     if (this.usesJudgmentAllowedActions()) {
@@ -2847,90 +2946,101 @@ export class CaseListComponent implements OnInit {
         this.hasJudgmentAllowedAction('DRAFT_JUDGMENT')
       );
     }
-    const st = judgmentWorkflowStatus(this.judgmentWorkflow());
-    return !st || st === 'PO_SCRUTINY';
+    const st = this.effectiveJudgmentWorkflowStatus();
+    return !st || st === 'PO_DRAFT' || st === 'PO_SCRUTINY';
   }
 
-  /** Clerk edits judgment draft. */
+  /** Clerk edits judgment draft — status CLERK_DRAFT or clerk allowedActions. */
   protected canClerkEditJudgment(): boolean {
-    if (this.viewerFlowRole() !== 'CLERK' || this.isDisposedCase() || !this.showJudgmentSection()) {
+    if (this.officerRole() !== 'CLERK' || this.isDisposedCase() || !this.showJudgmentSection()) {
       return false;
     }
-    if (this.usesJudgmentAllowedActions()) {
-      return (
-        this.hasJudgmentAllowedAction('CLERK_DRAFT_JUDGMENT') ||
-        this.hasJudgmentAllowedAction('UPDATE_CLERK_JUDGMENT') ||
-        this.hasJudgmentAllowedAction('EDIT_JUDGMENT')
-      );
-    }
-    return judgmentWorkflowStatus(this.judgmentWorkflow()) === 'CLERK_DRAFT';
+    if (this.isJudgmentClerkDraftStage()) return true;
+    if (this.hasClerkJudgmentEditAction()) return true;
+    return false;
   }
 
-  protected canDraftJudgment(): boolean {
+  /** Show judgment editor when any save/draft action is allowed. */
+  protected canSaveJudgmentDraft(): boolean {
     return this.canPoDraftJudgment() || this.canClerkEditJudgment();
   }
 
+  protected canDraftJudgment(): boolean {
+    return this.canSaveJudgmentDraft();
+  }
+
+  protected judgmentSaveButtonLabel(): string {
+    if (this.canClerkEditJudgment()) return 'Save';
+    if (this.hasJudgmentAllowedAction('UPDATE_PO_JUDGMENT')) return 'Save';
+    return 'Save draft';
+  }
+
   protected canSendJudgmentToClerk(): boolean {
-    if (this.viewerFlowRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
+    if (this.officerRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
       return false;
     }
     if (this.usesJudgmentAllowedActions()) {
       return this.hasJudgmentAllowedAction('SEND_JUDGMENT_TO_CLERK');
     }
-    const st = judgmentWorkflowStatus(this.judgmentWorkflow());
-    return !st || st === 'PO_SCRUTINY';
+    const st = this.effectiveJudgmentWorkflowStatus();
+    return st === 'PO_DRAFT' || !st;
   }
 
   /** Clerk submits draft to PO. */
   protected canClerkSubmitJudgmentToPo(): boolean {
-    if (this.viewerFlowRole() !== 'CLERK' || this.isDisposedCase() || !this.showJudgmentSection()) {
+    if (this.officerRole() !== 'CLERK' || this.isDisposedCase() || !this.showJudgmentSection()) {
       return false;
     }
-    if (this.usesJudgmentAllowedActions()) {
-      return this.hasJudgmentAllowedAction('SUBMIT_JUDGMENT_TO_PO');
-    }
-    if (judgmentWorkflowStatus(this.judgmentWorkflow()) !== 'CLERK_DRAFT') return false;
-    return !!this.judgmentSummaryInput().trim() || !!this.judgmentTextFromWorkflow(this.judgmentWorkflow());
+    const hasText =
+      !!this.judgmentSummaryInput().trim() || !!this.judgmentTextFromWorkflow(this.judgmentWorkflow());
+    if (!hasText) return false;
+    if (this.isJudgmentClerkDraftStage()) return true;
+    return this.hasJudgmentAllowedAction('SUBMIT_JUDGMENT_TO_PO');
   }
 
   protected showJudgmentReadOnly(): boolean {
-    if (!this.showJudgmentSection() || this.canDraftJudgment()) return false;
-    const st = judgmentWorkflowStatus(this.judgmentWorkflow());
-    if (!st) return false;
-    if (this.usesJudgmentAllowedActions()) {
-      return !this.canDraftJudgment() && !this.canFinalizeJudgment() && !this.canPublishJudgment();
+    if (!this.showJudgmentSection() || this.canSaveJudgmentDraft()) return false;
+    const st = this.effectiveJudgmentWorkflowStatus();
+    if (this.officerRole() === 'CLERK') {
+      if (this.isJudgmentClerkDraftStage() || this.hasClerkJudgmentEditAction()) return false;
+      return !!st || this.hasJudgmentContent();
     }
-    if (this.viewerFlowRole() === 'CLERK') {
-      return st === 'PO_SCRUTINY' || st === 'PO_FINALIZED' || st === 'PUBLISHED';
-    }
-    if (this.viewerFlowRole() === 'PRESIDING_OFFICER') {
+    if (!st && !this.hasJudgmentContent()) return false;
+    if (this.officerRole() === 'PRESIDING_OFFICER') {
       return st === 'CLERK_DRAFT' || st === 'PUBLISHED';
     }
     return st === 'PO_SCRUTINY' || st === 'PO_FINALIZED' || st === 'PUBLISHED';
   }
 
   protected canFinalizeJudgment(): boolean {
-    if (this.viewerFlowRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
+    if (this.officerRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
       return false;
     }
     if (this.usesJudgmentAllowedActions()) {
       return this.hasJudgmentAllowedAction('FINALIZE_JUDGMENT');
     }
-    return judgmentWorkflowStatus(this.judgmentWorkflow()) === 'PO_SCRUTINY';
+    return this.effectiveJudgmentWorkflowStatus() === 'PO_SCRUTINY';
   }
 
   protected canPublishJudgment(): boolean {
-    if (this.viewerFlowRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
+    if (this.officerRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
       return false;
     }
     if (this.usesJudgmentAllowedActions()) {
       return this.hasJudgmentAllowedAction('PUBLISH_JUDGMENT');
     }
-    return judgmentWorkflowStatus(this.judgmentWorkflow()) === 'PO_FINALIZED';
+    return this.effectiveJudgmentWorkflowStatus() === 'PO_FINALIZED';
+  }
+
+  protected canSignAndPublishJudgment(): boolean {
+    if (this.officerRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
+      return false;
+    }
+    return this.hasJudgmentAllowedAction('SIGN_AND_PUBLISH_JUDGMENT');
   }
 
   protected canRevertJudgment(): boolean {
-    if (this.viewerFlowRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
+    if (this.officerRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
       return false;
     }
     if (this.usesJudgmentAllowedActions()) {
@@ -2939,18 +3049,19 @@ export class CaseListComponent implements OnInit {
         this.hasJudgmentAllowedAction('REVERT_TO_CLERK')
       );
     }
-    const st = judgmentWorkflowStatus(this.judgmentWorkflow());
+    const st = this.effectiveJudgmentWorkflowStatus();
     return st === 'PO_SCRUTINY' || st === 'PO_FINALIZED';
   }
 
   protected hasAnyJudgmentAction(): boolean {
     return (
-      this.canDraftJudgment() ||
+      this.canSaveJudgmentDraft() ||
       this.canSendJudgmentToClerk() ||
       this.canClerkSubmitJudgmentToPo() ||
       this.canFinalizeJudgment() ||
       this.canRevertJudgment() ||
       this.canPublishJudgment() ||
+      this.canSignAndPublishJudgment() ||
       this.showJudgmentReadOnly()
     );
   }
@@ -3235,15 +3346,16 @@ export class CaseListComponent implements OnInit {
         const sheet = resp as CaseOrderSheetResponse;
         this.currentOrderSheet.set(sheet);
         this.applyAttendanceFromRoznama(resp);
-        const content = sheet.content || sheet.draftContent || sheet.finalContent || '';
-        this.syncRoznamaRowsFromContent(content, defaultDate);
+        this.applyRoznamaFromResponse(resp, defaultDate);
         if (this.isRoznamaWorkflow()) {
           this.syncAssignedHearingDateToRoznama();
         }
-        this.roznamaReadOnlyContent.set(this.isRoznamaReadOnly() ? content : '');
+        this.roznamaReadOnlyContent.set(this.isRoznamaReadOnly() ? this.roznamaContentForApi() : '');
+        const ref = this.latestHearingRef();
         if (ref) {
           this.ensureHearingRowInRegister(ref.hearingDate);
         }
+        this.loadOrderSheetHistory();
         this.loadWorkflowContext();
       },
       error: (err: unknown) => {
@@ -3255,7 +3367,7 @@ export class CaseListComponent implements OnInit {
         if (/notice.*served|proceeding cannot start/i.test(msg)) {
           this.actionError.set(msg);
         } else if (ref) {
-          this.actionMessage.set('No roznamah yet for this case. Save draft to create the register.');
+          this.actionMessage.set('No roznamah yet for this case. Use Sign & save to create the register.');
         }
       }
     });
@@ -3349,7 +3461,13 @@ export class CaseListComponent implements OnInit {
     const caseId = this.caseIdForActions();
     if (!caseId) return;
     this.officerCaseStage.getRoznamaHistory(caseId).subscribe({
-      next: (rows) => this.orderSheetHistory.set(rows || []),
+      next: (rows) => {
+        this.orderSheetHistory.set(rows || []);
+        this.roznamaEntryRows.update((current) =>
+          this.mergeRoznamaRowContent(current, this.currentOrderSheet())
+        );
+        this.orderSheetContentInput.set(this.roznamaContentForApi());
+      },
       error: () => this.orderSheetHistory.set([])
     });
   }
@@ -3393,7 +3511,7 @@ export class CaseListComponent implements OnInit {
     this.signAndSaveRoznama();
   }
 
-  /** PO: save draft, finalize, and sign roznamah (one action; tries sign-and-save API, else chains). */
+  /** PO: sign and save roznamah via POST /roznama. */
   protected signAndSaveRoznama(): void {
     const caseId = this.caseIdForActions();
     const hearingRef = this.latestHearingRef();
@@ -3418,48 +3536,22 @@ export class CaseListComponent implements OnInit {
     };
     this.orderSheetSigning.set(true);
     this.actionError.set(null);
-    const onSigned = (resp: RoznamaResponse) => {
-      this.currentOrderSheet.set(resp as CaseOrderSheetResponse);
-      this.postRoznamaPath.set(null);
-      this.actionMessage.set(
-        'Roznama signed and saved. Choose rehearing or final judgment below.'
-      );
-      this.loadJudgmentWorkflow();
-      this.loadCaseInbox();
-      this.loadRoznamaTable();
-      this.loadHearings();
-    };
     this.officerCaseStage
       .signAndSaveRoznama(caseId, payload)
-      .pipe(
-        finalize(() => this.orderSheetSigning.set(false))
-      )
+      .pipe(finalize(() => this.orderSheetSigning.set(false)))
       .subscribe({
-        next: onSigned,
-        error: (err: unknown) => {
-          if (err instanceof HttpErrorResponse && (err.status === 404 || err.status === 405)) {
-            this.orderSheetSigning.set(true);
-            this.officerCaseStage
-              .draftRoznama(caseId, payload)
-              .pipe(
-                switchMap(() => this.officerCaseStage.finalizeRoznama(caseId)),
-                switchMap(() =>
-                  this.officerCaseStage.signRoznama(caseId, {
-                    digitalSignatureRef: payload.digitalSignatureRef,
-                    hearingId: payload.hearingId,
-                    hearingDate: payload.hearingDate
-                  })
-                ),
-                finalize(() => this.orderSheetSigning.set(false))
-              )
-              .subscribe({
-                next: onSigned,
-                error: (e: unknown) => this.actionError.set(this.formatError(e))
-              });
-            return;
-          }
-          this.actionError.set(this.formatError(err));
-        }
+        next: (resp) => {
+          this.currentOrderSheet.set(resp as CaseOrderSheetResponse);
+          this.postRoznamaPath.set(null);
+          this.actionMessage.set(
+            'Roznama signed and saved. Choose rehearing or final judgment below.'
+          );
+          this.loadJudgmentWorkflow();
+          this.loadCaseInbox();
+          this.loadRoznamaTable();
+          this.loadHearings();
+        },
+        error: (err: unknown) => this.actionError.set(this.formatError(err))
       });
   }
 
@@ -3593,20 +3685,160 @@ export class CaseListComponent implements OnInit {
       const assigned = this.assignedHearingDate();
       if (assigned) return assigned;
     }
+    const row = this.roznamaEntryRows()[this.editableRoznamaRowIndex()];
+    return row?.date?.slice(0, 10) || row?.hearingDate?.slice(0, 10) || this.defaultRoznamaRowDate();
+  }
+
+  protected editableRoznamaRowIndex(): number {
     const rows = this.roznamaEntryRows();
-    return rows[0]?.date?.slice(0, 10) || this.defaultRoznamaRowDate();
+    const idx = rows.findIndex((r) => r.readOnly === false);
+    return idx >= 0 ? idx : 0;
+  }
+
+  protected priorRoznamaTableRows(): RoznamaEntryRow[] {
+    return this.roznamaEntryRows().filter((r) => r.readOnly === true);
+  }
+
+  protected activeRoznamaHearingLabel(): string {
+    const row = this.roznamaEntryRows()[this.editableRoznamaRowIndex()];
+    if (row?.hearingNo) {
+      return `Hearing #${row.hearingNo} · ${(row.date || row.hearingDate || '').slice(0, 10)}`;
+    }
+    return this.latestHearingLabel();
+  }
+
+  protected roznamaRowDisplayText(row: RoznamaEntryRow): string {
+    const merged = this.mergeRoznamaRowContent([row], this.currentOrderSheet())[0];
+    const plain = stripHtmlToPlainText(unwrapRoznamaCellContent(merged?.content || row.content || ''));
+    return plain || '—';
+  }
+
+  protected roznamaRowOutcomeLabel(row: RoznamaEntryRow): string {
+    if (!row.hearingOutcome) return '—';
+    return row.hearingOutcome === 'ADJOURN' ? 'Adjourned' : row.hearingOutcome === 'FINAL' ? 'Final' : row.hearingOutcome;
+  }
+
+  protected roznamaRowTrack(row: RoznamaEntryRow, index: number): string {
+    return `${row.lineNo ?? index}-${row.hearingId ?? index}-${row.date}`;
+  }
+
+  private mergeRoznamaRowContent(
+    rows: RoznamaEntryRow[],
+    resp?: RoznamaResponse | null
+  ): RoznamaEntryRow[] {
+    let merged = rows.map((row) => ({
+      ...row,
+      content: unwrapRoznamaCellContent(row.content || '')
+    }));
+
+    const contentRaw = (resp?.content || resp?.finalContent || '').trim();
+    if (contentRaw) {
+      const parsed = parseRoznamaContent(contentRaw, '');
+      merged = merged.map((row, index) => {
+        const current = unwrapRoznamaCellContent(row.content || '');
+        if (stripHtmlToPlainText(current).trim()) {
+          return { ...row, content: current };
+        }
+        const match =
+          parsed.find((p) => row.lineNo != null && p.lineNo === row.lineNo) ??
+          parsed.find((p) => row.hearingId != null && p.hearingId === row.hearingId) ??
+          parsed[index];
+        if (match && stripHtmlToPlainText(match.content || '').trim()) {
+          return { ...row, content: unwrapRoznamaCellContent(match.content || '') };
+        }
+        return row;
+      });
+    }
+
+    const history = this.orderSheetHistory();
+    if (history.length) {
+      merged = merged.map((row) => {
+        const current = unwrapRoznamaCellContent(row.content || '');
+        if (stripHtmlToPlainText(current).trim()) {
+          return { ...row, content: current };
+        }
+        const hist =
+          history.find((h) => row.hearingId != null && h.hearingId === row.hearingId) ??
+          history.find((h) => {
+            const hd = (h.hearingDate || '').slice(0, 10);
+            const rd = (row.date || row.hearingDate || '').slice(0, 10);
+            return hd && rd && hd === rd;
+          });
+        if (hist?.content?.trim()) {
+          return { ...row, content: unwrapRoznamaCellContent(hist.content) };
+        }
+        return row;
+      });
+    }
+
+    return normalizeRoznamaEntryRows(merged);
+  }
+
+  private mapRoznamaTableRow(row: RoznamaTableRow): RoznamaEntryRow {
+    return normalizeRoznamaEntryRow({
+      lineNo: row.lineNo,
+      hearingId: row.hearingId,
+      hearingNo: row.hearingNo,
+      hearingDate: row.hearingDate?.slice(0, 10),
+      date: (row.date || row.hearingDate || '').slice(0, 10),
+      content: row.content ?? '',
+      status: row.status,
+      hearingOutcome: row.hearingOutcome,
+      readOnly: row.readOnly
+    });
+  }
+
+  private applyRoznamaFromResponse(resp: RoznamaResponse, defaultDate: string): void {
+    let rows: RoznamaEntryRow[];
+    if (resp.tableRows?.length) {
+      rows = resp.tableRows.map((row) => this.mapRoznamaTableRow(row));
+    } else {
+      const content = resp.content || resp.draftContent || resp.finalContent || '';
+      rows = normalizeRoznamaEntryRows(parseRoznamaContent(content, defaultDate));
+    }
+
+    const draftText = unwrapRoznamaCellContent((resp.draftContent || '').trim());
+    if (draftText) {
+      const editableIdx = rows.findIndex((r) => r.readOnly === false);
+      const targetIdx = editableIdx >= 0 ? editableIdx : rows.length - 1;
+      if (targetIdx >= 0 && !stripHtmlToPlainText(rows[targetIdx]?.content || '')) {
+        rows[targetIdx] = { ...rows[targetIdx], content: draftText };
+      }
+    }
+
+    if (!rows.length) {
+      rows = [{ date: defaultDate, content: '', readOnly: false }];
+    }
+
+    rows = this.mergeRoznamaRowContent(rows, resp);
+
+    this.roznamaEntryRows.set(rows);
+    this.orderSheetContentInput.set(this.roznamaContentForApi());
+
+    const editable = rows.find((r) => r.readOnly === false);
+    const hearingId = resp.hearingId ?? editable?.hearingId;
+    const hearingDate = (editable?.date || editable?.hearingDate || defaultDate).slice(0, 10);
+    if (hearingId) {
+      this.orderSheetHearingIdInput.set(String(hearingId));
+      const appId = this.selectedApplicationId() ?? this.selectedRoznamaHearing()?.filingApplicationId ?? 0;
+      this.selectedRoznamaHearing.set({
+        hearingId,
+        hearingDate,
+        filingApplicationId: appId
+      });
+    }
   }
 
   protected setPrimaryRoznamaDate(value: string): void {
-    this.roznamaEntryRows.update((rows) => {
-      const first = rows[0] ?? { date: value, content: '' };
-      return [{ ...first, date: value }, ...rows.slice(1)];
-    });
+    const idx = this.editableRoznamaRowIndex();
+    this.roznamaEntryRows.update((rows) =>
+      rows.map((r, i) => (i === idx ? { ...r, date: value, hearingDate: value } : r))
+    );
     this.orderSheetContentInput.set(this.roznamaContentForApi());
   }
 
   protected primaryRoznamaContent(): string {
-    return this.roznamaEntryRows()[0]?.content ?? '';
+    return this.roznamaEntryRows()[this.editableRoznamaRowIndex()]?.content ?? '';
   }
 
   protected primaryRoznamaPlainText(): string {
@@ -3614,10 +3846,12 @@ export class CaseListComponent implements OnInit {
   }
 
   protected setPrimaryRoznamaContent(value: string): void {
-    this.roznamaEntryRows.update((rows) => {
-      const first = rows[0] ?? { date: this.primaryRoznamaDate(), content: value };
-      return [{ ...first, content: value }, ...rows.slice(1)];
-    });
+    const idx = this.editableRoznamaRowIndex();
+    this.roznamaEntryRows.update((rows) =>
+      rows.map((r, i) =>
+        i === idx ? { ...r, content: value, date: r.date || this.primaryRoznamaDate() } : r
+      )
+    );
     this.orderSheetContentInput.set(this.roznamaContentForApi());
   }
 
@@ -3839,29 +4073,42 @@ export class CaseListComponent implements OnInit {
 
   protected syncRoznamaRowsFromContent(content: string, defaultDate?: string): void {
     const date = defaultDate || this.defaultRoznamaRowDate();
-    const rows = parseRoznamaContent(content, date);
+    const rows = normalizeRoznamaEntryRows(parseRoznamaContent(content, date));
     this.roznamaEntryRows.set(rows.length > 0 ? rows : [{ date, content: '' }]);
     this.orderSheetContentInput.set(serializeRoznamaContent(this.roznamaEntryRows()));
   }
 
   protected roznamaContentForApi(): string {
-    return serializeRoznamaContent(this.roznamaEntryRows());
+    const merged = this.mergeRoznamaRowContent(
+      this.roznamaEntryRows(),
+      this.currentOrderSheet()
+    );
+    return serializeRoznamaContent(merged);
   }
 
   protected updateRoznamaRowDate(index: number, event: Event): void {
+    const row = this.roznamaEntryRows()[index];
+    if (row?.readOnly) return;
     const date = (event.target as HTMLInputElement).value;
     this.roznamaEntryRows.update((rows) =>
-      rows.map((r, i) => (i === index ? { ...r, date } : r))
+      rows.map((r, i) => (i === index ? { ...r, date, hearingDate: date } : r))
     );
     this.orderSheetContentInput.set(this.roznamaContentForApi());
   }
 
   protected updateRoznamaRowContent(index: number, event: Event): void {
+    const row = this.roznamaEntryRows()[index];
+    if (row?.readOnly) return;
     const content = (event.target as HTMLTextAreaElement).value;
     this.roznamaEntryRows.update((rows) =>
       rows.map((r, i) => (i === index ? { ...r, content } : r))
     );
     this.orderSheetContentInput.set(this.roznamaContentForApi());
+  }
+
+  protected isRoznamaRowEditable(index: number): boolean {
+    const row = this.roznamaEntryRows()[index];
+    return row?.readOnly !== true;
   }
 
   protected addRoznamaTableRow(): void {
@@ -3870,8 +4117,10 @@ export class CaseListComponent implements OnInit {
   }
 
   protected removeRoznamaTableRow(index: number): void {
+    const row = this.roznamaEntryRows()[index];
+    if (row?.readOnly) return;
     this.roznamaEntryRows.update((rows) => {
-      if (rows.length <= 1) return [{ date: this.defaultRoznamaRowDate(), content: '' }];
+      if (rows.length <= 1) return [{ date: this.defaultRoznamaRowDate(), content: '', readOnly: false }];
       return rows.filter((_, i) => i !== index);
     });
     this.orderSheetContentInput.set(this.roznamaContentForApi());
@@ -3892,41 +4141,35 @@ export class CaseListComponent implements OnInit {
   }
 
   private buildRoznamaPreviewHtml(): string {
-    const hearing = this.selectedRoznamaHearing()
-      ? { hearingDate: this.selectedRoznamaHearing()!.hearingDate }
-      : (this.hearings()[0] ?? null);
-    const land = this.detailDisputedLands()[0] ?? null;
-    const form = this.detailForm() ?? {};
-    const caseEntry = this.generatedCase();
-    const today = new Date();
-    const marathiMonth = ['जानेवारी','फेब्रुवारी','मार्च','एप्रिल','मे','जून','जुलै','ऑगस्ट','सप्टेंबर','ऑक्टोबर','नोव्हेंबर','डिसेंबर'];
-    const hDate = this.marathiDateParts(hearing?.hearingDate);
-    const content =
-      this.roznamaContentForApi() ||
-      this.orderSheetContentInput().trim() ||
-      String(this.currentOrderSheet()?.content ?? this.currentOrderSheet()?.draftContent ?? '');
-    const rows = parseRoznamaContent(content, this.defaultRoznamaRowDate());
-    const previewRows =
-      this.roznamaEntryRows().some((r) => r.content.trim()) ? this.roznamaEntryRows() : rows;
+    const merged = this.mergeRoznamaRowContent(
+      this.roznamaEntryRows(),
+      this.currentOrderSheet()
+    );
+    const previewRows = merged
+      .map((row) => ({
+        date: (row.date || row.hearingDate || '').slice(0, 10),
+        content: row.content ?? ''
+      }))
+      .filter((row) => stripHtmlToPlainText(row.content).trim());
 
     const vars: RoznamaPreviewVars = {
       phoneNumber: '',
       emailId: '',
-      referenceNumber: String(caseEntry?.caseNo ?? this.caseNoFor(this.selectedApplicationId()!)),
-      referenceYearTwoDigits: toDevanagariDigits(String(today.getFullYear()).slice(-2)),
-      noticeDateDay: toDevanagariDigits(String(today.getDate())),
-      noticeDateMonth: marathiMonth[today.getMonth()] ?? '',
-      noticeDateYear: toDevanagariDigits(String(today.getFullYear()).slice(-2)),
-      actSection: String(form['sectionCustomText'] ?? form['customSectionName'] ?? form['actId'] ?? ''),
-      villageNameMoje: String(land?.['villageName'] ?? land?.['villageLgdCode'] ?? ''),
-      taluka: String(land?.['talukaName'] ?? land?.['talukaCode'] ?? ''),
-      district: String(land?.['districtName'] ?? land?.['districtCode'] ?? ''),
-      hearingDateDisplay: hDate.display,
+      referenceNumber: '',
+      referenceYearTwoDigits: '',
+      noticeDateDay: '',
+      noticeDateMonth: '',
+      noticeDateYear: '',
+      actSection: '',
+      villageNameMoje: '',
+      taluka: '',
+      district: '',
+      hearingDateDisplay: '',
       roznamaRows: previewRows,
-      roznamaContent: content,
-      signatoryName: this.isPO ? (this.tokenStorage.getDisplayName() ?? '') : '',
-      signatoryDesignation: this.isPO ? (this.tokenStorage.getDesignationName() ?? '') : '',
-      signatoryOffice: String(this.tokenStorage.getOfficeName() ?? '')
+      roznamaContent: '',
+      signatoryName: '',
+      signatoryDesignation: '',
+      signatoryOffice: ''
     };
 
     return buildMarathiRoznamaPreviewHtml(vars);
@@ -3948,8 +4191,8 @@ export class CaseListComponent implements OnInit {
   }
 
   protected canGenerateJudgmentTemplate(): boolean {
-    if (!this.canDraftJudgment()) return false;
-    return judgmentWorkflowStatus(this.judgmentWorkflow()) !== 'PUBLISHED';
+    if (!this.canSaveJudgmentDraft()) return false;
+    return this.effectiveJudgmentWorkflowStatus() !== 'PUBLISHED';
   }
 
   protected generateJudgmentTemplate(): void {
@@ -4290,9 +4533,11 @@ export class CaseListComponent implements OnInit {
   protected finalizeJudgment(): void {
     const caseId = this.caseIdForActions();
     if (!caseId) return;
+    const summary = this.judgmentSummaryInput().trim();
     this.judgmentSaving.set(true);
     this.actionError.set(null);
-    this.officerCaseStage.finalizeJudgment(caseId)
+    this.officerCaseStage
+      .finalizeJudgment(caseId, summary || undefined)
       .pipe(finalize(() => this.judgmentSaving.set(false)))
       .subscribe({
         next: (resp) => {
@@ -4300,6 +4545,39 @@ export class CaseListComponent implements OnInit {
           this.actionMessage.set(resp.message || 'Judgment finalized.');
           this.loadWorkflowContext();
           this.loadJudgmentHistory();
+          this.loadCaseInboxForMenu();
+        },
+        error: (err: unknown) => this.actionError.set(this.formatError(err))
+      });
+  }
+
+  protected signAndPublishJudgment(): void {
+    const caseId = this.caseIdForActions();
+    if (!caseId) return;
+    const summary = this.judgmentSummaryInput().trim();
+    const signRef = this.judgmentSignatureRef().trim();
+    if (!signRef) {
+      this.actionError.set('Digital signature reference is required for Save & sign.');
+      return;
+    }
+    if (!confirm('Sign, publish judgment, and dispose this case? This action is irreversible.')) return;
+    this.judgmentSaving.set(true);
+    this.actionError.set(null);
+    this.officerCaseStage
+      .signAndPublishJudgment(
+        caseId,
+        buildJudgmentSignPublishBody(summary, signRef)
+      )
+      .pipe(finalize(() => this.judgmentSaving.set(false)))
+      .subscribe({
+        next: (resp) => {
+          this.applyJudgmentWorkflow(resp);
+          this.postRoznamaPath.set(null);
+          this.judgmentSignatureRef.set('');
+          this.actionMessage.set(resp.message || 'Judgment signed, published, and case disposed.');
+          this.loadWorkflowContext();
+          this.loadJudgmentHistory();
+          this.loadOfficerInbox();
           this.loadCaseInboxForMenu();
         },
         error: (err: unknown) => this.actionError.set(this.formatError(err))
@@ -4406,6 +4684,11 @@ export class CaseListComponent implements OnInit {
     if (top.length) return top;
     const f = this.detailForm();
     return this.toRecordArray(f?.['attachments']);
+  }
+
+  protected detailSearchModeLabel(): string {
+    const order = this.detailDisputedOrder();
+    return formatSearchModeLabel(String(order?.['searchMode'] ?? ''));
   }
 
   protected detailDisputedOrder(): Record<string, unknown> | null {

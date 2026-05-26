@@ -1,6 +1,5 @@
 <section class="app-page preview-page">
 
-  <!-- Back -->
   <div class="back-row">
     <a [routerLink]="backLink" class="back-link">← Back</a>
   </div>
@@ -9,125 +8,227 @@
     <div class="loading-card"><p class="muted">Loading application…</p></div>
   } @else if (error()) {
     <div class="error-card"><p class="error">{{ error() }}</p></div>
-  } @else if (data()) {
+  } @else if (data(); as bundle) {
 
-    <!-- Header -->
     <div class="preview-header">
       <div>
         <h2>{{ app()?.applicationNo }}</h2>
-        @if (caseNoDisplay()) { <p class="case-no">Case: {{ caseNoDisplay() }}</p> }
+        @if (caseNoDisplay()) {
+          <p class="case-no">Case: {{ caseNoDisplay() }}</p>
+        }
         @if (processingStageLabel()) {
           <p class="case-no stage-line">{{ processingStageLabel() }}</p>
+        }
+        @if (app()?.caseCategoryName || app()?.subjectName) {
+          <p class="case-no meta-line">
+            {{ app()?.caseCategoryName || '—' }}
+            @if (app()?.subjectName) {
+              <span> · {{ app()?.subjectName }}</span>
+            }
+          </p>
         }
       </div>
       <span class="status-badge">{{ app()?.status }}</span>
     </div>
 
-    <!-- Tabs -->
     <nav class="preview-tabs">
-      <button [class.active]="activeTab()==='application'" (click)="setTab('application')">Application</button>
-      <button [class.active]="activeTab()==='history'" (click)="setTab('history')">
+      <button type="button" [class.active]="activeTab()==='application'" (click)="setTab('application')">Application</button>
+      <button type="button" [class.active]="activeTab()==='history'" (click)="setTab('history')">
         History
         @if (history()) {
           <span class="tab-count">{{ history()!.totalCount }}</span>
         }
       </button>
-      <button [class.active]="activeTab()==='notices'" (click)="setTab('notices')">
-        Notices <span class="tab-count">{{ data()!.notices.length }}</span>
+      <button type="button" [class.active]="activeTab()==='notices'" (click)="setTab('notices')">
+        Notices <span class="tab-count">{{ bundle.notices.length }}</span>
       </button>
-      <button [class.active]="activeTab()==='hearings'" (click)="setTab('hearings')">
-        Hearings <span class="tab-count">{{ data()!.hearings.length }}</span>
+      <button type="button" [class.active]="activeTab()==='hearings'" (click)="setTab('hearings')">
+        Hearings <span class="tab-count">{{ bundle.hearings.length }}</span>
       </button>
-      <button [class.active]="activeTab()==='ordersheet'" (click)="setTab('ordersheet')">
-        Order Sheet <span class="tab-count">{{ data()!.orderSheetHistory.length }}</span>
+      <button type="button" [class.active]="activeTab()==='ordersheet'" (click)="setTab('ordersheet')">
+        Order Sheet <span class="tab-count">{{ bundle.orderSheetHistory.length }}</span>
       </button>
       @if (showJudgmentTab()) {
-        <button [class.active]="activeTab()==='judgment'" (click)="setTab('judgment')">Judgment</button>
+        <button type="button" [class.active]="activeTab()==='judgment'" (click)="setTab('judgment')">Judgment</button>
       }
     </nav>
 
-    <!-- ── APPLICATION TAB ── -->
     @if (activeTab() === 'application') {
       <div class="tab-content">
 
-        <div class="info-grid">
-          <div class="info-item"><span class="info-label">Application No</span><span>{{ str(app()?.applicationNo) }}</span></div>
-          <div class="info-item"><span class="info-label">Status</span><span>{{ str(app()?.status) }}</span></div>
-          @if (app()?.caseNo) {
-            <div class="info-item"><span class="info-label">Case No</span><span>{{ str(app()?.caseNo) }}</span></div>
-          }
-        </div>
+        <section class="preview-section">
+          <h4>Application summary</h4>
+          <div class="info-grid">
+            <div class="info-item"><span class="info-label">Application no.</span><span>{{ str(app()?.applicationNo) }}</span></div>
+            <div class="info-item"><span class="info-label">Status</span><span>{{ str(app()?.status) }}</span></div>
+            <div class="info-item"><span class="info-label">Category</span><span>{{ str(app()?.caseCategoryName) }}</span></div>
+            <div class="info-item"><span class="info-label">Subject</span><span>{{ str(app()?.subjectName) }}</span></div>
+            <div class="info-item"><span class="info-label">Office</span><span>{{ str(app()?.officeName) }}</span></div>
+            <div class="info-item"><span class="info-label">Act / section</span><span>{{ actSectionLabel() }}</span></div>
+            <div class="info-item"><span class="info-label">Filed by</span><span>{{ str(app()?.filedByName) }} ({{ str(app()?.filedByRole) }})</span></div>
+            <div class="info-item"><span class="info-label">Submitted</span><span>{{ formatDate(app()?.submittedAt) }}</span></div>
+          </div>
+        </section>
 
-        <!-- Applicants -->
-        @if (arr(app()?.applicants).length > 0) {
-          <div class="section-block">
+        @if (disputedOrder(); as order) {
+          <section class="preview-section">
+            <h4>Disputed order / mutation search</h4>
+            <div class="info-grid">
+              <div class="info-item"><span class="info-label">Search type</span><span>{{ searchModeLabel(order['searchMode']) }}</span></div>
+              <div class="info-item"><span class="info-label">Search value</span><span>{{ str(order['searchValue'] ?? order['searchDisplayText']) }}</span></div>
+              <div class="info-item"><span class="info-label">Resolved inward</span><span>{{ str(order['resolvedInwardNumber']) }}</span></div>
+              <div class="info-item"><span class="info-label">Mutation found</span><span>{{ order['mutationFound'] ? 'Yes' : 'No' }}</span></div>
+            </div>
+            @if (mutationDetails(); as m) {
+              <div class="info-grid sub-grid">
+                <div class="info-item"><span class="info-label">Inward no.</span><span>{{ str(m['inwardNumber']) }}</span></div>
+                <div class="info-item"><span class="info-label">Inward date</span><span>{{ str(m['inwardDate']) }}</span></div>
+                <div class="info-item"><span class="info-label">Mutation type</span><span>{{ str(m['mutationType']) }}</span></div>
+                <div class="info-item"><span class="info-label">Applicant (order)</span><span>{{ str(m['applicantName']) }}</span></div>
+                <div class="info-item"><span class="info-label">Village</span><span>{{ str(m['village']) }}</span></div>
+                <div class="info-item span-2"><span class="info-label">Status</span><span>{{ str(m['status']) }}</span></div>
+              </div>
+            }
+          </section>
+        }
+
+        @if (applicants().length > 0) {
+          <section class="preview-section">
             <h4>Applicants</h4>
-            @for (a of arr(app()?.applicants); track $index) {
-              <div class="party-row-preview">
-                <strong>{{ str(a['name']) }}</strong>
-                @if (a['address']) { <span class="address">{{ str(a['address']) }}</span> }
-              </div>
+            @for (a of applicants(); track a['clientRowKey'] ?? a['tempId'] ?? $index) {
+              <article class="party-card">
+                <p class="party-card-title">
+                  <strong>#{{ a['lineNo'] || $index + 1 }}</strong> {{ partyName(a) }}
+                </p>
+                <div class="party-card-grid">
+                  <span><span class="info-label">Mobile</span> {{ str(a['mobile']) }}</span>
+                  <span><span class="info-label">Email</span> {{ str(a['email']) }}</span>
+                  <span><span class="info-label">Pincode</span> {{ str(a['pincode']) }}</span>
+                  <span><span class="info-label">Age</span> {{ str(a['age']) }}</span>
+                  <span><span class="info-label">Occupation</span> {{ str(a['occupation']) }}</span>
+                  <span class="span-2"><span class="info-label">Address</span> {{ str(a['address']) }}</span>
+                  <span class="span-2">
+                    <span class="info-label">Location</span>
+                    {{ str(a['village']) }}, {{ str(a['taluka']) }}, {{ str(a['district']) }}
+                  </span>
+                </div>
+              </article>
             }
-          </div>
+          </section>
         }
 
-        <!-- Respondents -->
-        @if (arr(app()?.respondents).length > 0) {
-          <div class="section-block">
+        @if (respondents().length > 0) {
+          <section class="preview-section">
             <h4>Respondents</h4>
-            @for (r of arr(app()?.respondents); track $index) {
-              <div class="party-row-preview">
-                <strong>{{ str(r['name']) }}</strong>
-                @if (r['address']) { <span class="address">{{ str(r['address']) }}</span> }
-              </div>
+            @for (r of respondents(); track r['clientRowKey'] ?? r['tempId'] ?? $index) {
+              <article class="party-card">
+                <p class="party-card-title">
+                  <strong>#{{ r['lineNo'] || $index + 1 }}</strong> {{ partyName(r) }}
+                </p>
+                <div class="party-card-grid">
+                  <span><span class="info-label">Mobile</span> {{ str(r['mobile']) }}</span>
+                  <span><span class="info-label">Email</span> {{ str(r['email']) }}</span>
+                  <span><span class="info-label">Pincode</span> {{ str(r['pincode']) }}</span>
+                  <span><span class="info-label">Age</span> {{ str(r['age']) }}</span>
+                  <span><span class="info-label">Occupation</span> {{ str(r['occupation']) }}</span>
+                  <span class="span-2"><span class="info-label">Address</span> {{ str(r['address']) }}</span>
+                  <span class="span-2">
+                    <span class="info-label">Location</span>
+                    {{ str(r['village']) }}, {{ str(r['taluka']) }}, {{ str(r['district']) }}
+                  </span>
+                </div>
+              </article>
             }
-          </div>
+          </section>
         }
 
-        <!-- Disputed Lands -->
-        @if (arr(app()?.disputedLands).length > 0) {
-          <div class="section-block">
-            <h4>Disputed Lands</h4>
+        @if (disputedLands().length > 0) {
+          <section class="preview-section">
+            <h4>Disputed lands</h4>
             <div class="table-wrap">
               <table class="table">
-                <thead><tr><th>Village</th><th>Taluka</th><th>District</th><th>Survey/CTS</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Type</th>
+                    <th>District</th>
+                    <th>Office / taluka</th>
+                    <th>Village</th>
+                    <th>CTS / survey</th>
+                    <th>Total area</th>
+                    <th>Disputed area</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  @for (land of arr(app()?.disputedLands); track $index) {
+                  @for (land of disputedLands(); track $index) {
                     <tr>
-                      <td>{{ str(land['villageName'] ?? land['villageLgdCode']) }}</td>
-                      <td>{{ str(land['talukaName'] ?? land['talukaCode']) }}</td>
+                      <td>{{ land['lineNo'] || $index + 1 }}</td>
+                      <td>{{ str(land['landType']) }}</td>
                       <td>{{ str(land['districtName'] ?? land['districtCode']) }}</td>
-                      <td>{{ str(land['surveyNumber'] ?? land['ctsNumber'] ?? land['gat']) }}</td>
+                      <td>{{ str(land['officeName'] ?? land['talukaName'] ?? land['officeCode']) }}</td>
+                      <td>{{ str(land['villageName'] ?? land['villageCode']) }}</td>
+                      <td>{{ landCts(land) }}</td>
+                      <td>{{ str(land['totalArea']) }}</td>
+                      <td>{{ str(land['disputedArea']) }}</td>
                     </tr>
                   }
                 </tbody>
               </table>
             </div>
-          </div>
+          </section>
         }
 
-        <!-- Attachments -->
-        @if (arr(app()?.attachments).length > 0) {
-          <div class="section-block">
-            <h4>Attachments</h4>
-            @for (att of arr(app()?.attachments); track $index) {
-              <div class="attachment-row">
-                <span>{{ str(att['documentType'] ?? att['fileName'] ?? 'Document ' + ($index + 1)) }}</span>
-                @if (att['fileUrl']) {
-                  <a [href]="str(att['fileUrl'])" target="_blank" class="btn btn-secondary btn-xs">View</a>
+        @if (descriptionParagraphs().length > 0 || affidavitText() || prayerText()) {
+          <section class="preview-section">
+            <h4>Application description</h4>
+            @if (descriptionParagraphs().length > 0) {
+              <div class="description-block">
+                @for (para of descriptionParagraphs(); track $index) {
+                  <p class="description-para">{{ para }}</p>
                 }
               </div>
             }
-          </div>
+            @if (affidavitText()) {
+              <div class="text-block">
+                <h5>Affidavit</h5>
+                <p class="description-para pre-wrap">{{ affidavitText() }}</p>
+              </div>
+            }
+            @if (prayerText()) {
+              <div class="text-block">
+                <h5>Prayer</h5>
+                <p class="description-para pre-wrap">{{ prayerText() }}</p>
+              </div>
+            }
+          </section>
+        }
+
+        @if (attachments().length > 0) {
+          <section class="preview-section">
+            <h4>Attachments</h4>
+            @for (att of attachments(); track att['storageKey'] ?? $index) {
+              <div class="attachment-row">
+                <div class="attachment-meta">
+                  <strong>{{ str(att['kind'] ?? att['documentTypeId'] ?? 'Document') }}</strong>
+                  <span class="muted">{{ str(att['fileName']) }} · {{ str(att['mimeType']) }}</span>
+                  @if (att['uploadedAt']) {
+                    <span class="muted">{{ formatDate(str(att['uploadedAt'])) }}</span>
+                  }
+                </div>
+                @if (attachmentUrl(att); as url) {
+                  <a [href]="url" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-xs">View file</a>
+                }
+              </div>
+            }
+          </section>
         }
 
       </div>
     }
 
-    <!-- ── UNIFIED HISTORY TAB ── -->
     @if (activeTab() === 'history') {
       <div class="tab-content">
-        <p class="history-hint muted">Filing and case proceedings in one timeline. Click an event to open hearings, notices, order sheet, or judgment details.</p>
+        <p class="history-hint muted">Filing and case proceedings in one timeline. Click an event to open related details.</p>
         <app-application-history-timeline
           [history]="history()"
           [loading]="historyLoading()"
@@ -137,20 +238,20 @@
       </div>
     }
 
-    <!-- ── NOTICES TAB ── -->
     @if (activeTab() === 'notices') {
       <div class="tab-content">
-        @if (data()!.notices.length === 0) {
+        @if (bundle.notices.length === 0) {
           <p class="muted empty-state">No notices issued yet.</p>
         } @else {
-          @for (notice of data()!.notices; track notice.noticeId) {
+          @for (notice of bundle.notices; track notice.noticeId) {
             <div class="notice-block">
               <div class="notice-meta">
                 <span class="info-label">Type:</span> {{ notice.noticeType }}
-                &nbsp;&nbsp;
                 <span class="info-label">Status:</span>
                 <span class="status-chip status-{{ notice.status.toLowerCase() }}">{{ notice.status }}</span>
-                @if (notice.servedAt) { &nbsp;&nbsp;<span class="info-label">Served:</span> {{ notice.servedAt }} }
+                @if (notice.servedAt) {
+                  <span class="info-label">Served:</span> {{ notice.servedAt }}
+                }
               </div>
               @if (notice.finalContent || notice.previewContent) {
                 <div class="notice-html-frame" [innerHTML]="noticeHtml(notice)"></div>
@@ -161,22 +262,21 @@
       </div>
     }
 
-    <!-- ── HEARINGS TAB ── -->
     @if (activeTab() === 'hearings') {
       <div class="tab-content">
-        @if (data()!.hearings.length === 0) {
+        @if (bundle.hearings.length === 0) {
           <p class="muted empty-state">No hearings scheduled yet.</p>
         } @else {
           <div class="table-wrap">
             <table class="table">
               <thead><tr><th>#</th><th>Date</th><th>Status</th><th>Remarks</th></tr></thead>
               <tbody>
-                @for (h of data()!.hearings; track h.hearingId; let i = $index) {
+                @for (h of bundle.hearings; track h.hearingId; let i = $index) {
                   <tr>
                     <td>{{ i + 1 }}</td>
                     <td>{{ h.hearingDate }}</td>
-                    <td>{{ h.status || '-' }}</td>
-                    <td>{{ h.remarks || '-' }}</td>
+                    <td>{{ h.status || '—' }}</td>
+                    <td>{{ h.remarks || '—' }}</td>
                   </tr>
                 }
               </tbody>
@@ -186,19 +286,18 @@
       </div>
     }
 
-    <!-- ── ORDER SHEET TAB ── -->
     @if (activeTab() === 'ordersheet') {
       <div class="tab-content">
-        @if (data()!.orderSheetHistory.length === 0) {
+        @if (bundle.orderSheetHistory.length === 0) {
           <p class="muted empty-state">No order sheet entries yet.</p>
         } @else {
           <div class="timeline">
-            @for (entry of data()!.orderSheetHistory; track entry.historyId ?? $index) {
+            @for (entry of bundle.orderSheetHistory; track entry.historyId ?? $index) {
               <div class="timeline-entry">
                 <div class="timeline-dot"></div>
                 <div class="timeline-body">
-                  <div class="timeline-date">{{ entry.hearingDate || '-' }}</div>
-                  <div class="timeline-text">{{ entry.remarks || '-' }}</div>
+                  <div class="timeline-date">{{ entry.hearingDate || '—' }}</div>
+                  <div class="timeline-text">{{ entry.remarks || '—' }}</div>
                   @if (entry.stage) { <span class="stage-chip">{{ entry.stage }}</span> }
                 </div>
               </div>
@@ -208,18 +307,17 @@
       </div>
     }
 
-    <!-- ── JUDGMENT TAB ── -->
     @if (activeTab() === 'judgment') {
       <div class="tab-content">
-        @if (data()!.judgmentSummary) {
+        @if (bundle.judgmentSummary) {
           <div class="judgment-block">
             <div class="judgment-status">
-              <span class="status-badge">{{ data()!.judgmentWorkflowStatus }}</span>
+              <span class="status-badge">{{ bundle.judgmentWorkflowStatus }}</span>
               <button type="button" class="btn btn-secondary btn-xs" style="margin-left:8px" (click)="previewPublishedJudgment()">
                 Preview Judgment (Marathi)
               </button>
             </div>
-            <div class="judgment-text">{{ data()!.judgmentSummary }}</div>
+            <div class="judgment-text">{{ bundle.judgmentSummary }}</div>
           </div>
         } @else {
           <p class="muted empty-state">Judgment not yet published.</p>

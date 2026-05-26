@@ -60,8 +60,10 @@ export interface CaseHearingResponse {
   caseNo: string;
   hearingNo: number;
   hearingDate: string;
-  /** SCHEDULED | COMPLETED */
+  /** SCHEDULED | COMPLETED (API may also send hearingStatus) */
   status: string;
+  hearingStatus?: string;
+  noticeServed?: boolean;
   noticeGenerated: boolean;
   remarks: string | null;
   createdAt: string;
@@ -163,25 +165,43 @@ export interface RoznamaAttendanceResponse {
   entries: RoznamaAttendanceEntry[];
 }
 
+export interface RoznamaTableRow {
+  lineNo: number;
+  hearingId: number;
+  hearingNo: number;
+  hearingDate: string;
+  date: string;
+  content: string;
+  status: string;
+  hearingOutcome: string | null;
+  readOnly: boolean;
+}
+
 export interface RoznamaResponse {
-  id: number;
+  id: number | null;
   caseId: number;
   caseNo: string;
   hearingId: number | null;
   content: string;
   draftContent: string | null;
   finalContent: string | null;
-  /** CLERK_DRAFT | PO_SCRUTINY | PO_FINALIZED | PO_SIGNED */
-  status: string;
+  /** CLERK_DRAFT | PO_SCRUTINY | PO_FINALIZED | PO_SIGNED | PO_DRAFT */
+  status: string | null;
   canEdit?: boolean;
   digitalSignatureRef: string | null;
-  updatedAt: string;
-  updatedByLoginId?: string;
-  message?: string;
+  updatedAt: string | null;
+  updatedByLoginId?: string | null;
+  message?: string | null;
   hearingOutcome?: string | null;
+  finalHearing?: boolean | null;
+  nextHearingId?: number | null;
+  nextHearingDate?: string | null;
+  caseStatus?: string | null;
   attendanceRequired?: boolean;
   attendanceComplete?: boolean;
   attendance?: RoznamaAttendanceEntry[];
+  /** Preferred source for UI table — includes prior signed rows + current editable row. */
+  tableRows?: RoznamaTableRow[];
 }
 
 /** @deprecated use RoznamaResponse */
@@ -269,7 +289,31 @@ export interface CompleteRoznamaResponse {
   content?: string;
 }
 
-export interface JudgmentWorkflowContextSlice {
+export interface WorkflowArtifactSlice {
+  artifact?: string;
+  artifactId?: number;
+  hearingId?: number | null;
+  hearingNo?: number | null;
+  status?: string;
+  noticeServed?: boolean;
+  allowedActions?: string[];
+  config?: Record<string, unknown>;
+  blueprint?: string;
+  workflowStatus?: string;
+  message?: string;
+}
+
+export interface WorkflowContextHearing {
+  hearingId: number;
+  hearingNo: number;
+  hearingDate?: string;
+  hearingStatus?: string;
+  status?: string;
+  noticeServed?: boolean;
+  allowedActions?: string[];
+}
+
+export interface JudgmentWorkflowContextSlice extends WorkflowArtifactSlice {
   allowedActions?: string[];
   workflowStatus?: string;
   blueprint?: string;
@@ -280,6 +324,9 @@ export interface CaseWorkflowContext {
   caseId: number;
   caseNo?: string;
   caseStatus?: string;
+  caseCategoryCode?: string;
+  blueprintCode?: string;
+  filingApplicationId?: number;
   hearingId?: number | null;
   hearingNo?: number | null;
   hearingDate?: string | null;
@@ -288,20 +335,57 @@ export interface CaseWorkflowContext {
   proceedingStage?: string | null;
   roznamaStatus?: string | null;
   allowedActions?: string[];
+  notice?: WorkflowArtifactSlice;
+  roznama?: WorkflowArtifactSlice;
   judgment?: JudgmentWorkflowContextSlice;
+  hearings?: WorkflowContextHearing[];
   message?: string;
 }
 
+/** Latest non-completed hearing from workflow-context.hearings (highest hearingNo). */
+export function workflowActiveHearing(
+  ctx: CaseWorkflowContext | null | undefined
+): WorkflowContextHearing | null {
+  const hearings = ctx?.hearings ?? [];
+  if (!hearings.length) return null;
+  const active = hearings.filter((h) => {
+    const st = String(h.hearingStatus ?? h.status ?? '').toUpperCase();
+    return st !== 'COMPLETED';
+  });
+  const pool = active.length ? active : hearings;
+  return pool.reduce(
+    (best, h) => (!best || h.hearingNo > best.hearingNo ? h : best),
+    null as WorkflowContextHearing | null
+  );
+}
+
 export interface JudgmentHistoryRow {
+  id?: number;
   historyId?: number;
   action?: string;
+  actionCode?: string;
   status?: string;
+  fromStatus?: string;
+  toStatus?: string;
   summary?: string;
+  summarySnapshot?: string;
   draftSummary?: string;
   remarks?: string;
   actorRole?: string;
   actorLoginId?: string;
   createdAt?: string;
+}
+
+export function normalizeJudgmentHistoryRow(raw: JudgmentHistoryRow): JudgmentHistoryRow {
+  const from = raw.fromStatus?.trim();
+  const to = raw.toStatus?.trim();
+  const statusTransition = from && to ? `${from} → ${to}` : raw.status;
+  return {
+    ...raw,
+    historyId: raw.historyId ?? raw.id,
+    action: raw.action ?? raw.actionCode,
+    status: statusTransition || to || from || raw.status
+  };
 }
 
 export interface RescheduleHearingRequest {
@@ -322,6 +406,8 @@ export interface CaseJudgmentWorkflowResponse {
   finalSummary?: string | null;
   publishedSummary?: string | null;
   updatedAt?: string | null;
+  allowedActions?: string[];
+  digitalSignatureRef?: string | null;
   /** Normalized / legacy aliases (filled by normalizeJudgmentWorkflow). */
   status?: string;
   draftContent?: string | null;
@@ -389,6 +475,28 @@ export interface JudgmentDraftRequest {
 export function buildJudgmentDraftBody(text: string): JudgmentDraftRequest {
   const t = text.trim();
   return { summary: t, draftSummary: t, judgmentSummary: t, content: t };
+}
+
+export interface CaseJudgmentSignPublishRequest {
+  summary?: string;
+  draftSummary?: string;
+  judgmentSummary?: string;
+  content?: string;
+  digitalSignatureRef: string;
+  remarks?: string;
+}
+
+export function buildJudgmentSignPublishBody(
+  summaryText: string,
+  digitalSignatureRef: string,
+  remarks?: string
+): CaseJudgmentSignPublishRequest {
+  const body = buildJudgmentDraftBody(summaryText);
+  return {
+    ...body,
+    digitalSignatureRef: digitalSignatureRef.trim(),
+    remarks: remarks?.trim() || undefined
+  };
 }
 
 /** @deprecated use CaseJudgmentWorkflowResponse */
@@ -609,7 +717,7 @@ export class OfficerCaseStageService {
     return this.http.post<RoznamaResponse>(`${this.base}/api/cases/officer/${caseId}/roznama/finalize`, {}, { params });
   }
 
-  /** @deprecated use completeRoznama */
+  /** @deprecated use completeRoznama — same POST /roznama endpoint */
   signAndSaveRoznama(
     caseId: number,
     payload: {
@@ -621,7 +729,7 @@ export class OfficerCaseStageService {
     }
   ): Observable<RoznamaResponse> {
     return this.http.post<RoznamaResponse>(
-      `${this.base}/api/cases/officer/${caseId}/roznama/sign-and-save`,
+      `${this.base}/api/cases/officer/${caseId}/roznama`,
       payload
     );
   }
@@ -722,11 +830,11 @@ export class OfficerCaseStageService {
   }
 
   /** PO sends judgment draft to clerk (PO_THEN_CLERK blueprint). */
-  sendJudgmentToClerk(caseId: number): Observable<CaseJudgmentWorkflowResponse> {
+  sendJudgmentToClerk(caseId: number, remarks?: string): Observable<CaseJudgmentWorkflowResponse> {
     return this.http
       .post<CaseJudgmentWorkflowResponse>(
         `${this.base}/api/cases/officer/${caseId}/judgment/send-to-clerk`,
-        {}
+        remarks?.trim() ? { remarks: remarks.trim() } : {}
       )
       .pipe(map((r) => normalizeJudgmentWorkflow(r)));
   }
@@ -741,10 +849,11 @@ export class OfficerCaseStageService {
       .pipe(map((r) => normalizeJudgmentWorkflow(r)));
   }
 
-  /** PO finalizes after PO_SCRUTINY */
-  finalizeJudgment(caseId: number): Observable<CaseJudgmentWorkflowResponse> {
+  /** PO finalizes after PO_SCRUTINY (optional draft body). */
+  finalizeJudgment(caseId: number, summaryText?: string): Observable<CaseJudgmentWorkflowResponse> {
+    const body = summaryText?.trim() ? buildJudgmentDraftBody(summaryText) : {};
     return this.http
-      .post<CaseJudgmentWorkflowResponse>(`${this.base}/api/cases/officer/${caseId}/judgment/finalize`, {})
+      .post<CaseJudgmentWorkflowResponse>(`${this.base}/api/cases/officer/${caseId}/judgment/finalize`, body)
       .pipe(map((r) => normalizeJudgmentWorkflow(r)));
   }
 
@@ -765,6 +874,19 @@ export class OfficerCaseStageService {
       .pipe(map((r) => normalizeJudgmentWorkflow(r)));
   }
 
+  /** PO signs and publishes judgment (from PO_SCRUTINY or PO_FINALIZED). */
+  signAndPublishJudgment(
+    caseId: number,
+    payload: CaseJudgmentSignPublishRequest
+  ): Observable<CaseJudgmentWorkflowResponse> {
+    return this.http
+      .post<CaseJudgmentWorkflowResponse>(
+        `${this.base}/api/cases/officer/${caseId}/judgment/sign-and-publish`,
+        payload
+      )
+      .pipe(map((r) => normalizeJudgmentWorkflow(r)));
+  }
+
   /** Pass / record final judgment body (when blueprint uses direct pass). */
   passFinalJudgment(
     caseId: number,
@@ -777,8 +899,8 @@ export class OfficerCaseStageService {
   }
 
   getJudgmentHistory(caseId: number): Observable<JudgmentHistoryRow[]> {
-    return this.http.get<JudgmentHistoryRow[]>(
-      `${this.base}/api/cases/officer/${caseId}/judgment/history`
-    );
+    return this.http
+      .get<JudgmentHistoryRow[]>(`${this.base}/api/cases/officer/${caseId}/judgment/history`)
+      .pipe(map((rows) => (rows || []).map((r) => normalizeJudgmentHistoryRow(r))));
   }
 }

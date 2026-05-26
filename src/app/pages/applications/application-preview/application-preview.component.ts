@@ -7,8 +7,9 @@ import {
   FilingApplicationService,
   ApplicationPreviewResponse,
   ApplicationPreviewNotice,
+  ApplicationPreviewApplication,
   ApplicationHistoryResponse,
-  ApplicationHistoryEntry,
+  ApplicationHistoryEntry
 } from '../../../services/filing-application.service';
 import { ApplicationHistoryTimelineComponent } from '../application-history-timeline/application-history-timeline.component';
 import { TokenStorageService } from '../../../services/token-storage.service';
@@ -17,6 +18,17 @@ import {
   JudgmentPreviewVars,
   toDevanagariDigits
 } from '../../../shared/sunvai-marathi-template';
+import {
+  buildAttachmentFileUrl,
+  descriptionParagraphs,
+  formatPreviewDate,
+  formatSearchModeLabel,
+  landSurveyOrCtsLabel,
+  partyDisplayName,
+  pickStr,
+  toRecord,
+  toRecordArray
+} from '../../../shared/application-preview.util';
 
 type PreviewTab = 'application' | 'history' | 'notices' | 'hearings' | 'ordersheet' | 'judgment';
 
@@ -94,12 +106,86 @@ export class ApplicationPreviewComponent implements OnInit {
     return this.sanitizer.bypassSecurityTrustHtml(html);
   }
 
-  protected app(): ApplicationPreviewResponse['application'] | null {
+  protected app(): ApplicationPreviewApplication | null {
     return this.data()?.application ?? null;
   }
 
+  protected form(): Record<string, unknown> {
+    return this.app()?.form ?? {};
+  }
+
+  protected applicants(): Array<Record<string, unknown>> {
+    const a = this.app();
+    if (!a) return [];
+    return a.applicants?.length ? a.applicants : toRecordArray(this.form()['applicants']);
+  }
+
+  protected respondents(): Array<Record<string, unknown>> {
+    const a = this.app();
+    if (!a) return [];
+    return a.respondents?.length ? a.respondents : toRecordArray(this.form()['respondents']);
+  }
+
+  protected disputedLands(): Array<Record<string, unknown>> {
+    const a = this.app();
+    if (!a) return [];
+    return a.disputedLands?.length ? a.disputedLands : toRecordArray(this.form()['disputedLands']);
+  }
+
+  protected attachments(): Array<Record<string, unknown>> {
+    const a = this.app();
+    if (!a) return [];
+    return a.attachments?.length ? a.attachments : toRecordArray(this.form()['attachments']);
+  }
+
+  protected disputedOrder(): Record<string, unknown> | null {
+    return toRecord(this.app()?.disputedOrder) ?? null;
+  }
+
+  protected mutationDetails(): Record<string, unknown> | null {
+    return toRecord(this.disputedOrder()?.['mutationDetails']);
+  }
+
+  protected descriptionParagraphs(): string[] {
+    return descriptionParagraphs(this.app());
+  }
+
+  protected affidavitText(): string {
+    const d = this.app()?.description;
+    const direct = d?.affidavitText?.trim();
+    if (direct) return direct;
+    return pickStr(this.form(), 'affidavitText');
+  }
+
+  protected prayerText(): string {
+    const d = this.app()?.description;
+    const direct = d?.prayerText?.trim();
+    if (direct) return direct;
+    return pickStr(this.form(), 'prayerText');
+  }
+
+  protected actSectionLabel(): string {
+    const f = this.form();
+    const custom = pickStr(f, 'sectionCustomText');
+    if (custom) return custom;
+    const code = pickStr(f, 'sectionCode');
+    const act = pickStr(f, 'actCode');
+    if (code && act) return `${act} — ${code}`;
+    if (code) return code;
+    const sectionId = f['sectionId'];
+    const actId = f['actId'];
+    if (sectionId || actId) return `Act ${actId || '—'} / Section ${sectionId || '—'}`;
+    return '—';
+  }
+
   protected processingStageLabel(): string {
-    return this.history()?.processingStageLabel || this.history()?.processingStage || '';
+    return (
+      this.history()?.processingStageLabel ||
+      this.app()?.processingStageLabel ||
+      this.history()?.processingStage ||
+      this.app()?.processingStage ||
+      ''
+    );
   }
 
   protected caseNoDisplay(): string {
@@ -129,38 +215,57 @@ export class ApplicationPreviewComponent implements OnInit {
     }
   }
 
-  protected arr(v: unknown): Record<string, unknown>[] {
-    return Array.isArray(v) ? (v as Record<string, unknown>[]) : [];
+  protected str(v: unknown): string {
+    return v != null && String(v).trim() ? String(v) : '—';
   }
 
-  protected str(v: unknown): string {
-    return v != null ? String(v) : '-';
+  protected partyName(p: Record<string, unknown>): string {
+    return partyDisplayName(p) || '—';
+  }
+
+  protected formatDate(v: string | null | undefined): string {
+    return formatPreviewDate(v);
+  }
+
+  protected searchModeLabel(mode: unknown): string {
+    return formatSearchModeLabel(String(mode ?? ''));
+  }
+
+  protected landCts(land: Record<string, unknown>): string {
+    const label = landSurveyOrCtsLabel(land);
+    return label || '—';
+  }
+
+  protected attachmentUrl(att: Record<string, unknown>): string | null {
+    return buildAttachmentFileUrl(att);
   }
 
   protected previewPublishedJudgment(): void {
     const app = this.app();
     const body = this.data()?.judgmentSummary?.trim() || '';
-    if (!body) return;
+    if (!body || !app) return;
     const today = new Date();
-    const marathiMonth = ['जानेवारी','फेब्रुवारी','मार्च','एप्रिल','मे','जून','जुलै','ऑगस्ट','सप्टेंबर','ऑक्टोबर','नोव्हेंबर','डिसेंबर'];
-    const form = app?.form ?? {};
-    const lands = this.arr(app?.disputedLands);
+    const marathiMonth = [
+      'जानेवारी', 'फेब्रुवारी', 'मार्च', 'एप्रिल', 'मे', 'जून',
+      'जुलै', 'ऑगस्ट', 'सप्टेंबर', 'ऑक्टोबर', 'नोव्हेंबर', 'डिसेंबर'
+    ];
+    const lands = this.disputedLands();
     const land = lands[0] ?? {};
     const vars: JudgmentPreviewVars = {
       phoneNumber: '',
       emailId: '',
-      referenceNumber: String(app?.caseNo ?? app?.applicationNo ?? ''),
+      referenceNumber: String(app.caseNo ?? app.applicationNo ?? ''),
       referenceYearTwoDigits: toDevanagariDigits(String(today.getFullYear()).slice(-2)),
       noticeDateDay: toDevanagariDigits(String(today.getDate())),
       noticeDateMonth: marathiMonth[today.getMonth()] ?? '',
       noticeDateYear: toDevanagariDigits(String(today.getFullYear()).slice(-2)),
-      caseNo: String(app?.caseNo ?? ''),
-      actSection: String(form['customSectionName'] ?? form['actId'] ?? ''),
-      villageNameMoje: String(land['villageName'] ?? ''),
-      taluka: String(land['talukaName'] ?? ''),
-      district: String(land['districtName'] ?? ''),
-      applicantNames: this.arr(app?.applicants).map((a) => String(a['name'] ?? '')),
-      respondentNames: this.arr(app?.respondents).map((r) => String(r['name'] ?? '')),
+      caseNo: String(app.caseNo ?? ''),
+      actSection: this.actSectionLabel(),
+      villageNameMoje: pickStr(land, 'villageName'),
+      taluka: pickStr(land, 'talukaName'),
+      district: pickStr(land, 'districtName'),
+      applicantNames: this.applicants().map((a) => partyDisplayName(a)),
+      respondentNames: this.respondents().map((r) => partyDisplayName(r)),
       judgmentBody: body,
       signatoryName: '',
       signatoryDesignation: '',
@@ -168,6 +273,9 @@ export class ApplicationPreviewComponent implements OnInit {
     };
     const html = buildMarathiJudgmentPreviewHtml(vars);
     const w = window.open('', '_blank', 'width=900,height=700');
-    if (w) { w.document.write(html); w.document.close(); }
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+    }
   }
 }
