@@ -19,8 +19,12 @@ import { ApplicationHistoryTimelineComponent } from '../../applications/applicat
 import {
   CaseHearingResponse,
   CaseJudgmentWorkflowResponse,
+  judgmentBindingText,
+  judgmentFieldLabel,
+  judgmentInferredEditable,
   judgmentTextFromResponse,
   judgmentWorkflowStatus,
+  normalizeJudgmentWorkflow,
   buildJudgmentSignPublishBody,
   CaseNoticeItem,
   CaseWorkflowContext,
@@ -44,7 +48,6 @@ import {
 import { LandRecordsService, NoticeNineViewResponse, RuralSubSurveyRow, UrbanCtsRow } from '../../../services/land-records.service';
 import { TokenStorageService } from '../../../services/token-storage.service';
 import {
-  buildDefaultJudgmentBodyText,
   buildMarathiJudgmentPreviewHtml,
   buildMarathiRoznamaPreviewHtml,
   buildMarathiSunvaniNoticeHtml,
@@ -227,6 +230,7 @@ export class CaseListComponent implements OnInit {
   protected readonly noticeRevertReason = signal('');
   protected readonly orderSheetRevertReason = signal('');
   protected readonly judgmentRevertReason = signal('');
+  protected readonly judgmentSendToClerkRemarks = signal('');
 
   // ── Judgment workflow ──────────────────────────────────────────────────────
   protected readonly judgmentWorkflow = signal<CaseJudgmentWorkflowResponse | null>(null);
@@ -395,6 +399,11 @@ export class CaseListComponent implements OnInit {
   }
 
   protected isSidebarMenuActive(key: OfficerMenuKey): boolean {
+    if (this.workflowPanelOpen()) {
+      if (this.workflowIntent() === 'judgment') return key === 'PENDING_JUDGMENT';
+      if (this.workflowIntent() === 'roznama') return key === 'CAUSE_LIST';
+      if (this.workflowIntent() === 'notice') return key === 'PENDING_NOTICE';
+    }
     return this.officerMenu() === key;
   }
 
@@ -927,7 +936,7 @@ export class CaseListComponent implements OnInit {
     return top.some((a) => a === want || a.includes(want));
   }
 
-  protected loadWorkflowContext(): void {
+  protected loadWorkflowContext(options?: { syncDedicatedIntent?: boolean }): void {
     const caseId = this.caseIdForActions();
     if (!caseId) return;
     const hearingId = this.isJudgmentWorkflow()
@@ -941,15 +950,180 @@ export class CaseListComponent implements OnInit {
         next: (ctx) => {
           this.workflowContext.set(ctx);
           const ctxStatus = this.upStage(ctx?.judgment?.workflowStatus ?? ctx?.judgment?.status);
-          if (ctxStatus && !judgmentWorkflowStatus(this.judgmentWorkflow())) {
-            const current = this.judgmentWorkflow();
-            if (current) {
-              this.judgmentWorkflow.set({ ...current, workflowStatus: ctxStatus, status: ctxStatus });
+          const jCtx = ctx?.judgment;
+          const current = this.judgmentWorkflow();
+          if (current && jCtx) {
+            const merged = normalizeJudgmentWorkflow({
+              ...current,
+              workflowStatus: judgmentWorkflowStatus(current) || ctxStatus || current.workflowStatus,
+              status: judgmentWorkflowStatus(current) || ctxStatus || current.status,
+              allowedActions: jCtx.allowedActions ?? current.allowedActions,
+              submittable: jCtx.submittable ?? current.submittable,
+              actorRole: jCtx.actorRole ?? current.actorRole,
+              editable: current.editable
+            });
+            if (jCtx.editable === true || judgmentInferredEditable(merged, this.judgmentActorRole())) {
+              merged.editable = true;
+            } else if (jCtx.editable === false && !judgmentInferredEditable(merged, this.judgmentActorRole())) {
+              merged.editable = false;
             }
+            this.judgmentWorkflow.set(merged);
+          } else if (ctxStatus && current && !judgmentWorkflowStatus(current)) {
+            this.judgmentWorkflow.set({ ...current, workflowStatus: ctxStatus, status: ctxStatus });
+          }
+          if (options?.syncDedicatedIntent) {
+            this.syncDedicatedIntentFromContext(ctx);
           }
         },
         error: () => this.workflowContext.set(null)
       });
+  }
+
+  /** Active cases / adjourned queue open with intent general — resolve to a dedicated action panel. */
+  private syncDedicatedIntentFromContext(ctx: CaseWorkflowContext | null): void {
+    const resolved = this.resolveDedicatedWorkflowIntent(ctx);
+    if (!resolved || resolved === this.workflowIntent()) {
+      return;
+    }
+    this.workflowIntent.set(resolved);
+    if (resolved === 'judgment') {
+      this.loadJudgmentModule();
+      return;
+    }
+    if (resolved === 'roznama') {
+      this.syncRoznamaSelectionFromContext(ctx);
+      this.loadCurrentOrderSheet();
+      this.loadRoznamaCaseDocuments();
+      this.loadCaseReferenceData();
+      return;
+    }
+    if (resolved === 'notice') {
+      const appId = this.selectedApplicationId();
+      if (appId) {
+        this.hydrateNoticeParties(appId, this.caseIdForActions());
+      }
+      this.loadCaseReferenceData();
+      return;
+    }
+    if (resolved === 'hearing') {
+      this.loadCaseReferenceData();
+    }
+  }
+
+  private syncRoznamaSelectionFromContext(ctx: CaseWorkflowContext | null): void {
+    if (this.selectedRoznamaTableRow()) {
+      return;
+    }
+    const appId = this.selectedApplicationId() ?? 0;
+    const active = workflowActiveHearing(ctx);
+    const latest = active
+      ? {
+          hearingId: active.hearingId,
+          hearingDate: (active.hearingDate || '').slice(0, 10),
+          hearingNo: active.hearingNo
+        }
+      : this.latestHearingFromList(this.hearings());
+    if (!latest?.hearingId) {
+      return;
+    }
+    const hearingDate = (latest.hearingDate || '').slice(0, 10);
+    this.selectedRoznamaHearing.set({
+      hearingId: latest.hearingId,
+      hearingDate,
+      filingApplicationId: appId
+    });
+    this.orderSheetHearingIdInput.set(String(latest.hearingId));
+    if (hearingDate) {
+      this.syncAssignedHearingDateToRoznama();
+    }
+  }
+
+  private resolveDedicatedWorkflowIntent(
+    ctx: CaseWorkflowContext | null
+  ): Exclude<WorkflowIntentKey, 'none' | 'general' | 'filing'> | null {
+    if (!this.caseIdForActions()) {
+      return null;
+    }
+    if (this.canScheduleHearing()) {
+      return 'hearing';
+    }
+    if (this.resolveJudgmentIntent(ctx)) {
+      return 'judgment';
+    }
+    if (this.resolveNoticeIntent(ctx)) {
+      return 'notice';
+    }
+    if (this.resolveRoznamaIntent(ctx)) {
+      return 'roznama';
+    }
+    return null;
+  }
+
+  private resolveJudgmentIntent(ctx: CaseWorkflowContext | null): boolean {
+    const caseStatus = this.upStage(ctx?.caseStatus ?? this.currentCaseStatus());
+    if (caseStatus === 'READY_FOR_JUDGMENT') {
+      return true;
+    }
+    if (caseStatus === 'DISPOSED') {
+      return !!this.upStage(ctx?.judgment?.workflowStatus ?? ctx?.judgment?.status);
+    }
+    const stage = this.upStage(ctx?.proceedingStage ?? this.currentProceedingStage());
+    if (stage.includes('JUDGMENT')) {
+      return true;
+    }
+    const j = ctx?.judgment;
+    if (this.upStage(j?.workflowStatus ?? j?.status) || (j?.allowedActions?.length ?? 0) > 0) {
+      return true;
+    }
+    const top = (ctx?.allowedActions ?? []).map((a) => this.upStage(a));
+    if (top.some((a) => a.includes('JUDGMENT'))) {
+      return true;
+    }
+    if (this.postRoznamaPath() === 'judgment' && this.isCurrentHearingRoznamaSigned()) {
+      return true;
+    }
+    return false;
+  }
+
+  private resolveNoticeIntent(ctx: CaseWorkflowContext | null): boolean {
+    if (!this.isHearingScheduledCase()) {
+      return false;
+    }
+    const noticeServed = ctx?.noticeServed === true || this.isNoticeServed();
+    if (noticeServed) {
+      return false;
+    }
+    const stage = this.upStage(ctx?.proceedingStage ?? this.currentProceedingStage());
+    if (stage.startsWith('NOTICE') || stage === 'HEARING_SCHEDULED' || !stage) {
+      return true;
+    }
+    if ((ctx?.notice?.allowedActions?.length ?? 0) > 0) {
+      return true;
+    }
+    const top = (ctx?.allowedActions ?? []).map((a) => this.upStage(a));
+    return top.some((a) => a.includes('NOTICE') || a.includes('SERVE'));
+  }
+
+  private resolveRoznamaIntent(ctx: CaseWorkflowContext | null): boolean {
+    if (!this.canActAsPresidingOfficer() || !this.isHearingScheduledCase()) {
+      return false;
+    }
+    const noticeServed = ctx?.noticeServed === true || this.isNoticeServed();
+    if (!noticeServed) {
+      return false;
+    }
+    const stage = this.upStage(ctx?.proceedingStage ?? this.currentProceedingStage());
+    if (this.isOrderSheetProceedingStage(stage) || !stage) {
+      return true;
+    }
+    if ((ctx?.roznama?.allowedActions?.length ?? 0) > 0) {
+      return true;
+    }
+    const top = (ctx?.allowedActions ?? []).map((a) => this.upStage(a));
+    if (top.some((a) => a.includes('ROZNAMA') || a === 'COMPLETE_ROZNAMA')) {
+      return true;
+    }
+    return stage.includes('ROZNAMA') || stage.includes('ORDER_SHEET');
   }
 
   protected canCompleteRoznama(): boolean {
@@ -1253,8 +1427,12 @@ export class CaseListComponent implements OnInit {
       this.setRoznamaPanelTab('rehearing');
       this.actionMessage.set('Schedule the next hearing date below. Roznamah will start fresh for that date.');
     } else {
-      this.loadJudgmentWorkflow();
-      this.actionMessage.set('Proceed with final judgment below. Publishing judgment will dispose the case.');
+      this.persistOfficerMenu('PENDING_JUDGMENT');
+      this.officerMenu.set('PENDING_JUDGMENT');
+      this.workflowIntent.set('judgment');
+      this.roznamaDocTab.set('summary');
+      this.loadJudgmentModule();
+      this.actionMessage.set('Save judgment as draft first, then send to clerk or sign when ready.');
       setTimeout(() => {
         document.getElementById('judgment-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 100);
@@ -1303,31 +1481,118 @@ export class CaseListComponent implements OnInit {
   }
 
   protected judgmentStepHint(): string {
-    const st = judgmentWorkflowStatus(this.judgmentWorkflow());
-    if (!st) {
-      return 'Presiding Officer: save the initial judgment draft. Clerk will then edit the same text and submit back to you.';
+    const st = this.effectiveJudgmentWorkflowStatus();
+    if (this.isJudgmentDisposed()) {
+      return 'Judgment published. Case is disposed — read-only.';
+    }
+    if (!st || st === 'PO_DRAFT') {
+      return 'Presiding Officer: save draft, then send to clerk for review.';
     }
     if (st === 'CLERK_DRAFT') {
-      return this.viewerFlowRole() === 'CLERK'
-        ? 'Edit the PO draft, save, then submit to Presiding Officer. PO may revert with remarks any number of times.'
-        : 'Clerk is editing the judgment draft. You may revert to Clerk with remarks until you finalize.';
+      return this.judgmentActorRole() === 'CLERK'
+        ? 'Clerk: edit the draft, save, then submit to Presiding Officer.'
+        : 'With clerk for editing. PO may revert with remarks if needed.';
     }
     if (st === 'PO_SCRUTINY') {
-      return 'Clerk submitted for scrutiny. Presiding Officer: review, revert to Clerk if needed, then Finalize (PO only).';
+      return 'Presiding Officer: review clerk text — finalize, revert to clerk, or sign and publish to dispose the case.';
     }
-    if (st === 'PO_FINALIZED') return 'Presiding Officer may publish judgment to dispose the case.';
-    if (st === 'PUBLISHED') return 'Judgment published. Case is disposed.';
+    if (st === 'PO_FINALIZED') {
+      return 'Presiding Officer: publish or sign and publish to dispose the case.';
+    }
+    if (st === 'PUBLISHED') {
+      return 'Judgment published. Case is disposed.';
+    }
     return '';
   }
 
+  protected judgmentFieldLabelText(): string {
+    return judgmentFieldLabel(this.judgmentWorkflow());
+  }
+
+  protected judgmentActorRole(): 'CLERK' | 'PRESIDING_OFFICER' | '' {
+    const fromApi = String(
+      this.judgmentWorkflow()?.actorRole ?? this.workflowContext()?.judgment?.actorRole ?? ''
+    ).toUpperCase();
+    if (fromApi === 'CLERK' || fromApi === 'PRESIDING_OFFICER') {
+      return fromApi;
+    }
+    return this.officerRole();
+  }
+
+  protected isJudgmentDisposed(): boolean {
+    const caseSt = this.upStage(
+      this.judgmentWorkflow()?.caseStatus ??
+        this.workflowContext()?.caseStatus ??
+        this.currentCaseStatus()
+    );
+    if (caseSt === 'DISPOSED') {
+      return true;
+    }
+    return this.effectiveJudgmentWorkflowStatus() === 'PUBLISHED';
+  }
+
+  /** API editable flag — allowedActions override a false editable from backend. */
+  protected judgmentEditable(): boolean {
+    if (this.isJudgmentDisposed()) {
+      return false;
+    }
+    const w = this.judgmentWorkflow();
+    const actor = this.judgmentActorRole();
+    if (w && judgmentInferredEditable(w, actor)) {
+      return true;
+    }
+    const ctx = this.workflowContext()?.judgment;
+    if (ctx?.editable === true) {
+      return true;
+    }
+    const st = this.effectiveJudgmentWorkflowStatus();
+    if (!st || st === 'PO_DRAFT' || st === 'PO_SCRUTINY') {
+      return actor === 'PRESIDING_OFFICER';
+    }
+    if (st === 'CLERK_DRAFT') {
+      return actor === 'CLERK';
+    }
+    return w?.editable === true;
+  }
+
+  protected judgmentEditorDisabled(): boolean {
+    return (
+      !this.judgmentEditable() ||
+      this.judgmentLoading() ||
+      this.workflowContextLoading() ||
+      this.judgmentSaving()
+    );
+  }
+
+  /** Clerk submit-to-PO (API submittable flag). */
+  protected judgmentSubmittable(): boolean {
+    const w = this.judgmentWorkflow();
+    const ctx = this.workflowContext()?.judgment;
+    if (w?.submittable === true || ctx?.submittable === true) {
+      return true;
+    }
+    if (w?.submittable === false || ctx?.submittable === false) {
+      return false;
+    }
+    return (
+      this.judgmentActorRole() === 'CLERK' &&
+      this.effectiveJudgmentWorkflowStatus() === 'CLERK_DRAFT'
+    );
+  }
+
   protected judgmentTextFromWorkflow(resp: CaseJudgmentWorkflowResponse | null): string {
-    return judgmentTextFromResponse(resp);
+    return judgmentBindingText(resp);
   }
 
   private applyJudgmentWorkflow(resp: CaseJudgmentWorkflowResponse): void {
-    this.judgmentWorkflow.set(resp);
-    this.judgmentSummaryInput.set(judgmentTextFromResponse(resp));
-    if (judgmentWorkflowStatus(resp) && !this.isJudgmentWorkflow()) {
+    const normalized = normalizeJudgmentWorkflow(resp);
+    const bound = judgmentBindingText(normalized);
+    const keepTyped = !bound.trim() && !!this.judgmentSummaryInput().trim();
+    this.judgmentWorkflow.set(normalized);
+    if (!keepTyped) {
+      this.judgmentSummaryInput.set(bound);
+    }
+    if (judgmentWorkflowStatus(normalized) && !this.isJudgmentWorkflow()) {
       this.postRoznamaPath.set('judgment');
     }
   }
@@ -1337,10 +1602,13 @@ export class CaseListComponent implements OnInit {
     if (this.officerMenu() !== 'PENDING_JUDGMENT') {
       this.officerMenu.set('PENDING_JUDGMENT');
     }
+    this.postRoznamaPath.set(null);
+    this.roznamaDocTab.set('summary');
     this.viewOfficerApplication(applicationId, { caseId, intent: 'judgment' });
   }
 
   protected loadJudgmentModule(): void {
+    this.roznamaDocTab.set('summary');
     this.loadWorkflowContext();
     this.loadJudgmentWorkflow();
     this.loadJudgmentHistory();
@@ -1718,26 +1986,63 @@ export class CaseListComponent implements OnInit {
   }
 
   protected workflowTitle(): string {
+    const caseNo = this.workflowCaseNo();
     switch (this.workflowIntent()) {
       case 'roznama':
-        return 'Order Sheet (Roznama)';
+        return caseNo || 'Roznamma';
       case 'notice':
-        return 'Serve notice to party';
+        return caseNo || 'Serve notice';
       case 'hearing':
-        return 'Schedule hearing';
+        return caseNo || 'Schedule hearing';
       case 'judgment':
-        return 'Judgment';
+        return caseNo || 'Judgment';
       case 'filing':
         return 'Filing scrutiny';
       default:
-        return this.officerDetail()?.applicationNo || this.workflowCaseNo() || 'Case workspace';
+        return this.officerDetail()?.applicationNo || caseNo || 'Case workspace';
     }
   }
 
   protected workflowStageLabel(): string {
+    if (this.isJudgmentWorkflow()) {
+      const caseStatus = this.workflowContext()?.caseStatus || this.currentCaseStatus();
+      const jStatus = this.judgmentStatusLabel();
+      return [caseStatus, jStatus !== '—' ? jStatus : ''].filter(Boolean).join(' · ');
+    }
+    if (this.isRoznamaWorkflow()) {
+      const hearing = this.activeRoznamaHearingLabel();
+      const status = this.roznamaStatusLabel();
+      return [hearing !== '—' ? hearing : '', status !== '—' ? status : ''].filter(Boolean).join(' · ');
+    }
+    if (this.isNoticeWorkflow()) {
+      const caseStatus = this.workflowContext()?.caseStatus || this.currentCaseStatus();
+      const stage = this.workflowContext()?.proceedingStage || this.currentProceedingStage();
+      return [caseStatus, stage].filter(Boolean).join(' · ');
+    }
+    if (this.isHearingWorkflow()) {
+      return this.workflowContext()?.caseStatus || this.currentCaseStatus() || 'ACTIVE';
+    }
     const stage = this.currentProceedingStage();
     const status = this.currentCaseStatus();
-    return [this.workflowCaseNo(), status, stage].filter(Boolean).join(' · ');
+    return [status, stage].filter(Boolean).join(' · ');
+  }
+
+  protected dedicatedWorkflowLoading(): boolean {
+    if (this.isGeneralWorkflow() && this.workflowContextLoading()) {
+      return true;
+    }
+    if (this.isJudgmentWorkflow()) {
+      return this.judgmentLoading() || this.workflowContextLoading();
+    }
+    if (this.isRoznamaWorkflow() || this.isNoticeWorkflow()) {
+      return this.workflowContextLoading();
+    }
+    return false;
+  }
+
+  /** Opened from Active cases / adjourned — intent upgraded after workflow-context loads. */
+  protected isGeneralWorkflow(): boolean {
+    return this.workflowPanelOpen() && this.workflowIntent() === 'general';
   }
 
   protected viewOfficerApplication(
@@ -1976,16 +2281,28 @@ export class CaseListComponent implements OnInit {
           this.loadCurrentOrderSheet();
           this.loadRoznamaCaseDocuments();
         }
+        const intent = this.workflowIntent();
         if (
           opts?.pendingRow ||
           opts?.roznamaRow ||
-          this.workflowIntent() === 'notice' ||
-          this.workflowIntent() === 'roznama' ||
-          this.workflowIntent() === 'judgment'
+          intent === 'notice' ||
+          intent === 'roznama' ||
+          intent === 'judgment' ||
+          intent === 'general' ||
+          intent === 'hearing'
         ) {
-          this.loadWorkflowContext();
+          this.loadWorkflowContext({
+            syncDedicatedIntent: intent === 'general' || intent === 'hearing'
+          });
         }
-        if (opts?.pendingRow || opts?.roznamaRow || this.workflowIntent() === 'notice' || this.workflowIntent() === 'roznama') {
+        if (
+          opts?.pendingRow ||
+          opts?.roznamaRow ||
+          intent === 'notice' ||
+          intent === 'roznama' ||
+          intent === 'judgment' ||
+          intent === 'hearing'
+        ) {
           this.loadCaseReferenceData();
         }
         this.loadingOfficerDetail.set(false);
@@ -2140,17 +2457,23 @@ export class CaseListComponent implements OnInit {
       });
       if (this.isJudgmentWorkflow()) {
         this.loadJudgmentModule();
+      } else if (this.isNoticeWorkflow()) {
+        this.loadHearings();
+        this.loadNotices();
+        this.loadWorkflowContext();
+        this.loadCaseReferenceData();
+      } else if (this.isRoznamaWorkflow()) {
+        this.loadHearings();
+        this.loadNotices();
+        this.loadCurrentOrderSheet();
+        this.loadRoznamaCaseDocuments();
+        this.loadWorkflowContext();
+        this.loadCaseReferenceData();
+      } else if (this.isHearingWorkflow() || this.isGeneralWorkflow()) {
+        this.loadProceedingsForGeneralCase(knownCaseId, applicationId);
       } else {
         this.loadHearings();
         this.loadNotices();
-        if (this.isRoznamaWorkflow()) {
-          this.loadCurrentOrderSheet();
-          this.loadRoznamaCaseDocuments();
-        }
-        if (this.isNoticeWorkflow() || this.isRoznamaWorkflow()) {
-          this.loadWorkflowContext();
-          this.loadCaseReferenceData();
-        }
       }
     } else if (this.officerMenu() === 'PENDING_NOTICE' && ctx.pendingRow?.caseId) {
       this.generatedCase.set({
@@ -2494,15 +2817,32 @@ export class CaseListComponent implements OnInit {
     return this.workflowPanelOpen() && this.workflowIntent() === 'roznama';
   }
 
+  /** Assign hearing / ACTIVE case before first hearing date. */
+  protected isHearingWorkflow(): boolean {
+    return this.workflowPanelOpen() && this.workflowIntent() === 'hearing';
+  }
+
   /** Judgment queue — separate from roznamma screen. */
   protected isJudgmentWorkflow(): boolean {
     return this.workflowPanelOpen() && this.workflowIntent() === 'judgment';
   }
 
-  /** Dedicated notice / roznama / judgment forms — not mixed with filing queues. */
+  /** Dedicated notice / roznama / judgment / hearing forms — not mixed legacy stack. */
   protected isDedicatedWorkflowForm(): boolean {
     const i = this.workflowIntent();
-    return this.workflowPanelOpen() && (i === 'notice' || i === 'roznama' || i === 'judgment');
+    return (
+      this.workflowPanelOpen() &&
+      (i === 'notice' || i === 'roznama' || i === 'judgment' || i === 'hearing')
+    );
+  }
+
+  private loadProceedingsForGeneralCase(knownCaseId: number, applicationId: number): void {
+    this.loadHearings();
+    this.loadNotices();
+    this.loadWorkflowContext({ syncDedicatedIntent: true });
+    if (this.officerMenu() === 'PENDING_NOTICE' || this.selectedPendingServe()) {
+      this.hydrateNoticeParties(applicationId, knownCaseId);
+    }
   }
 
   /** Notice workflow until at least one notice is served (then proceedings may start). */
@@ -2514,8 +2854,10 @@ export class CaseListComponent implements OnInit {
   /** True when this officer has at least one action on the Action tab. */
   protected hasAuthorizedActionOnTab(): boolean {
     if (this.loadingOfficerDetail()) return true;
+    if (this.isGeneralWorkflow() && this.workflowContextLoading()) return true;
     if (this.isDedicatedWorkflowForm()) {
       if (this.isJudgmentWorkflow()) return this.hasAnyJudgmentAction() || this.judgmentLoading();
+      if (this.isHearingWorkflow()) return this.showHearingSection();
       return true;
     }
     return (
@@ -2532,6 +2874,9 @@ export class CaseListComponent implements OnInit {
 
   /** Label shown on the Action tab — only this officer's next step. */
   protected actionTabLabel(): string {
+    if (this.isDedicatedWorkflowForm()) {
+      return 'Action';
+    }
     if (!this.caseIdForActions()) {
       if (this.canForwardToPo()) return 'Scrutiny & Forward';
       if (this.canPoReviewActions()) return 'Approval Decision';
@@ -2545,7 +2890,7 @@ export class CaseListComponent implements OnInit {
     if (this.isHearingScheduledCase()) {
       if (role === 'CLERK') {
         if (this.isNoticeProceedingStage()) return 'Notice — With PO';
-        if (this.canClerkEditJudgment()) return 'Edit Judgment';
+        if (this.judgmentEditable() && this.judgmentActorRole() === 'CLERK') return 'Edit Judgment';
         if (judgmentWorkflowStatus(this.judgmentWorkflow()) === 'PO_SCRUTINY') return 'Judgment with PO';
         return 'No clerk action';
       }
@@ -2560,7 +2905,7 @@ export class CaseListComponent implements OnInit {
         }
         const jStatus = judgmentWorkflowStatus(this.judgmentWorkflow());
         if (!jStatus && this.isCurrentHearingRoznamaSigned()) return 'Start Judgment';
-        if (this.canPoDraftJudgment()) return 'Draft Judgment';
+        if (this.judgmentEditable() && this.judgmentActorRole() === 'PRESIDING_OFFICER') return 'Draft Judgment';
         if (jStatus === 'PO_SCRUTINY') return 'Finalize Judgment';
         if (jStatus === 'PO_FINALIZED') return 'Publish Judgment';
         if (jStatus === 'CLERK_DRAFT') return 'Judgment with Clerk';
@@ -2790,11 +3135,10 @@ export class CaseListComponent implements OnInit {
 
   /** Roznamah / order sheet — Presiding Officer only, after notice served. */
   protected showOrderSheetSection(): boolean {
+    if (this.isJudgmentWorkflow() || this.isRoznamaWorkflow()) return false;
     if (this.isDisposedCase()) return false;
     if (!this.canActAsPresidingOfficer()) return false;
     if (!this.caseIdForActions()) return false;
-    // Opened from Roznama menu: always show editor workspace for this case.
-    if (this.isRoznamaWorkflow()) return true;
     if (!this.isHearingScheduledCase() && this.currentProceedingStage() !== 'NOTICE_SERVED') {
       return false;
     }
@@ -2804,18 +3148,18 @@ export class CaseListComponent implements OnInit {
     return this.isOrderSheetProceedingStage(stage);
   }
 
-  /** Judgment — separate workflow; never on roznamma screen. */
+  /** Judgment panel is active (dedicated workflow or legacy mixed view). */
   protected showJudgmentSection(): boolean {
     if (this.isRoznamaWorkflow()) return false;
-    if (!this.isJudgmentWorkflow() && this.officerMenu() !== 'PENDING_JUDGMENT') {
-      if (this.postRoznamaPath() !== 'judgment') return false;
-    }
-    if (this.isDisposedCase()) {
-      return !!judgmentWorkflowStatus(this.judgmentWorkflow());
-    }
     if (!this.caseIdForActions()) return false;
     if (this.isJudgmentWorkflow() || this.officerMenu() === 'PENDING_JUDGMENT') {
       return true;
+    }
+    if (this.officerMenu() !== 'PENDING_JUDGMENT' && this.postRoznamaPath() !== 'judgment') {
+      return false;
+    }
+    if (this.isDisposedCase()) {
+      return !!judgmentWorkflowStatus(this.judgmentWorkflow());
     }
     if (!this.isHearingScheduledCase()) return false;
     const role = this.officerRole();
@@ -2934,136 +3278,159 @@ export class CaseListComponent implements OnInit {
     return this.canPoDraftNotice();
   }
 
-  /** PO saves or updates judgment draft — driven by allowedActions. */
-  protected canPoDraftJudgment(): boolean {
-    if (this.officerRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
+  private judgmentPanelActive(): boolean {
+    return this.isJudgmentWorkflow() || this.showJudgmentSection();
+  }
+
+  /** Judgment text area always visible on judgment screen (disabled when read-only). */
+  protected showJudgmentEditor(): boolean {
+    if (!this.judgmentPanelActive()) {
       return false;
     }
-    if (this.usesJudgmentAllowedActions()) {
-      return (
-        this.hasJudgmentAllowedAction('PO_DRAFT_JUDGMENT') ||
-        this.hasJudgmentAllowedAction('UPDATE_PO_JUDGMENT') ||
-        this.hasJudgmentAllowedAction('DRAFT_JUDGMENT')
-      );
+    if (this.judgmentLoading() || this.workflowContextLoading()) {
+      return true;
     }
-    const st = this.effectiveJudgmentWorkflowStatus();
-    return !st || st === 'PO_DRAFT' || st === 'PO_SCRUTINY';
-  }
-
-  /** Clerk edits judgment draft — status CLERK_DRAFT or clerk allowedActions. */
-  protected canClerkEditJudgment(): boolean {
-    if (this.officerRole() !== 'CLERK' || this.isDisposedCase() || !this.showJudgmentSection()) {
-      return false;
+    if (this.isJudgmentDisposed()) {
+      return this.hasJudgmentContent() || !!this.judgmentWorkflow();
     }
-    if (this.isJudgmentClerkDraftStage()) return true;
-    if (this.hasClerkJudgmentEditAction()) return true;
-    return false;
-  }
-
-  /** Show judgment editor when any save/draft action is allowed. */
-  protected canSaveJudgmentDraft(): boolean {
-    return this.canPoDraftJudgment() || this.canClerkEditJudgment();
-  }
-
-  protected canDraftJudgment(): boolean {
-    return this.canSaveJudgmentDraft();
-  }
-
-  protected judgmentSaveButtonLabel(): string {
-    if (this.canClerkEditJudgment()) return 'Save';
-    if (this.hasJudgmentAllowedAction('UPDATE_PO_JUDGMENT')) return 'Save';
-    return 'Save draft';
-  }
-
-  protected canSendJudgmentToClerk(): boolean {
-    if (this.officerRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
-      return false;
-    }
-    if (this.usesJudgmentAllowedActions()) {
-      return this.hasJudgmentAllowedAction('SEND_JUDGMENT_TO_CLERK');
-    }
-    const st = this.effectiveJudgmentWorkflowStatus();
-    return st === 'PO_DRAFT' || !st;
-  }
-
-  /** Clerk submits draft to PO. */
-  protected canClerkSubmitJudgmentToPo(): boolean {
-    if (this.officerRole() !== 'CLERK' || this.isDisposedCase() || !this.showJudgmentSection()) {
-      return false;
-    }
-    const hasText =
-      !!this.judgmentSummaryInput().trim() || !!this.judgmentTextFromWorkflow(this.judgmentWorkflow());
-    if (!hasText) return false;
-    if (this.isJudgmentClerkDraftStage()) return true;
-    return this.hasJudgmentAllowedAction('SUBMIT_JUDGMENT_TO_PO');
+    return true;
   }
 
   protected showJudgmentReadOnly(): boolean {
-    if (!this.showJudgmentSection() || this.canSaveJudgmentDraft()) return false;
+    if (this.judgmentEditable() || !this.judgmentPanelActive()) {
+      return false;
+    }
     const st = this.effectiveJudgmentWorkflowStatus();
-    if (this.officerRole() === 'CLERK') {
-      if (this.isJudgmentClerkDraftStage() || this.hasClerkJudgmentEditAction()) return false;
-      return !!st || this.hasJudgmentContent();
+    if (this.isJudgmentDisposed() || st === 'PUBLISHED') {
+      return true;
     }
-    if (!st && !this.hasJudgmentContent()) return false;
-    if (this.officerRole() === 'PRESIDING_OFFICER') {
-      return st === 'CLERK_DRAFT' || st === 'PUBLISHED';
+    if (st === 'PO_FINALIZED') {
+      return true;
     }
-    return st === 'PO_SCRUTINY' || st === 'PO_FINALIZED' || st === 'PUBLISHED';
+    if (st === 'CLERK_DRAFT' && this.judgmentActorRole() === 'PRESIDING_OFFICER') {
+      return true;
+    }
+    return this.hasJudgmentContent();
   }
 
-  protected canFinalizeJudgment(): boolean {
-    if (this.officerRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
+  protected showJudgmentSaveDraftButton(): boolean {
+    if (!this.judgmentEditable() || this.isJudgmentDisposed()) {
       return false;
     }
-    if (this.usesJudgmentAllowedActions()) {
-      return this.hasJudgmentAllowedAction('FINALIZE_JUDGMENT');
+    if (!this.usesJudgmentAllowedActions()) {
+      return true;
     }
-    return this.effectiveJudgmentWorkflowStatus() === 'PO_SCRUTINY';
+    return (
+      this.hasJudgmentAllowedAction('UPDATE_PO_JUDGMENT') ||
+      this.hasJudgmentAllowedAction('CLERK_UPDATE_JUDGMENT') ||
+      this.hasJudgmentAllowedAction('PO_DRAFT_JUDGMENT') ||
+      this.hasJudgmentAllowedAction('DRAFT_JUDGMENT')
+    );
   }
 
-  protected canPublishJudgment(): boolean {
-    if (this.officerRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
+  protected showJudgmentSendToClerkButton(): boolean {
+    if (this.judgmentActorRole() !== 'PRESIDING_OFFICER' || this.isJudgmentDisposed()) {
       return false;
     }
-    if (this.usesJudgmentAllowedActions()) {
-      return this.hasJudgmentAllowedAction('PUBLISH_JUDGMENT');
+    if (!this.judgmentPanelActive()) {
+      return false;
     }
-    return this.effectiveJudgmentWorkflowStatus() === 'PO_FINALIZED';
+    return this.hasJudgmentAllowedAction('SEND_JUDGMENT_TO_CLERK');
   }
 
-  protected canSignAndPublishJudgment(): boolean {
-    if (this.officerRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
+  protected showJudgmentSubmitToPoButton(): boolean {
+    if (this.judgmentActorRole() !== 'CLERK' || this.isJudgmentDisposed()) {
+      return false;
+    }
+    if (!this.judgmentSubmittable()) {
+      return false;
+    }
+    return this.hasJudgmentAllowedAction('SUBMIT_JUDGMENT_TO_PO');
+  }
+
+  protected showJudgmentFinalizeButton(): boolean {
+    if (this.judgmentActorRole() !== 'PRESIDING_OFFICER' || this.isJudgmentDisposed()) {
+      return false;
+    }
+    return this.hasJudgmentAllowedAction('FINALIZE_JUDGMENT');
+  }
+
+  protected showJudgmentRevertButton(): boolean {
+    if (this.judgmentActorRole() !== 'PRESIDING_OFFICER' || this.isJudgmentDisposed()) {
+      return false;
+    }
+    return (
+      this.hasJudgmentAllowedAction('REVERT_JUDGMENT_TO_CLERK') ||
+      this.hasJudgmentAllowedAction('REVERT_TO_CLERK')
+    );
+  }
+
+  protected showJudgmentPublishButton(): boolean {
+    if (this.judgmentActorRole() !== 'PRESIDING_OFFICER' || this.isJudgmentDisposed()) {
+      return false;
+    }
+    return this.hasJudgmentAllowedAction('PUBLISH_JUDGMENT');
+  }
+
+  protected showJudgmentSignPublishButton(): boolean {
+    if (this.judgmentActorRole() !== 'PRESIDING_OFFICER' || this.isJudgmentDisposed()) {
       return false;
     }
     return this.hasJudgmentAllowedAction('SIGN_AND_PUBLISH_JUDGMENT');
   }
 
-  protected canRevertJudgment(): boolean {
-    if (this.officerRole() !== 'PRESIDING_OFFICER' || this.isDisposedCase() || !this.showJudgmentSection()) {
-      return false;
-    }
-    if (this.usesJudgmentAllowedActions()) {
-      return (
-        this.hasJudgmentAllowedAction('REVERT_JUDGMENT_TO_CLERK') ||
-        this.hasJudgmentAllowedAction('REVERT_TO_CLERK')
-      );
-    }
-    const st = this.effectiveJudgmentWorkflowStatus();
-    return st === 'PO_SCRUTINY' || st === 'PO_FINALIZED';
-  }
-
   protected hasAnyJudgmentAction(): boolean {
     return (
-      this.canSaveJudgmentDraft() ||
-      this.canSendJudgmentToClerk() ||
-      this.canClerkSubmitJudgmentToPo() ||
-      this.canFinalizeJudgment() ||
-      this.canRevertJudgment() ||
-      this.canPublishJudgment() ||
-      this.canSignAndPublishJudgment() ||
-      this.showJudgmentReadOnly()
+      this.showJudgmentEditor() ||
+      this.showJudgmentSaveDraftButton() ||
+      this.showJudgmentSendToClerkButton() ||
+      this.showJudgmentSubmitToPoButton() ||
+      this.showJudgmentFinalizeButton() ||
+      this.showJudgmentRevertButton() ||
+      this.showJudgmentPublishButton() ||
+      this.showJudgmentSignPublishButton()
     );
+  }
+
+  /** @deprecated use judgmentEditable */
+  protected canSaveJudgmentDraft(): boolean {
+    return this.judgmentEditable();
+  }
+
+  protected canDraftJudgment(): boolean {
+    return this.showJudgmentSaveDraftButton();
+  }
+
+  protected canSendJudgmentToClerk(): boolean {
+    return this.showJudgmentSendToClerkButton();
+  }
+
+  protected canClerkSubmitJudgmentToPo(): boolean {
+    return this.showJudgmentSubmitToPoButton();
+  }
+
+  protected canFinalizeJudgment(): boolean {
+    return this.showJudgmentFinalizeButton();
+  }
+
+  protected canPublishJudgment(): boolean {
+    return this.showJudgmentPublishButton();
+  }
+
+  protected canSignAndPublishJudgment(): boolean {
+    return this.showJudgmentSignPublishButton();
+  }
+
+  protected canRevertJudgment(): boolean {
+    return this.showJudgmentRevertButton();
+  }
+
+  protected canPoDraftJudgment(): boolean {
+    return this.judgmentEditable() && this.judgmentActorRole() === 'PRESIDING_OFFICER';
+  }
+
+  protected canClerkEditJudgment(): boolean {
+    return this.judgmentEditable() && this.judgmentActorRole() === 'CLERK';
   }
 
   /** @deprecated kept for template backward compat */
@@ -4190,33 +4557,6 @@ export class CaseListComponent implements OnInit {
     return !!this.judgmentSummaryInput().trim();
   }
 
-  protected canGenerateJudgmentTemplate(): boolean {
-    if (!this.canSaveJudgmentDraft()) return false;
-    return this.effectiveJudgmentWorkflowStatus() !== 'PUBLISHED';
-  }
-
-  protected generateJudgmentTemplate(): void {
-    if (!this.canGenerateJudgmentTemplate()) return;
-    if (this.hasJudgmentContent()) {
-      if (!confirm('Replace current judgment text with a fresh template? This cannot be undone without re-editing.')) {
-        return;
-      }
-    }
-    const caseNo = String(
-      this.judgmentWorkflow()?.caseNo ??
-        this.generatedCase()?.caseNo ??
-        this.caseNoFor(this.selectedApplicationId()!) ??
-        ''
-    );
-    const body = buildDefaultJudgmentBodyText({
-      caseNo,
-      applicantNames: this.detailApplicants().map((a) => String(a['name'] || '')),
-      respondentNames: this.detailRespondents().map((r) => String(r['name'] || ''))
-    });
-    this.judgmentSummaryInput.set(body);
-    this.actionMessage.set('Judgment template generated. Review, edit, preview, then save draft.');
-  }
-
   private buildJudgmentPreviewHtml(): string {
     const land = this.detailDisputedLands()[0] ?? null;
     const form = this.detailForm() ?? {};
@@ -4452,7 +4792,12 @@ export class CaseListComponent implements OnInit {
     this.officerCaseStage
       .draftJudgment(caseId, summary)
       .pipe(
-        switchMap(() => this.officerCaseStage.sendJudgmentToClerk(caseId)),
+        switchMap(() =>
+          this.officerCaseStage.sendJudgmentToClerk(
+            caseId,
+            this.judgmentSendToClerkRemarks().trim() || undefined
+          )
+        ),
         finalize(() => this.judgmentSubmitting.set(false))
       )
       .subscribe({
