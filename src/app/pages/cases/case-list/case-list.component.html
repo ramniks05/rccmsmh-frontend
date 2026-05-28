@@ -255,24 +255,26 @@
       } @else {
     <!-- ── Workflow (full width; list hidden) ── -->
     <section class="card workflow-panel officer-workflow is-active" id="application-details-card">
-        <header class="panel-head workflow-header">
+        <header class="panel-head workflow-header" [class.workflow-header--dedicated]="isDedicatedWorkflowForm()">
           <div class="workflow-header-text">
             <h3>{{ workflowTitle() }}</h3>
-            <p class="workflow-meta">{{ workflowStageLabel() }}</p>
+            @if (workflowStageLabel()) {
+              <p class="workflow-meta">{{ workflowStageLabel() }}</p>
+            }
           </div>
           <div class="tab-group workflow-header-actions">
             <button type="button" class="tab-btn" [class.tab-active]="officerTab()==='action'" (click)="selectOfficerTab('action')">
               {{ actionTabLabel() }}
             </button>
             <button type="button" class="tab-btn" [class.tab-active]="officerTab()==='details'" (click)="selectOfficerTab('details')">
-              Application Details
+              Details
             </button>
-            <button type="button" class="btn btn-secondary btn-xs" (click)="closeWorkflow()">Back to list</button>
+            <button type="button" class="btn btn-secondary btn-xs" (click)="closeWorkflow()">Back</button>
           </div>
         </header>
 
-        @if (loadingOfficerDetail()) {
-          <p class="muted workflow-status">Loading case data…</p>
+        @if (loadingOfficerDetail() || dedicatedWorkflowLoading()) {
+          <p class="muted workflow-status">Loading…</p>
         }
         @if (officerDetailError()) {
           <p class="error workflow-status">{{ officerDetailError() }}</p>
@@ -315,28 +317,6 @@
             <!-- ─ Roznama (single complete: content + sign + outcome) ─ -->
             @else if (isRoznamaWorkflow()) {
               <section class="preview-section roznama-workflow-section">
-                <div class="roznama-workflow-header">
-                  <div>
-                    <h4>Roznamma</h4>
-                    @if (workflowCaseNo()) {
-                      <p class="roznama-workflow-sub">
-                        {{ workflowCaseNo() }}
-                        @if (activeRoznamaHearingLabel() !== '—') {
-                          <span> · {{ activeRoznamaHearingLabel() }}</span>
-                        }
-                      </p>
-                    }
-                  </div>
-                  @if (currentOrderSheet()?.status || roznamaStatusLabel() !== '—') {
-                    <span class="roznama-status-chip">{{ roznamaStatusLabel() }}</span>
-                  }
-                </div>
-                @if (loadingOfficerDetail() || workflowContextLoading()) {
-                  <p class="muted workflow-status">Loading…</p>
-                }
-                @if (officerDetailError()) {
-                  <p class="error">{{ officerDetailError() }}</p>
-                }
                 @if (selectedRoznamaTableRow()?.noticeServed === false) {
                   <p class="error">Notice must be served before roznamma.</p>
                   <div class="officer-draft-workspace single-column">
@@ -425,6 +405,61 @@
               <section class="preview-section judgment-workflow-section" id="judgment-section">
                 <ng-container *ngTemplateOutlet="judgmentWorkflowPanel" />
               </section>
+            }
+
+            <!-- ─ Schedule hearing (assign hearing / active case) ─ -->
+            @else if (isHearingWorkflow()) {
+              <section class="preview-section hearing-workflow-section">
+                <div class="officer-draft-workspace" [class.reference-collapsed]="caseReferenceCollapsed()">
+                  @if (!caseReferenceCollapsed()) {
+                    <ng-container *ngTemplateOutlet="officerCaseReferencePanel" />
+                  }
+                  <div class="officer-draft-main">
+                    <div class="reference-toolbar">
+                      <button type="button" class="btn btn-secondary btn-xs" (click)="toggleCaseReferencePanel()">
+                        {{ caseReferenceCollapsed() ? 'Show case reference' : 'Hide reference' }}
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-xs" (click)="openCaseReferenceTab('parties')">Parties</button>
+                      <button type="button" class="btn btn-secondary btn-xs" (click)="openCaseReferenceTab('land')">Land</button>
+                      <button type="button" class="btn btn-secondary btn-xs" (click)="openCaseReferenceTab('hearings')">Hearings</button>
+                    </div>
+                    @if (showHearingSection()) {
+                      <div class="hearing-schedule-form">
+                        <div class="form-line">
+                          <label>Hearing date <span class="req">*</span></label>
+                          <input type="date" [value]="hearingDateInput()" [min]="minSelectableHearingDate()" (input)="hearingDateInput.set($any($event.target).value)" />
+                          @if (hearingDateAfterTodayError(hearingDateInput()); as dateErr) {
+                            <p class="error">{{ dateErr }}</p>
+                          } @else {
+                            <p class="muted roznama-editor-footnote">Select a date after today.</p>
+                          }
+                        </div>
+                        <div class="form-line">
+                          <label>Remarks</label>
+                          <input type="text" [value]="hearingRemarksInput()" (input)="hearingRemarksInput.set($any($event.target).value)" placeholder="Optional" />
+                        </div>
+                        <div class="form-line checkbox">
+                          <label>
+                            <input type="checkbox" [checked]="hearingNoticeGenerate()" (change)="hearingNoticeGenerate.set($any($event.target).checked)" />
+                            Generate hearing notice
+                          </label>
+                        </div>
+                        <div class="roznama-editor-actions">
+                          <button type="button" class="btn btn-primary" (click)="scheduleHearing()" [disabled]="hearingsLoading() || !isFutureHearingDate(hearingDateInput())">
+                            {{ hearingsLoading() ? 'Scheduling…' : 'Schedule hearing' }}
+                          </button>
+                        </div>
+                      </div>
+                    } @else {
+                      <p class="muted">No hearing action at this step.</p>
+                    }
+                  </div>
+                </div>
+              </section>
+            }
+
+            @else if (isGeneralWorkflow() && workflowContextLoading()) {
+              <p class="muted workflow-status">Loading case action…</p>
             }
 
             @else {
@@ -521,7 +556,7 @@
             }
 
             <!-- ─ ACTIVE: Schedule first hearing (PO only) ─ -->
-            @if (showHearingSection()) {
+            @if (showHearingSection() && !isHearingWorkflow()) {
               <section class="preview-section">
                 <h4>Schedule hearing</h4>
                 <div class="form-line">
@@ -819,117 +854,10 @@
               </section>
             }
 
-            <!-- ─ Judgment (legacy mixed view — not on dedicated roznamma/judgment panels) ─ -->
+            <!-- ─ Judgment (legacy mixed view) ─ -->
             @if (showJudgmentSection() && !isJudgmentWorkflow()) {
-              <section class="preview-section" id="judgment-section">
-                <h4>Judgment <span class="stage-chip">PO draft → Clerk edit → PO finalize</span></h4>
-                @if (officerRole() === 'PRESIDING_OFFICER') {
-                  <p class="muted" style="margin:0 0 6px">{{ judgmentOnePerCaseHint() }}</p>
-                  <p class="muted" style="margin:0 0 10px">{{ judgmentStepHint() }}</p>
-                }
-                @if (officerRole() === 'CLERK') {
-                  <p class="muted" style="margin:0 0 10px">{{ judgmentStepHint() }}</p>
-                }
-
-                @if (judgmentWorkflow()) {
-                  <div class="kv-grid">
-                    <div class="kv"><div class="kv-label">Status</div><div class="kv-value"><span class="badge">{{ judgmentStatusLabel() }}</span></div></div>
-                    <div class="kv"><div class="kv-label">Case No</div><div class="kv-value">{{ judgmentWorkflow()!.caseNo || caseNoFor(selectedApplicationId()!) || '—' }}</div></div>
-                    @if (judgmentWorkflow()!.publishedAt) {
-                      <div class="kv"><div class="kv-label">Published At</div><div class="kv-value">{{ toPrettyDate(judgmentWorkflow()!.publishedAt) }}</div></div>
-                    }
-                  </div>
-                }
-
-                @if (canDraftJudgment()) {
-                  <div class="form-line" style="margin-top:8px">
-                    <label>Judgment / Order Text (Marathi template body)</label>
-                    @if (canPoDraftJudgment()) {
-                      <p class="muted" style="margin:0 0 6px">Presiding Officer: save the initial draft. Clerk will edit this same text next.</p>
-                    }
-                    @if (canClerkEditJudgment()) {
-                      <p class="muted" style="margin:0 0 6px">Clerk: edit the PO draft, save, then submit to Presiding Officer.</p>
-                    }
-                    <textarea rows="10" [value]="judgmentSummaryInput()" (input)="judgmentSummaryInput.set($any($event.target).value)" placeholder="Generate template or enter final judgment / order text…"></textarea>
-                  </div>
-                  <div class="action-row" style="gap:8px; flex-wrap:wrap">
-                    @if (canGenerateJudgmentTemplate()) {
-                      <button type="button" class="btn btn-secondary" (click)="generateJudgmentTemplate()">
-                        {{ hasJudgmentContent() ? 'Regenerate Template' : 'Generate Judgment Template' }}
-                      </button>
-                    }
-                    <button type="button" class="btn btn-secondary" (click)="previewJudgment()" [disabled]="!hasJudgmentContent()">
-                      Preview Judgment (Marathi)
-                    </button>
-                    <button type="button" class="btn btn-primary" (click)="saveDraftJudgment()" [disabled]="judgmentSaving()">
-                      {{ judgmentSaving() ? 'Saving…' : (canPoDraftJudgment() ? 'Save Initial Draft (PO)' : 'Save Judgment Draft') }}
-                    </button>
-                    @if (canClerkSubmitJudgmentToPo()) {
-                      <button type="button" class="btn btn-primary" (click)="submitJudgmentToPO()" [disabled]="judgmentSubmitting() || judgmentSaving()">
-                        {{ judgmentSubmitting() ? 'Submitting…' : 'Submit to Presiding Officer' }}
-                      </button>
-                    }
-                  </div>
-                }
-
-                @if (showJudgmentReadOnly()) {
-                  <div class="form-line" style="margin-top:8px">
-                    <label>Judgment / Order Text</label>
-                    <textarea rows="10" readonly [value]="judgmentSummaryInput()"></textarea>
-                  </div>
-                  <div class="action-row" style="margin-top:8px">
-                    <button type="button" class="btn btn-secondary btn-xs" (click)="previewJudgment()" [disabled]="!hasJudgmentContent()">
-                      Preview Judgment (Marathi)
-                    </button>
-                  </div>
-                  @if (viewerFlowRole() === 'CLERK' && judgmentStatusLabel() === 'PO_SCRUTINY') {
-                    <p class="muted" style="margin:4px 0">Submitted to Presiding Officer. PO may revert to you for further edits, then finalize.</p>
-                  }
-                  @if (viewerFlowRole() === 'PRESIDING_OFFICER' && judgmentStatusLabel() === 'CLERK_DRAFT') {
-                    <p class="muted" style="margin:4px 0">Clerk is editing the draft. Use Revert below to send back with remarks (as many times as needed).</p>
-                  }
-                }
-
-                @if (canFinalizeJudgment()) {
-                  <div class="action-row" style="margin-top:8px; gap:8px">
-                    <button type="button" class="btn btn-secondary" (click)="previewJudgment()" [disabled]="!hasJudgmentContent()">
-                      Preview Judgment (Marathi)
-                    </button>
-                    <button type="button" class="btn btn-primary" (click)="finalizeJudgment()" [disabled]="judgmentSaving()">
-                      {{ judgmentSaving() ? 'Finalizing…' : 'Finalize Judgment' }}
-                    </button>
-                  </div>
-                }
-
-                @if (canRevertJudgment()) {
-                  <div class="revert-section">
-                    <label class="revert-label">Revert to Clerk for correction (with reason — may repeat)</label>
-                    <div class="form-inline">
-                      <input type="text" class="form-control"
-                        [value]="judgmentRevertReason()"
-                        (input)="judgmentRevertReason.set($any($event.target).value)"
-                        placeholder="Enter reason…"
-                        style="flex:1" />
-                      <button type="button" class="btn btn-warning btn-xs"
-                        (click)="revertJudgment()"
-                        [disabled]="judgmentSaving() || !judgmentRevertReason().trim()">
-                        Revert to Clerk
-                      </button>
-                    </div>
-                  </div>
-                }
-
-                @if (canPublishJudgment()) {
-                  <div class="action-row" style="margin-top:8px">
-                    <button type="button" class="btn btn-primary" (click)="publishJudgment()" [disabled]="judgmentSaving()">
-                      {{ judgmentSaving() ? 'Publishing…' : 'Publish Judgment & Dispose Case' }}
-                    </button>
-                  </div>
-                }
-
-                <div class="action-row" style="margin-top:8px">
-                  <button type="button" class="btn btn-secondary btn-xs" (click)="loadJudgmentWorkflow()">Refresh</button>
-                </div>
+              <section class="preview-section judgment-workflow-section" id="judgment-section">
+                <ng-container *ngTemplateOutlet="judgmentWorkflowPanel" />
               </section>
             }
 
@@ -1139,8 +1067,10 @@
 </section>
 
 <ng-template #noticeServeForm>
-  <section class="notice-inline-panel">
-    <h4 class="notice-inline-title">Serve hearing notice</h4>
+  <section class="notice-inline-panel" [class.notice-inline-panel--dedicated]="isNoticeWorkflow()">
+    @if (!isNoticeWorkflow()) {
+      <h4 class="notice-inline-title">Serve hearing notice</h4>
+    }
     @if (selectedPendingServe(); as ps) {
       <p class="notice-case-line">
         Case <strong>{{ ps.caseNo }}</strong> · Hearing #{{ ps.hearingNo }}
@@ -1236,36 +1166,6 @@
 </ng-template>
 
 <ng-template #judgmentWorkflowPanel>
-  <div class="judgment-workflow-header">
-    <div>
-      <h4>Judgment</h4>
-      @if (workflowCaseNo()) {
-        <p class="judgment-workflow-sub">
-          {{ workflowCaseNo() }}
-          @if (workflowContext()?.caseStatus) {
-            <span> · {{ workflowContext()!.caseStatus }}</span>
-          }
-          @if (judgmentBlueprintLabel()) {
-            <span> · {{ judgmentBlueprintLabel() }}</span>
-          }
-        </p>
-      }
-    </div>
-    @if (judgmentStatusLabel() !== '—') {
-      <span class="judgment-status-chip">{{ judgmentStatusLabel() }}</span>
-    }
-  </div>
-
-  @if (loadingOfficerDetail() || judgmentLoading() || workflowContextLoading()) {
-    <p class="muted workflow-status">Loading…</p>
-  }
-  @if (officerDetailError()) {
-    <p class="error">{{ officerDetailError() }}</p>
-  }
-  @if (judgmentContextMessage(); as jMsg) {
-    <p class="workflow-notice">{{ jMsg }}</p>
-  }
-
   <div class="officer-draft-workspace judgment-draft-layout" [class.reference-collapsed]="caseReferenceCollapsed()">
     @if (!caseReferenceCollapsed()) {
       <ng-container *ngTemplateOutlet="officerCaseReferencePanel" />
@@ -1280,201 +1180,127 @@
         <button type="button" class="btn btn-secondary btn-xs" (click)="openCaseReferenceTab('notices')">Notices</button>
       </div>
 
+      @if (judgmentLoading() || workflowContextLoading()) {
+        <p class="muted workflow-status">Loading judgment…</p>
+      }
+
+      @if (judgmentContextMessage(); as ctxMsg) {
+        <p class="muted judgment-step-hint">{{ ctxMsg }}</p>
+      } @else if (judgmentStepHint()) {
+        <p class="muted judgment-step-hint">{{ judgmentStepHint() }}</p>
+      }
+
+      <div class="judgment-status-bar">
+        <span class="badge">{{ judgmentStatusLabel() }}</span>
+        @if (judgmentActorRole()) {
+          <span class="muted judgment-actor">
+            {{ judgmentActorRole() === 'CLERK' ? 'Clerk' : 'Presiding Officer' }}
+          </span>
+        }
+        @if (judgmentWorkflow()?.caseNo) {
+          <span class="muted">{{ judgmentWorkflow()!.caseNo }}</span>
+        }
+      </div>
+
       @if (!hasAnyJudgmentAction() && !judgmentLoading() && !workflowContextLoading()) {
-        <p class="muted judgment-empty">No action available at this step.</p>
+        <p class="muted judgment-empty">No judgment action available at this step.</p>
       }
 
       <div class="judgment-form">
-        @if (judgmentWorkflow()) {
-          <div class="judgment-meta-bar">
-            <div class="judgment-meta-item">
-              <span class="judgment-meta-label">Case</span>
-              <span class="judgment-meta-value">{{ judgmentWorkflow()!.caseNo || workflowCaseNo() || '—' }}</span>
-            </div>
-            @if (judgmentWorkflow()!.publishedAt) {
-              <div class="judgment-meta-item">
-                <span class="judgment-meta-label">Published</span>
-                <span class="judgment-meta-value">{{ toPrettyDate(judgmentWorkflow()!.publishedAt) }}</span>
-              </div>
-            }
-          </div>
-        }
-
-        @if (canSaveJudgmentDraft() || showJudgmentReadOnly()) {
-          <div class="judgment-block" [class.judgment-readonly-block]="showJudgmentReadOnly()">
+        @if (showJudgmentEditor()) {
+          <div class="judgment-block" [class.judgment-readonly-block]="judgmentEditorDisabled() && !judgmentLoading() && !workflowContextLoading()">
             <div class="form-line">
-              <label>Judgment / order text</label>
-              @if (canSaveJudgmentDraft()) {
-                <app-rich-text-editor
-                  [ngModel]="judgmentSummaryInput()"
-                  (ngModelChange)="judgmentSummaryInput.set($event)"
-                  placeholder="Enter judgment / order text (Marathi)…"
-                  minHeight="280px"
-                />
-              } @else {
-                <app-rich-text-editor
-                  [ngModel]="judgmentSummaryInput()"
-                  minHeight="240px"
-                  [disabled]="true"
-                />
-              }
+              <label>{{ judgmentFieldLabelText() }}</label>
+              <app-rich-text-editor
+                [ngModel]="judgmentSummaryInput()"
+                (ngModelChange)="judgmentSummaryInput.set($event)"
+                placeholder="Enter judgment / order text (Marathi)…"
+                minHeight="280px"
+                [disabled]="judgmentEditorDisabled()"
+              />
             </div>
 
-            @if (canRevertJudgment()) {
-              <div class="judgment-revert-inline">
-                <label class="judgment-revert-label">Return to clerk</label>
-                <div class="judgment-revert-row">
-                  <input
-                    type="text"
-                    class="form-control"
-                    [value]="judgmentRevertReason()"
-                    (input)="judgmentRevertReason.set($any($event.target).value)"
-                    placeholder="Remarks (required)…"
-                  />
-                  <button
-                    type="button"
-                    class="btn btn-warning btn-xs"
-                    (click)="revertJudgment()"
-                    [disabled]="!judgmentRevertReason().trim() || judgmentSaving()"
-                  >
-                    Return to clerk
-                  </button>
-                </div>
+            @if (showJudgmentSendToClerkButton()) {
+              <div class="form-line">
+                <label>Remarks to clerk (optional)</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  [value]="judgmentSendToClerkRemarks()"
+                  (input)="judgmentSendToClerkRemarks.set($any($event.target).value)"
+                  placeholder="Please review and edit"
+                />
               </div>
             }
 
-            @if (canSignAndPublishJudgment()) {
+            @if (showJudgmentRevertButton()) {
+              <div class="form-line">
+                <label>Revert remarks <span class="req">*</span></label>
+                <textarea
+                  rows="2"
+                  [value]="judgmentRevertReason()"
+                  (input)="judgmentRevertReason.set($any($event.target).value)"
+                  placeholder="Reason for reverting to clerk…"
+                ></textarea>
+              </div>
+            }
+
+            @if (showJudgmentSignPublishButton()) {
               <div class="judgment-sign-inline">
-                <label class="judgment-revert-label">Digital signature</label>
+                <label class="judgment-revert-label">Digital signature <span class="req">*</span></label>
                 <input
                   type="text"
                   class="form-control"
                   [value]="judgmentSignatureRef()"
                   (input)="judgmentSignatureRef.set($any($event.target).value)"
-                  placeholder="PO-SIGN-xxx (required for Save & sign)"
+                  placeholder="DSC-REF-FROM-CLIENT"
                 />
               </div>
             }
 
-            <div class="judgment-editor-actions">
+            <div class="judgment-editor-actions judgment-editor-actions--minimal">
               <div class="judgment-actions-group">
-                @if (canSaveJudgmentDraft()) {
-                  @if (canGenerateJudgmentTemplate()) {
-                    <button type="button" class="btn btn-secondary" (click)="generateJudgmentTemplate()">
-                      {{ hasJudgmentContent() ? 'Regenerate template' : 'Generate template' }}
-                    </button>
-                  }
-                  <button type="button" class="btn btn-secondary" (click)="previewJudgment()" [disabled]="!hasJudgmentContent()">Preview</button>
-                  <button type="button" class="btn btn-primary" (click)="saveDraftJudgment()" [disabled]="judgmentSaving()">
-                    {{ judgmentSaving() ? 'Saving…' : judgmentSaveButtonLabel() }}
+                @if (showJudgmentSaveDraftButton()) {
+                  <button type="button" class="btn btn-primary" (click)="saveDraftJudgment()" [disabled]="judgmentSaving() || judgmentSubmitting()">
+                    {{ judgmentSaving() ? 'Saving…' : 'Save draft' }}
                   </button>
-                  @if (canSendJudgmentToClerk()) {
-                    <button
-                      type="button"
-                      class="btn btn-primary"
-                      (click)="sendJudgmentToClerk()"
-                      [disabled]="judgmentSubmitting() || judgmentSaving() || !hasJudgmentContent()"
-                    >
-                      {{ judgmentSubmitting() ? 'Sending…' : 'Send to clerk' }}
-                    </button>
-                  }
-                  @if (canClerkSubmitJudgmentToPo()) {
-                    <button
-                      type="button"
-                      class="btn btn-primary"
-                      (click)="submitJudgmentToPO()"
-                      [disabled]="judgmentSubmitting() || judgmentSaving()"
-                    >
-                      {{ judgmentSubmitting() ? 'Submitting…' : 'Submit to PO' }}
-                    </button>
-                  }
-                } @else {
-                  <button type="button" class="btn btn-secondary" (click)="previewJudgment()" [disabled]="!hasJudgmentContent()">Preview</button>
                 }
-                @if (canFinalizeJudgment()) {
-                  <button type="button" class="btn btn-primary" (click)="finalizeJudgment()" [disabled]="judgmentSaving()">
+                @if (showJudgmentSendToClerkButton()) {
+                  <button type="button" class="btn btn-secondary" (click)="sendJudgmentToClerk()" [disabled]="judgmentSubmitting() || judgmentSaving()">
+                    {{ judgmentSubmitting() ? 'Sending…' : 'Send to clerk' }}
+                  </button>
+                }
+                @if (showJudgmentSubmitToPoButton()) {
+                  <button type="button" class="btn btn-primary" (click)="submitJudgmentToPO()" [disabled]="judgmentSubmitting()">
+                    {{ judgmentSubmitting() ? 'Submitting…' : 'Submit to PO' }}
+                  </button>
+                }
+                @if (showJudgmentFinalizeButton()) {
+                  <button type="button" class="btn btn-secondary" (click)="finalizeJudgment()" [disabled]="judgmentSaving()">
                     {{ judgmentSaving() ? 'Finalizing…' : 'Finalize' }}
                   </button>
                 }
-                @if (canSignAndPublishJudgment()) {
+                @if (showJudgmentRevertButton()) {
+                  <button type="button" class="btn btn-secondary" (click)="revertJudgment()" [disabled]="judgmentSubmitting() || !judgmentRevertReason().trim()">
+                    Revert to clerk
+                  </button>
+                }
+                @if (showJudgmentPublishButton()) {
+                  <button type="button" class="btn btn-primary" (click)="publishJudgment()" [disabled]="judgmentSaving()">
+                    {{ judgmentSaving() ? 'Publishing…' : 'Publish' }}
+                  </button>
+                }
+                @if (showJudgmentSignPublishButton()) {
                   <button
                     type="button"
                     class="btn btn-primary"
                     (click)="signAndPublishJudgment()"
                     [disabled]="judgmentSaving() || !judgmentSignatureRef().trim()"
                   >
-                    {{ judgmentSaving() ? 'Signing…' : 'Save & sign' }}
-                  </button>
-                }
-                @if (canPublishJudgment()) {
-                  <button type="button" class="btn btn-primary" (click)="publishJudgment()" [disabled]="judgmentSaving()">
-                    {{ judgmentSaving() ? 'Publishing…' : 'Publish' }}
+                    {{ judgmentSaving() ? 'Signing…' : 'Sign and publish' }}
                   </button>
                 }
               </div>
-              <button type="button" class="btn btn-secondary btn-xs judgment-refresh-btn" (click)="loadJudgmentModule()">Refresh</button>
-            </div>
-          </div>
-        } @else if (canFinalizeJudgment() || canPublishJudgment() || canSignAndPublishJudgment()) {
-          <div class="judgment-block">
-            @if (canRevertJudgment()) {
-              <div class="judgment-revert-inline">
-                <label class="judgment-revert-label">Return to clerk</label>
-                <div class="judgment-revert-row">
-                  <input
-                    type="text"
-                    class="form-control"
-                    [value]="judgmentRevertReason()"
-                    (input)="judgmentRevertReason.set($any($event.target).value)"
-                    placeholder="Remarks (required)…"
-                  />
-                  <button
-                    type="button"
-                    class="btn btn-warning btn-xs"
-                    (click)="revertJudgment()"
-                    [disabled]="!judgmentRevertReason().trim() || judgmentSaving()"
-                  >
-                    Return to clerk
-                  </button>
-                </div>
-              </div>
-            }
-            @if (canSignAndPublishJudgment()) {
-              <div class="judgment-sign-inline">
-                <label class="judgment-revert-label">Digital signature</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  [value]="judgmentSignatureRef()"
-                  (input)="judgmentSignatureRef.set($any($event.target).value)"
-                  placeholder="PO-SIGN-xxx (required for Save & sign)"
-                />
-              </div>
-            }
-            <div class="judgment-editor-actions">
-              <div class="judgment-actions-group">
-                @if (canFinalizeJudgment()) {
-                  <button type="button" class="btn btn-primary" (click)="finalizeJudgment()" [disabled]="judgmentSaving()">
-                    {{ judgmentSaving() ? 'Finalizing…' : 'Finalize' }}
-                  </button>
-                }
-                @if (canSignAndPublishJudgment()) {
-                  <button
-                    type="button"
-                    class="btn btn-primary"
-                    (click)="signAndPublishJudgment()"
-                    [disabled]="judgmentSaving() || !judgmentSignatureRef().trim()"
-                  >
-                    {{ judgmentSaving() ? 'Signing…' : 'Save & sign' }}
-                  </button>
-                }
-                @if (canPublishJudgment()) {
-                  <button type="button" class="btn btn-primary" (click)="publishJudgment()" [disabled]="judgmentSaving()">
-                    {{ judgmentSaving() ? 'Publishing…' : 'Publish' }}
-                  </button>
-                }
-              </div>
-              <button type="button" class="btn btn-secondary btn-xs judgment-refresh-btn" (click)="loadJudgmentModule()">Refresh</button>
             </div>
           </div>
         }
