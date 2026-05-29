@@ -1,15 +1,5 @@
 <div class="rccms-app">
   <article class="card">
-    <header class="card-head">
-      <div class="card-head-main">
-        <h3>Applicant objection — disputed order</h3>
-        <p class="sub step-title">{{ activeStep().title }}</p>
-        @if (activeStepHint()) {
-          <p class="step-hint">{{ activeStepHint() }}</p>
-        }
-      </div>
-      <div class="step-meta">Step {{ stepIndex() + 1 }} / {{ steps.length }}</div>
-    </header>
 
     <nav class="stepper" aria-label="Application steps">
       <div class="stepper-progress-wrap" aria-hidden="true">
@@ -20,1229 +10,803 @@
       <div class="stepper-scroll">
         <div class="stepper-inner">
           @for (s of steps; track s.key; let i = $index; let last = $last) {
-            <div class="step-wrap">
-              <button
-                type="button"
-                class="step"
-                [class.active]="i === stepIndex()"
-                [class.done]="i < stepIndex()"
-                [class.upcoming]="i > stepIndex()"
-                [attr.aria-current]="i === stepIndex() ? 'step' : null"
-                (click)="selectStep(i)"
-              >
-                <span class="step-ring">
-                  @if (i < stepIndex()) {
-                    <span class="step-check" aria-hidden="true">✓</span>
-                  } @else {
-                    <span class="step-num">{{ i + 1 }}</span>
-                  }
-                </span>
-                <span class="step-label">{{ s.title }}</span>
-              </button>
-            </div>
-            @if (!last) {
-              <span class="step-segment" [class.filled]="i < stepIndex()" aria-hidden="true"></span>
-            }
+          <div class="step-wrap">
+            <button type="button" class="step" [class.active]="i === stepIndex()" [class.done]="i < stepIndex()"
+              [class.upcoming]="i > stepIndex()" [attr.aria-current]="i === stepIndex() ? 'step' : null"
+              (click)="selectStep(i)">
+              <span class="step-ring">
+                @if (i < stepIndex()) { <span class="step-check" aria-hidden="true">✓</span>
+              } @else {
+              <span class="step-num">{{ i + 1 }}</span>
+              }
+              </span>
+              <span class="step-label">{{ s.title }}</span>
+            </button>
+          </div>
+          @if (!last) {
+          <span class="step-segment" [class.filled]="i < stepIndex()" aria-hidden="true"></span>
+          }
           }
         </div>
       </div>
     </nav>
 
     @if (apiError()) {
-      <p class="api-message error">{{ apiError() }}</p>
+    <p class="api-message error">{{ apiError() }}</p>
     }
     @if (apiMessage()) {
-      <p class="api-message success">{{ apiMessage() }}</p>
+    <p class="api-message success">{{ apiMessage() }}</p>
     }
 
     @switch (activeStep().key) {
-      @case ('DISPUTED_ORDER') {
-        <section class="section">
-          <div class="mini-card" [formGroup]="form">
-            <div class="mini-head">
-              <strong>Subject & search</strong>
-            </div>
+    @case ('DISPUTED_ORDER') {
+    <section class="section">
+      <div class="mini-card" [formGroup]="form">
 
-            <div class="grid">
-              <label class="span-2">
-                Subject *
-                <select formControlName="subjectId" [disabled]="loadingSubjects()">
-                  <option [ngValue]="0">{{ loadingSubjects() ? 'Loading…' : 'Select subject' }}</option>
-                  @for (sub of subjects(); track sub.id) {
-                    <option [ngValue]="sub.id">{{ sub.subjectCode }} — {{ sub.subjectName }}</option>
-                  }
-                </select>
-              </label>
-            </div>
 
-            @if (isEpicsSubject()) {
-              <div class="mini-head" style="margin-top: 8px">
-                <strong>Mutation search criteria</strong>
-              </div>
+        <div class="grid">
+          <label class="span-2">
+            Subject *
+            <select formControlName="subjectId" [disabled]="loadingSubjects()">
+              <option [ngValue]="0">{{ loadingSubjects() ? 'Loading…' : 'Select subject' }}</option>
+              @for (sub of subjects(); track sub.id) {
+              <option [ngValue]="sub.id">{{ sub.subjectCode }} — {{ sub.subjectName }}</option>
+              }
+            </select>
+          </label>
+        </div>
 
-              <div class="radio-row">
-                <label class="role-option">
-                  <input
-                    type="radio"
-                    name="searchMode"
-                    [checked]="form.controls.searchMode.value === 'INWARD_NUMBER'"
-                    (change)="form.controls.searchMode.setValue('INWARD_NUMBER')"
-                  />
-                  <span>Inward number</span>
-                </label>
-                <label class="role-option">
-                  <input
-                    type="radio"
-                    name="searchMode"
-                    [checked]="form.controls.searchMode.value === 'SURVEY_NUMBER'"
-                    (change)="form.controls.searchMode.setValue('SURVEY_NUMBER')"
-                  />
-                  <span>Survey / CTS</span>
-                </label>
-                <label class="role-option">
-                  <input
-                    type="radio"
-                    name="searchMode"
-                    [checked]="form.controls.searchMode.value === 'MUTATION_NUMBER'"
-                    (change)="form.controls.searchMode.setValue('MUTATION_NUMBER')"
-                  />
-                  <span>Mutation type</span>
-                </label>
-              </div>
+        @if (isEpicsSubject()) {
+        <div class="mini-head" style="margin-top: 8px">
+          <strong>Mutation search criteria</strong>
+        </div>
 
-              @if (form.controls.searchMode.value === 'INWARD_NUMBER') {
-                <div class="grid">
-                  <label class="span-2">
-                    {{ searchFieldLabel() }} *
-                    <input type="text" formControlName="searchValue" [placeholder]="searchPlaceholder()" />
-                  </label>
-                </div>
+        <div class="radio-row">
+          <label class="role-option">
+            <input type="radio" name="searchMode" [checked]="form.controls.searchMode.value === 'INWARD_NUMBER'"
+              (change)="form.controls.searchMode.setValue('INWARD_NUMBER')" />
+            <span>Inward number</span>
+          </label>
+          <label class="role-option">
+            <input type="radio" name="searchMode" [checked]="form.controls.searchMode.value === 'SURVEY_NUMBER'"
+              (change)="form.controls.searchMode.setValue('SURVEY_NUMBER')" />
+            <span>Survey / CTS</span>
+          </label>
+          <label class="role-option">
+            <input type="radio" name="searchMode" [checked]="form.controls.searchMode.value === 'MUTATION_NUMBER'"
+              (change)="form.controls.searchMode.setValue('MUTATION_NUMBER')" />
+            <span>Mutation type</span>
+          </label>
+        </div>
 
-                <div class="row-actions">
-                  <button type="button" class="btn btn-primary" (click)="performSearch()" [disabled]="loadingSearch()">
-                    {{ loadingSearch() ? 'Searching…' : 'Search' }}
-                  </button>
-                </div>
-              } @else if (form.controls.searchMode.value === 'SURVEY_NUMBER') {
-                <div class="grid">
-                  <label>
-                    District *
-                    <select formControlName="urbanDistrictCode" [disabled]="loadingUrbanSearchChain()">
-                      <option [ngValue]="''">Select district</option>
-                      @for (d of urbanSearchDistricts(); track d.district_code) {
-                        <option [ngValue]="d.district_code">{{ d.district_name }}</option>
-                      }
-                    </select>
-                  </label>
-                  <label>
-                    Office *
-                    <select formControlName="urbanOfficeCode" [disabled]="!form.controls.urbanDistrictCode.value || loadingUrbanSearchChain()">
-                      <option [ngValue]="''">Select office</option>
-                      @for (o of urbanSearchOffices(); track o.office_code) {
-                        <option [ngValue]="o.office_code">{{ urbanOfficeOptionLabel(o) }}</option>
-                      }
-                    </select>
-                  </label>
-                  <label class="span-2">
-                    Village *
-                    <select formControlName="urbanVillageCode" [disabled]="!form.controls.urbanOfficeCode.value || loadingUrbanSearchChain()">
-                      <option [ngValue]="''">Select village</option>
-                      @for (v of urbanSearchVillages(); track v.village_code) {
-                        <option [ngValue]="v.village_code">{{ v.village_name }}</option>
-                      }
-                    </select>
-                  </label>
-                  <label>
-                    Parent CTS number *
-                    <input type="text" formControlName="ctsNoInput" placeholder="e.g. 80" />
-                  </label>
-                  <div class="row-actions" style="align-items: end">
-                    <button type="button" class="btn btn-secondary btn-compact" (click)="loadUrbanSubCtsRows()" [disabled]="loadingUrbanSearchChain()">
-                      Load sub CTS
-                    </button>
-                  </div>
-                  <label class="span-2">
-                    Sub CTS number *
-                    <select formControlName="selectedSubCtsNo" [disabled]="urbanSearchSubCtsRows().length === 0 || loadingUrbanSearchChain()">
-                      <option [ngValue]="''">Select sub CTS</option>
-                      @for (r of urbanSearchSubCtsRows(); track ctsRowLabel(r)) {
-                        <option [ngValue]="ctsRowLabel(r)">{{ ctsRowLabel(r) }}</option>
-                      }
-                    </select>
-                  </label>
-                  <div class="row-actions">
-                    <button type="button" class="btn btn-secondary btn-compact" (click)="loadUrbanMutationsBySubCts()" [disabled]="loadingUrbanSearchChain() || !form.controls.selectedSubCtsNo.value">
-                      Load inward numbers
-                    </button>
-                  </div>
-                  <label class="span-2">
-                    Inward number *
-                    <select formControlName="selectedInwardNumber" [disabled]="filteredUrbanSearchMutations().length === 0 || loadingUrbanSearchChain()">
-                      <option [ngValue]="''">Select inward number</option>
-                      @for (m of filteredUrbanSearchMutations(); track m.inward_number) {
-                        <option [ngValue]="m.inward_number">
-                          {{ urbanMutationInwardOptionLabel(m) }}
-                        </option>
-                      }
-                    </select>
-                  </label>
-                </div>
+        @if (form.controls.searchMode.value === 'INWARD_NUMBER') {
+        <div class="grid">
+          <label class="span-2">
+            {{ searchFieldLabel() }} *
+            <input type="text" formControlName="searchValue" [placeholder]="searchPlaceholder()" />
+          </label>
+        </div>
 
-                <div class="row-actions">
-                  <button type="button" class="btn btn-primary" (click)="searchBySelectedInward()" [disabled]="loadingSearch() || !form.controls.selectedInwardNumber.value">
-                    {{ loadingSearch() ? 'Searching…' : 'Search by selected inward' }}
-                  </button>
-                </div>
-              } @else if (form.controls.searchMode.value === 'MUTATION_NUMBER') {
-                <div class="grid">
-                  <label>
-                    District *
-                    <select formControlName="urbanDistrictCode" [disabled]="loadingUrbanSearchChain() || loadingUrbanMutationTypes()">
-                      <option [ngValue]="''">Select district</option>
-                      @for (d of urbanSearchDistricts(); track d.district_code) {
-                        <option [ngValue]="d.district_code">{{ d.district_name }}</option>
-                      }
-                    </select>
-                  </label>
-                  <label>
-                    Office *
-                    <select formControlName="urbanOfficeCode" [disabled]="!form.controls.urbanDistrictCode.value || loadingUrbanSearchChain() || loadingUrbanMutationTypes()">
-                      <option [ngValue]="''">Select office</option>
-                      @for (o of urbanSearchOffices(); track o.office_code) {
-                        <option [ngValue]="o.office_code">{{ urbanOfficeOptionLabel(o) }}</option>
-                      }
-                    </select>
-                  </label>
-                  <label class="span-2">
-                    Village *
-                    <select formControlName="urbanVillageCode" [disabled]="!form.controls.urbanOfficeCode.value || loadingUrbanSearchChain() || loadingUrbanMutationTypes()">
-                      <option [ngValue]="''">Select village</option>
-                      @for (v of urbanSearchVillages(); track v.village_code) {
-                        <option [ngValue]="v.village_code">{{ v.village_name }}</option>
-                      }
-                    </select>
-                  </label>
-                  <label class="span-2">
-                    Mutation type *
-                    <select
-                      formControlName="selectedUrbanMutationTypeCode"
-                      [disabled]="
+        <div class="row-actions">
+          <button type="button" class="btn btn-primary" (click)="performSearch()" [disabled]="loadingSearch()">
+            {{ loadingSearch() ? 'Searching…' : 'Search' }}
+          </button>
+        </div>
+        } @else if (form.controls.searchMode.value === 'SURVEY_NUMBER') {
+        <div class="grid">
+          <label>
+            District *
+            <select formControlName="urbanDistrictCode" [disabled]="loadingUrbanSearchChain()">
+              <option [ngValue]="''">Select district</option>
+              @for (d of urbanSearchDistricts(); track d.district_code) {
+              <option [ngValue]="d.district_code">{{ d.district_name }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            Office *
+            <select formControlName="urbanOfficeCode"
+              [disabled]="!form.controls.urbanDistrictCode.value || loadingUrbanSearchChain()">
+              <option [ngValue]="''">Select office</option>
+              @for (o of urbanSearchOffices(); track o.office_code) {
+              <option [ngValue]="o.office_code">{{ urbanOfficeOptionLabel(o) }}</option>
+              }
+            </select>
+          </label>
+          <label class="span-2">
+            Village *
+            <select formControlName="urbanVillageCode"
+              [disabled]="!form.controls.urbanOfficeCode.value || loadingUrbanSearchChain()">
+              <option [ngValue]="''">Select village</option>
+              @for (v of urbanSearchVillages(); track v.village_code) {
+              <option [ngValue]="v.village_code">{{ v.village_name }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            Parent CTS number *
+            <input type="text" formControlName="ctsNoInput" placeholder="e.g. 80" />
+          </label>
+          <div class="row-actions" style="align-items: end">
+            <button type="button" class="btn btn-secondary btn-compact" (click)="loadUrbanSubCtsRows()"
+              [disabled]="loadingUrbanSearchChain()">
+              Load sub CTS
+            </button>
+          </div>
+          <label class="span-2">
+            Sub CTS number *
+            <select formControlName="selectedSubCtsNo"
+              [disabled]="urbanSearchSubCtsRows().length === 0 || loadingUrbanSearchChain()">
+              <option [ngValue]="''">Select sub CTS</option>
+              @for (r of urbanSearchSubCtsRows(); track ctsRowLabel(r)) {
+              <option [ngValue]="ctsRowLabel(r)">{{ ctsRowLabel(r) }}</option>
+              }
+            </select>
+          </label>
+          <div class="row-actions">
+            <button type="button" class="btn btn-secondary btn-compact" (click)="loadUrbanMutationsBySubCts()"
+              [disabled]="loadingUrbanSearchChain() || !form.controls.selectedSubCtsNo.value">
+              Load inward numbers
+            </button>
+          </div>
+          <label class="span-2">
+            Inward number *
+            <select formControlName="selectedInwardNumber"
+              [disabled]="filteredUrbanSearchMutations().length === 0 || loadingUrbanSearchChain()">
+              <option [ngValue]="''">Select inward number</option>
+              @for (m of filteredUrbanSearchMutations(); track m.inward_number) {
+              <option [ngValue]="m.inward_number">
+                {{ urbanMutationInwardOptionLabel(m) }}
+              </option>
+              }
+            </select>
+          </label>
+        </div>
+
+        <div class="row-actions">
+          <button type="button" class="btn btn-primary" (click)="searchBySelectedInward()"
+            [disabled]="loadingSearch() || !form.controls.selectedInwardNumber.value">
+            {{ loadingSearch() ? 'Searching…' : 'Search by selected inward' }}
+          </button>
+        </div>
+        } @else if (form.controls.searchMode.value === 'MUTATION_NUMBER') {
+        <div class="grid">
+          <label>
+            District *
+            <select formControlName="urbanDistrictCode"
+              [disabled]="loadingUrbanSearchChain() || loadingUrbanMutationTypes()">
+              <option [ngValue]="''">Select district</option>
+              @for (d of urbanSearchDistricts(); track d.district_code) {
+              <option [ngValue]="d.district_code">{{ d.district_name }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            Office *
+            <select formControlName="urbanOfficeCode"
+              [disabled]="!form.controls.urbanDistrictCode.value || loadingUrbanSearchChain() || loadingUrbanMutationTypes()">
+              <option [ngValue]="''">Select office</option>
+              @for (o of urbanSearchOffices(); track o.office_code) {
+              <option [ngValue]="o.office_code">{{ urbanOfficeOptionLabel(o) }}</option>
+              }
+            </select>
+          </label>
+          <label class="span-2">
+            Village *
+            <select formControlName="urbanVillageCode"
+              [disabled]="!form.controls.urbanOfficeCode.value || loadingUrbanSearchChain() || loadingUrbanMutationTypes()">
+              <option [ngValue]="''">Select village</option>
+              @for (v of urbanSearchVillages(); track v.village_code) {
+              <option [ngValue]="v.village_code">{{ v.village_name }}</option>
+              }
+            </select>
+          </label>
+          <label class="span-2">
+            Mutation type *
+            <select formControlName="selectedUrbanMutationTypeCode" [disabled]="
                         !form.controls.urbanVillageCode.value ||
                         urbanMutationTypeOptions().length === 0 ||
                         loadingUrbanMutationTypes()
-                      "
-                    >
-                      <option [ngValue]="''">{{ loadingUrbanMutationTypes() ? 'Loading mutation types…' : 'Select mutation type' }}</option>
-                      @for (t of urbanMutationTypeOptions(); track t.code) {
-                        <option [ngValue]="t.code">{{ t.name }}</option>
-                      }
-                    </select>
-                  </label>
-                  <div class="row-actions">
-                    <button
-                      type="button"
-                      class="btn btn-secondary btn-compact"
-                      (click)="loadUrbanMutationsByMutationType()"
-                      [disabled]="loadingUrbanSearchChain() || !form.controls.selectedUrbanMutationTypeCode.value"
-                    >
-                      Load inward numbers
+                      ">
+              <option [ngValue]="''">{{ loadingUrbanMutationTypes() ? 'Loading mutation types…' : 'Select mutation type'
+                }}</option>
+              @for (t of urbanMutationTypeOptions(); track t.code) {
+              <option [ngValue]="t.code">{{ t.name }}</option>
+              }
+            </select>
+          </label>
+          <div class="row-actions">
+            <button type="button" class="btn btn-secondary btn-compact" (click)="loadUrbanMutationsByMutationType()"
+              [disabled]="loadingUrbanSearchChain() || !form.controls.selectedUrbanMutationTypeCode.value">
+              Load inward numbers
+            </button>
+          </div>
+          <label class="span-2">
+            Inward number *
+            <select formControlName="selectedInwardNumber"
+              [disabled]="filteredUrbanSearchMutations().length === 0 || loadingUrbanSearchChain() || loadingUrbanMutationTypes()">
+              <option [ngValue]="''">Select inward number</option>
+              @for (m of filteredUrbanSearchMutations(); track m.inward_number) {
+              <option [ngValue]="m.inward_number">
+                {{ urbanMutationInwardOptionLabel(m) }}
+              </option>
+              }
+            </select>
+          </label>
+        </div>
+
+        <div class="row-actions">
+          <button type="button" class="btn btn-primary" (click)="searchBySelectedInward()"
+            [disabled]="loadingSearch() || !form.controls.selectedInwardNumber.value">
+            {{ loadingSearch() ? 'Searching…' : 'Search by selected inward' }}
+          </button>
+        </div>
+        }
+        } @else if (isRural712Subject()) {
+        <div class="mini-head" style="margin-top: 8px">
+          <strong>Eferfar (7/12) search criteria</strong>
+        </div>
+        <div class="grid">
+          <label>
+            District *
+            <select formControlName="ruralDistrictCode" [disabled]="loadingRural712Search()">
+              <option [ngValue]="''">Select district</option>
+              @for (d of ruralSearchDistricts(); track d.district_code) {
+              <option [ngValue]="d.district_code">{{ d.district_name }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            Taluka *
+            <select formControlName="ruralTalukaCode"
+              [disabled]="!form.controls.ruralDistrictCode.value || loadingRural712Search()">
+              <option [ngValue]="''">Select taluka</option>
+              @for (t of ruralSearchTalukas(); track t.taluka_code) {
+              <option [ngValue]="t.taluka_code">{{ t.taluka_name }}</option>
+              }
+            </select>
+          </label>
+          <label class="span-2">
+            Village (LGD) *
+            <select formControlName="ruralVillageLgdCode"
+              [disabled]="!form.controls.ruralTalukaCode.value || loadingRural712Search()">
+              <option [ngValue]="''">Select village</option>
+              @for (v of ruralSearchVillages(); track v.lgd_village_code) {
+              <option [ngValue]="v.lgd_village_code">{{ v.village_name }}</option>
+              }
+            </select>
+          </label>
+          <label class="span-2">
+            Survey number (pin) *
+            <input type="text" formControlName="ruralSurveyPin" placeholder="e.g. 201" />
+          </label>
+        </div>
+
+        <div class="row-actions">
+          <button type="button" class="btn btn-primary" (click)="performRural712Search()"
+            [disabled]="loadingRural712Search()">
+            {{ loadingRural712Search() ? 'Searching…' : 'Search' }}
+          </button>
+        </div>
+
+        }
+
+        @if (isRural712Subject()) {
+        <div class="mini-card">
+          <div class="mini-head">
+            <strong>Eferfar / 7/12 order details</strong>
+          </div>
+
+          @if (rural712Searched() && rural712SubSurveyRows().length === 0) {
+          <p class="api-message error tight">No 7/12 records found for the given survey number.</p>
+          } @else if (rural712Searched()) {
+          <div class="grid">
+            <div class="kv span-2">
+              <span class="k">Location</span>
+              <span class="v">{{ rural712LocationSummary() }}</span>
+            </div>
+            @if (selectedRural712Row(); as sel) {
+            <div class="kv">
+              <span class="k">Selected survey (pin)</span>
+              <span class="v">{{ sel.pin }}</span>
+            </div>
+            @if (rural712SubPartsLabel(sel); as sub) {
+            <div class="kv">
+              <span class="k">Sub-survey</span>
+              <span class="v">{{ sub }}</span>
+            </div>
+            }
+            }
+          </div>
+
+          @if (selectedRural712Row()) {
+          <div class="row-actions" style="margin-top: 10px">
+            <button type="button" class="btn btn-primary btn-compact" (click)="viewRural712SatbaraPdf()"
+              [disabled]="loadingRural712SatbaraPdf()">
+              {{ loadingRural712SatbaraPdf() ? 'Loading Satbara PDF…' : 'View Satbara PDF' }}
+            </button>
+            <button type="button" class="btn btn-secondary btn-compact" (click)="downloadRural712SatbaraPdf()"
+              [disabled]="loadingRural712SatbaraPdf()">
+              {{ loadingRural712SatbaraPdf() ? 'Loading…' : 'Download Satbara PDF' }}
+            </button>
+          </div>
+          }
+
+          @if (rural712SatbaraCheckError()) {
+          <p class="api-message error tight">{{ rural712SatbaraCheckError() }}</p>
+          }
+          @if (rural712SatbaraPdfError()) {
+          <p class="api-message error tight">{{ rural712SatbaraPdfError() }}</p>
+          }
+          <div class="table-wrap" style="margin-top: 10px">
+            <table class="simple-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Survey (pin)</th>
+                  <th>Sub-survey</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of rural712SubSurveyRows(); track $index; let i = $index) {
+                <tr [class.primary-row]="selectedRural712Index() === i">
+                  <td>
+                    <label class="role-option compact">
+                      <input type="radio" name="rural712OrderPick" [checked]="selectedRural712Index() === i"
+                        (change)="selectRural712OrderRow(i)" />
+                    </label>
+                  </td>
+                  <td>{{ r.pin }}</td>
+                  <td class="muted">{{ rural712PinLabel(r) }}</td>
+                  <td>
+                    <button type="button" class="btn btn-secondary btn-compact"
+                      (click)="addRural712PlotToDisputedLands(r)">
+                      Add to disputed land
                     </button>
-                  </div>
-                  <label class="span-2">
-                    Inward number *
-                    <select
-                      formControlName="selectedInwardNumber"
-                      [disabled]="filteredUrbanSearchMutations().length === 0 || loadingUrbanSearchChain() || loadingUrbanMutationTypes()"
-                    >
-                      <option [ngValue]="''">Select inward number</option>
-                      @for (m of filteredUrbanSearchMutations(); track m.inward_number) {
-                        <option [ngValue]="m.inward_number">
-                          {{ urbanMutationInwardOptionLabel(m) }}
-                        </option>
-                      }
-                    </select>
-                  </label>
-                </div>
-
-                <div class="row-actions">
-                  <button type="button" class="btn btn-primary" (click)="searchBySelectedInward()" [disabled]="loadingSearch() || !form.controls.selectedInwardNumber.value">
-                    {{ loadingSearch() ? 'Searching…' : 'Search by selected inward' }}
-                  </button>
-                </div>
-              }
-            } @else if (isRural712Subject()) {
-              <div class="mini-head" style="margin-top: 8px">
-                <strong>Eferfar (7/12) search criteria</strong>
-              </div>
-              <div class="grid">
-                <label>
-                  District *
-                  <select formControlName="ruralDistrictCode" [disabled]="loadingRural712Search()">
-                    <option [ngValue]="''">Select district</option>
-                    @for (d of ruralSearchDistricts(); track d.district_code) {
-                      <option [ngValue]="d.district_code">{{ d.district_name }}</option>
-                    }
-                  </select>
-                </label>
-                <label>
-                  Taluka *
-                  <select
-                    formControlName="ruralTalukaCode"
-                    [disabled]="!form.controls.ruralDistrictCode.value || loadingRural712Search()"
-                  >
-                    <option [ngValue]="''">Select taluka</option>
-                    @for (t of ruralSearchTalukas(); track t.taluka_code) {
-                      <option [ngValue]="t.taluka_code">{{ t.taluka_name }}</option>
-                    }
-                  </select>
-                </label>
-                <label class="span-2">
-                  Village (LGD) *
-                  <select
-                    formControlName="ruralVillageLgdCode"
-                    [disabled]="!form.controls.ruralTalukaCode.value || loadingRural712Search()"
-                  >
-                    <option [ngValue]="''">Select village</option>
-                    @for (v of ruralSearchVillages(); track v.lgd_village_code) {
-                      <option [ngValue]="v.lgd_village_code">{{ v.village_name }}</option>
-                    }
-                  </select>
-                </label>
-                <label class="span-2">
-                  Survey number (pin) *
-                  <input type="text" formControlName="ruralSurveyPin" placeholder="e.g. 201" />
-                </label>
-              </div>
-
-              <div class="row-actions">
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  (click)="performRural712Search()"
-                  [disabled]="loadingRural712Search()"
-                >
-                  {{ loadingRural712Search() ? 'Searching…' : 'Search' }}
-                </button>
-              </div>
-
-            }
-
-            @if (isRural712Subject()) {
-              <div class="mini-card">
-                <div class="mini-head">
-                  <strong>Eferfar / 7/12 order details</strong>
-                </div>
-
-                @if (rural712Searched() && rural712SubSurveyRows().length === 0) {
-                  <p class="api-message error tight">No 7/12 records found for the given survey number.</p>
-                } @else if (rural712Searched()) {
-                  <div class="grid">
-                    <div class="kv span-2">
-                      <span class="k">Location</span>
-                      <span class="v">{{ rural712LocationSummary() }}</span>
-                    </div>
-                    @if (selectedRural712Row(); as sel) {
-                      <div class="kv">
-                        <span class="k">Selected survey (pin)</span>
-                        <span class="v">{{ sel.pin }}</span>
-                      </div>
-                      @if (rural712SubPartsLabel(sel); as sub) {
-                        <div class="kv">
-                          <span class="k">Sub-survey</span>
-                          <span class="v">{{ sub }}</span>
-                        </div>
-                      }
-                    }
-                  </div>
-
-                  @if (selectedRural712Row()) {
-                    <div class="row-actions" style="margin-top: 10px">
-                      <button
-                        type="button"
-                        class="btn btn-primary btn-compact"
-                        (click)="viewRural712SatbaraPdf()"
-                        [disabled]="loadingRural712SatbaraPdf()"
-                      >
-                        {{ loadingRural712SatbaraPdf() ? 'Loading Satbara PDF…' : 'View Satbara PDF' }}
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-secondary btn-compact"
-                        (click)="downloadRural712SatbaraPdf()"
-                        [disabled]="loadingRural712SatbaraPdf()"
-                      >
-                        {{ loadingRural712SatbaraPdf() ? 'Loading…' : 'Download Satbara PDF' }}
-                      </button>
-                    </div>
-                  }
-
-                  @if (rural712SatbaraCheckError()) {
-                    <p class="api-message error tight">{{ rural712SatbaraCheckError() }}</p>
-                  }
-                  @if (rural712SatbaraPdfError()) {
-                    <p class="api-message error tight">{{ rural712SatbaraPdfError() }}</p>
-                  }
-                  <div class="table-wrap" style="margin-top: 10px">
-                    <table class="simple-table">
-                      <thead>
-                        <tr>
-                          <th></th>
-                          <th>Survey (pin)</th>
-                          <th>Sub-survey</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (r of rural712SubSurveyRows(); track $index; let i = $index) {
-                          <tr [class.primary-row]="selectedRural712Index() === i">
-                            <td>
-                              <label class="role-option compact">
-                                <input
-                                  type="radio"
-                                  name="rural712OrderPick"
-                                  [checked]="selectedRural712Index() === i"
-                                  (change)="selectRural712OrderRow(i)"
-                                />
-                              </label>
-                            </td>
-                            <td>{{ r.pin }}</td>
-                            <td class="muted">{{ rural712PinLabel(r) }}</td>
-                            <td>
-                              <button
-                                type="button"
-                                class="btn btn-secondary btn-compact"
-                                (click)="addRural712PlotToDisputedLands(r)"
-                              >
-                                Add to disputed land
-                              </button>
-                            </td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
+                  </td>
+                </tr>
                 }
-              </div>
-            }
-
+              </tbody>
+            </table>
           </div>
-
-          @if (isEpicsSubject()) {
-            <div class="mini-card">
-              <div class="mini-head">
-                <strong>Mutation details</strong>
-              </div>
-
-              @if (mutationFound() && mutationDetails(); as details) {
-                <div class="grid">
-                  <div class="kv">
-                    <span class="k">Inward number</span>
-                    <span class="v">{{ details.inwardNumber }}</span>
-                  </div>
-                  <div class="kv">
-                    <span class="k">Inward date</span>
-                    <span class="v">{{ details.inwardDate }}</span>
-                  </div>
-                  <div class="kv">
-                    <span class="k">Mutation number</span>
-                    <span class="v">{{ details.mutationNumber || '-' }}</span>
-                  </div>
-                  <div class="kv">
-                    <span class="k">Mutation date</span>
-                    <span class="v">{{ details.mutationDate || '-' }}</span>
-                  </div>
-                  <div class="kv span-2">
-                    <span class="k">Mutation type</span>
-                    <span class="v">{{ details.mutationType }}</span>
-                  </div>
-                  <div class="kv span-2">
-                    <span class="k">Applicant name</span>
-                    <span class="v">{{ details.applicantName }}</span>
-                  </div>
-                  <div class="kv">
-                    <span class="k">Village</span>
-                    <span class="v">{{ details.village }}</span>
-                  </div>
-                  <div class="kv">
-                    <span class="k">Status</span>
-                    <span class="v">{{ details.status }}</span>
-                  </div>
-                </div>
-
-                @if (details.attachFileUrl) {
-                  <div class="pdf-doc-links" aria-label="Open PDF attachments in a new tab">
-                    <a class="btn btn-secondary btn-compact" [href]="details.attachFileUrl" target="_blank" rel="noopener noreferrer">View attachment</a>
-                  </div>
-                }
-              } @else if (searchedMutation() && !loadingSearch()) {
-                <p class="api-message error">Mutation details: Data not available.</p>
-              }
-
-              <div class="notice9-row">
-                <div class="mini-head notice9-row-head">
-                  <strong>Notice 9</strong>
-                </div>
-                <button
-                  type="button"
-                  class="btn btn-secondary btn-compact"
-                  (click)="openNotice9Preview()"
-                  [disabled]="!canPreviewNotice9()"
-                >
-                  Preview Notice 9
-                </button>
-              </div>
-            </div>
           }
-        </section>
+        </div>
+        }
+
+      </div>
+
+      @if (isEpicsSubject()) {
+      <div class="mini-card">
+        <div class="mini-head">
+          <strong>Mutation details</strong>
+        </div>
+
+        @if (mutationFound() && mutationDetails(); as details) {
+        <div class="grid">
+          <div class="kv">
+            <span class="k">Inward number</span>
+            <span class="v">{{ details.inwardNumber }}</span>
+          </div>
+          <div class="kv">
+            <span class="k">Inward date</span>
+            <span class="v">{{ details.inwardDate }}</span>
+          </div>
+          <div class="kv">
+            <span class="k">Mutation number</span>
+            <span class="v">{{ details.mutationNumber || '-' }}</span>
+          </div>
+          <div class="kv">
+            <span class="k">Mutation date</span>
+            <span class="v">{{ details.mutationDate || '-' }}</span>
+          </div>
+          <div class="kv span-2">
+            <span class="k">Mutation type</span>
+            <span class="v">{{ details.mutationType }}</span>
+          </div>
+          <div class="kv span-2">
+            <span class="k">Applicant name</span>
+            <span class="v">{{ details.applicantName }}</span>
+          </div>
+          <div class="kv">
+            <span class="k">Village</span>
+            <span class="v">{{ details.village }}</span>
+          </div>
+          <div class="kv">
+            <span class="k">Status</span>
+            <span class="v">{{ details.status }}</span>
+          </div>
+        </div>
+
+        @if (details.attachFileUrl) {
+        <div class="pdf-doc-links" aria-label="Open PDF attachments in a new tab">
+          <a class="btn btn-secondary btn-compact" [href]="details.attachFileUrl" target="_blank"
+            rel="noopener noreferrer">View attachment</a>
+        </div>
+        }
+        } @else if (searchedMutation() && !loadingSearch()) {
+        <p class="api-message error">Mutation details: Data not available.</p>
+        }
+
+        <div class="notice9-row">
+          <div class="mini-head notice9-row-head">
+            <strong>Notice 9</strong>
+          </div>
+          <button type="button" class="btn btn-secondary btn-compact" (click)="openNotice9Preview()"
+            [disabled]="!canPreviewNotice9()">
+            Preview Notice 9
+          </button>
+        </div>
+      </div>
       }
+    </section>
+    }
 
-      @case ('ACT_SECTION') {
-        <section class="section">
-          <div class="mini-card" [formGroup]="form">
-            <div class="mini-head">
-              <strong>Case Act & Section</strong>
+    @case ('ACT_SECTION') {
+    <section class="section">
+      <div class="mini-card" [formGroup]="form">
+
+
+        @if (isEpicsSubject() && form.controls.searchMode.value !== 'INWARD_NUMBER') {
+        <label class="span-2">
+          Office (from step 1)
+          <select disabled tabindex="-1" [attr.aria-label]="epicsUrbanOfficeReadonlySelectLabel()">
+            <option>{{ epicsUrbanOfficeReadonlySelectLabel() }}</option>
+          </select>
+        </label>
+        }
+
+        @if (isRural712Subject()) {
+        <label class="span-2">
+          Location (from step 1 — Eferfar / 7/12)
+          <input type="text" [value]="rural712ReadonlyLocationLabel()" readonly />
+        </label>
+        }
+
+        <div class="grid">
+          <label class="span-2">
+            Act *
+            <select formControlName="actId">
+              <option [ngValue]="0">Select act</option>
+              @for (a of acts(); track a.id) {
+              <option [ngValue]="a.id">{{ a.actCode }} - {{ a.actName }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="span-2">
+            Section *
+            <select formControlName="sectionId" [disabled]="form.controls.actId.value < 1">
+              <option [ngValue]="0">Select section</option>
+              @for (s of sectionsForSelectedAct(); track s.id) {
+              <option [ngValue]="s.id">{{ s.name }}</option>
+              }
+            </select>
+          </label>
+        </div>
+      </div>
+    </section>
+    }
+
+    @case ('PARTIES') {
+    <section class="section">
+
+      @if (mutationSuggestions().length > 0) {
+      <div class="mini-card suggestion-panel">
+        <div class="suggestion-panel-head">
+          <span class="suggestion-title">People from mutation record</span>
+        </div>
+        <div class="suggestion-list">
+          @for (sug of mutationSuggestions(); track $index) {
+          <div class="suggestion-card" [class.sug-applied]="suggestionAppliedAs(sug) !== null">
+            <div class="sug-info">
+              <strong class="sug-name">{{ suggestionDisplayName(sug) }}</strong>
+              @if (sug.mobile_number) {
+              <span class="sug-detail">&#x1F4DE;&nbsp;{{ sug.mobile_number }}</span>
+              }
+              @if (sug.district_name || sug.taluka) {
+              <span class="sug-detail">&#x1F4CD;&nbsp;{{ sug.district_name }}{{ sug.taluka ? ', ' + sug.taluka : ''
+                }}</span>
+              }
+              @if (sug.address) {
+              <span class="sug-detail sug-address">{{ sug.address }}</span>
+              }
             </div>
-
-            @if (isEpicsSubject() && form.controls.searchMode.value !== 'INWARD_NUMBER') {
-              <label class="span-2">
-                Office (from step 1)
-                <select disabled tabindex="-1" [attr.aria-label]="epicsUrbanOfficeReadonlySelectLabel()">
-                  <option>{{ epicsUrbanOfficeReadonlySelectLabel() }}</option>
-                </select>
-              </label>
-            }
-
-            @if (isRural712Subject()) {
-              <label class="span-2">
-                Location (from step 1 — Eferfar / 7/12)
-                <input type="text" [value]="rural712ReadonlyLocationLabel()" readonly />
-              </label>
-            }
-
-            <div class="grid">
-              <label class="span-2">
-                Act *
-                <select formControlName="actId">
-                  <option [ngValue]="0">Select act</option>
-                  @for (a of acts(); track a.id) {
-                    <option [ngValue]="a.id">{{ a.actCode }} - {{ a.actName }}</option>
-                  }
-                </select>
-              </label>
-
-              <label class="span-2">
-                Section *
-                <select formControlName="sectionId" [disabled]="form.controls.actId.value < 1">
-                  <option [ngValue]="0">Select section</option>
-                  @for (s of sectionsForSelectedAct(); track s.id) {
-                    <option [ngValue]="s.id">{{ s.name }}</option>
-                  }
-                </select>
-              </label>
+            <div class="sug-actions">
+              @if (suggestionAppliedAs(sug); as appliedRole) {
+              <span class="sug-applied-badge">&#x2713; Added as {{ appliedRole }}</span>
+              } @else {
+              <button type="button" class="btn btn-primary btn-compact" (click)="applySuggestion(sug, 'applicant')">
+                + Applicant
+              </button>
+              <button type="button" class="btn btn-secondary btn-compact" (click)="applySuggestion(sug, 'respondent')">
+                + Respondent
+              </button>
+              }
             </div>
           </div>
-        </section>
+          }
+        </div>
+      </div>
       }
 
-      @case ('PARTIES') {
-        <section class="section">
-
-          @if (mutationSuggestions().length > 0) {
-            <div class="mini-card suggestion-panel">
-              <div class="suggestion-panel-head">
-                <span class="suggestion-title">People from mutation record</span>
-              </div>
-              <div class="suggestion-list">
-                @for (sug of mutationSuggestions(); track $index) {
-                  <div class="suggestion-card" [class.sug-applied]="suggestionAppliedAs(sug) !== null">
-                    <div class="sug-info">
-                      <strong class="sug-name">{{ suggestionDisplayName(sug) }}</strong>
-                      @if (sug.mobile_number) {
-                        <span class="sug-detail">&#x1F4DE;&nbsp;{{ sug.mobile_number }}</span>
-                      }
-                      @if (sug.district_name || sug.taluka) {
-                        <span class="sug-detail">&#x1F4CD;&nbsp;{{ sug.district_name }}{{ sug.taluka ? ', ' + sug.taluka : '' }}</span>
-                      }
-                      @if (sug.address) {
-                        <span class="sug-detail sug-address">{{ sug.address }}</span>
-                      }
-                    </div>
-                    <div class="sug-actions">
-                      @if (suggestionAppliedAs(sug); as appliedRole) {
-                        <span class="sug-applied-badge">&#x2713; Added as {{ appliedRole }}</span>
-                      } @else {
-                        <button type="button" class="btn btn-primary btn-compact" (click)="applySuggestion(sug, 'applicant')">
-                          + Applicant
-                        </button>
-                        <button type="button" class="btn btn-secondary btn-compact" (click)="applySuggestion(sug, 'respondent')">
-                          + Respondent
-                        </button>
-                      }
-                    </div>
-                  </div>
-                }
-              </div>
-            </div>
-          }
-
-          <!-- ── Applicant details ────────────────────────────────────────── -->
-          <div class="mini-card" [formGroup]="form">
+      <div class="parties-container">
+        <!-- Left Panel: Applicant details list -->
+        <div class="parties-panel applicant-panel">
+          <div class="mini-card" style="height: 100%;">
             <div class="mini-head">
-              <strong>Applicant details</strong>
-              <button type="button" class="btn btn-secondary btn-compact" (click)="addApplicant()">Add applicant</button>
+              <strong>Applicants</strong>
             </div>
-
-            <div class="repeat-list" formArrayName="applicants">
+            <div class="party-list">
               @for (ctrl of applicants.controls; track partyRowTempId(ctrl); let i = $index) {
-                <div class="repeat-card" [formGroupName]="i">
-                  <div class="mini-head">
-                    <strong>Applicant {{ i + 1 }}</strong>
-                    <button type="button" class="btn btn-secondary btn-compact" (click)="removeApplicant(i)">
-                      Remove
-                    </button>
-                  </div>
-
-                  <div class="grid">
-
-                    <!-- First name (English triggers translation; Marathi is plain input) -->
-                    <div class="input-pair">
-                      <label>
-                        First Name *
-                        <input
-                          type="text"
-                          formControlName="firstName"
-                          placeholder="First name"
-                        />
-                      </label>
-                      <label>
-                        प्रथम नाव
-                        <input
-                          type="text"
-                          formControlName="firstNameMr"
-                          [placeholder]="translatingFields().has('applicant-' + i + '-firstName') ? 'Transliterating…' : 'Marathi translation'"
-                          [class.translating]="translatingFields().has('applicant-' + i + '-firstName')"
-                          (input)="onMarathiFieldManualEdit('applicant', i, 'firstNameMr')"
-                        />
-                      </label>
-                    </div>
-
-                    <!-- Middle name -->
-                    <div class="input-pair">
-                      <label>
-                        Middle Name
-                        <input
-                          type="text"
-                          formControlName="middleName"
-                          placeholder="Middle name"
-                        />
-                      </label>
-                      <label>
-                        मधले नाव
-                        <input
-                          type="text"
-                          formControlName="middleNameMr"
-                          [placeholder]="translatingFields().has('applicant-' + i + '-middleName') ? 'Transliterating…' : 'Marathi translation'"
-                          [class.translating]="translatingFields().has('applicant-' + i + '-middleName')"
-                          (input)="onMarathiFieldManualEdit('applicant', i, 'middleNameMr')"
-                        />
-                      </label>
-                    </div>
-
-                    <!-- Last name -->
-                    <div class="input-pair">
-                      <label>
-                        Last Name *
-                        <input
-                          type="text"
-                          formControlName="lastName"
-                          placeholder="Last name"
-                        />
-                      </label>
-                      <label>
-                        अंतिम नाव
-                        <input
-                          type="text"
-                          formControlName="lastNameMr"
-                          [placeholder]="translatingFields().has('applicant-' + i + '-lastName') ? 'Transliterating…' : 'Marathi translation'"
-                          [class.translating]="translatingFields().has('applicant-' + i + '-lastName')"
-                          (input)="onMarathiFieldManualEdit('applicant', i, 'lastNameMr')"
-                        />
-                      </label>
-                    </div>
-
-                    <!-- Pincode + lookup -->
-                    <div class="input-pair">
-                      <label>
-                        Pin Code *
-                        <input type="text" formControlName="pincode" maxlength="6" placeholder="6-digit pincode" />
-                      </label>
-                      <div style="display: flex; align-items: end;">
-                        <button type="button" class="btn btn-secondary btn-compact" (click)="lookupPincode('applicant', i)">
-                          Lookup
-                        </button>
-                      </div>
-                    </div>
-
-                    @if (partyLookupState('applicant', partyRowTempId(ctrl)).error; as e) {
-                      <p class="api-message error span-2">{{ e }}</p>
-                    }
-
-                    <!-- Village -->
-                    <div class="input-pair">
-                      <label>
-                        Village *
-                        <select formControlName="villageValue" (change)="onVillageSelectionChange('applicant', i)">
-                          <option [ngValue]="''">Select village</option>
-                          @for (po of partyLookupState('applicant', partyRowTempId(ctrl)).postOffices; track po.value) {
-                            <option [ngValue]="po.value">{{ po.name }}</option>
-                          }
-                        </select>
-                      </label>
-                    </div>
-
-                    <!-- Taluka -->
-                    <div class="input-pair">
-                      <label>
-                        Taluka *
-                        <select formControlName="taluka">
-                          <option [ngValue]="''">Select taluka</option>
-                          @for (t of partyLookupState('applicant', partyRowTempId(ctrl)).talukas; track t) {
-                            <option [ngValue]="t">{{ t }}</option>
-                          }
-                        </select>
-                      </label>
-                    </div>
-
-                    <!-- District + State -->
-                    <div class="input-pair">
-                      <label>
-                        District *
-                        <select formControlName="district">
-                          <option [ngValue]="''">Select district</option>
-                          @for (d of partyLookupState('applicant', partyRowTempId(ctrl)).districts; track d) {
-                            <option [ngValue]="d">{{ d }}</option>
-                          }
-                        </select>
-                      </label>
-                      <label>
-                        State
-                        <input
-                          type="text"
-                          [value]="partyStateLabel('applicant', partyRowTempId(ctrl))"
-                          readonly
-                        />
-                      </label>
-                    </div>
-
-                    <!-- Address (English triggers translation; Marathi is plain input) -->
-                    <div class="input-pair span-2">
-                      <label>
-                        Address *
-                        <input
-                          type="text"
-                          formControlName="address"
-                          placeholder="Address line"
-                        />
-                      </label>
-                      <label>
-                        पता
-                        <input
-                          type="text"
-                          formControlName="addressMr"
-                          [placeholder]="translatingFields().has('applicant-' + i + '-address') ? 'Transliterating…' : 'Marathi translation'"
-                          [class.translating]="translatingFields().has('applicant-' + i + '-address')"
-                          (input)="onMarathiFieldManualEdit('applicant', i, 'addressMr')"
-                        />
-                      </label>
-                    </div>
-
-                    <!-- Email + Mobile -->
-                    <div class="input-pair">
-                      <label>
-                        Email ID
-                        <input type="email" formControlName="email" placeholder="Email" />
-                      </label>
-                      <label>
-                        Mobile Number *
-                        <input type="text" formControlName="mobile" placeholder="10-digit mobile" />
-                      </label>
-                    </div>
-
-                    <!-- DOB + Age -->
-                    <div class="input-pair">
-                      <label>
-                        Date of Birth
-                        <input type="date" formControlName="dob" />
-                      </label>
-                      <label>
-                        Age
-                        <input type="number" formControlName="age" placeholder="Enter age" min="0" max="150" />
-                      </label>
-                    </div>
-
-                    <div class="input-pair">
-                      <label>
-                        Occupation
-                        <select formControlName="occupation">
-                          <option [ngValue]="''">Select occupation</option>
-                          @for (opt of occupations(); track opt.id) {
-                            <option [ngValue]="opt.name">{{ opt.name }}</option>
-                          }
-                        </select>
-                      </label>
-                      <label>
-                        व्यवसाय
-                        <input
-                          type="text"
-                          formControlName="occupationMr"
-                          (input)="onMarathiFieldManualEdit('applicant', i, 'occupationMr')"
-                        />
-                      </label>
-                    </div>
-
+              <div class="party-item-card">
+                <div class="party-item-header">
+                  <strong>{{ i + 1 }}. {{ getPartyFullName(ctrl) }}</strong>
+                  <div class="party-item-actions">
+                    <button type="button" class="btn-icon" (click)="openEditPartyDialog('applicant', i)"
+                      title="Edit">✏️</button>
+                    <button type="button" class="btn-icon danger" (click)="removeApplicant(i)"
+                      title="Remove">🗑️</button>
                   </div>
                 </div>
+                <div class="party-item-details">
+                  @if (ctrl.value.mobile) {
+                  <div>📞 {{ ctrl.value.mobile }}</div>
+                  }
+                  @if (ctrl.value.email) {
+                  <div>✉️ {{ ctrl.value.email }}</div>
+                  }
+                  @if (ctrl.value.address) {
+                  <div class="party-address">📍 {{ ctrl.value.address }}, {{ ctrl.value.village }}, {{ ctrl.value.taluka
+                    }}, {{ ctrl.value.district }}</div>
+                  }
+                </div>
+              </div>
+              }
+              @if (applicants.controls.length === 0) {
+              <p class="empty-state">No applicants added.</p>
               }
             </div>
           </div>
+        </div>
 
-          <!-- ── Respondent details ──────────────────────────────────────── -->
-          <div class="mini-card" [formGroup]="form" style="margin-top: 12px">
+        <!-- Right Panel: Respondent details list -->
+        <div class="parties-panel respondent-panel">
+          <div class="mini-card" style="height: 100%;">
             <div class="mini-head">
-              <strong>Respondent details</strong>
-              <button type="button" class="btn btn-secondary btn-compact" (click)="addRespondent()">Add respondent</button>
+              <strong>Respondents</strong>
             </div>
-
-            <div class="repeat-list" formArrayName="respondents">
+            <div class="party-list">
               @for (ctrl of respondents.controls; track partyRowTempId(ctrl); let i = $index) {
-                <div class="repeat-card" [formGroupName]="i">
-                  <div class="mini-head">
-                    <strong>Respondent {{ i + 1 }}</strong>
-                    <button type="button" class="btn btn-secondary btn-compact" (click)="removeRespondent(i)">
-                      Remove
-                    </button>
-                  </div>
-
-                  <div class="grid">
-
-                    <!-- First name (English triggers translation; Marathi is plain input) -->
-                    <div class="input-pair">
-                      <label>
-                        First Name *
-                        <input
-                          type="text"
-                          formControlName="firstName"
-                          placeholder="First name"
-                        />
-                      </label>
-                      <label>
-                        प्रथम नाव
-                        <input
-                          type="text"
-                          formControlName="firstNameMr"
-                          [placeholder]="translatingFields().has('respondent-' + i + '-firstName') ? 'Transliterating…' : 'Marathi translation'"
-                          [class.translating]="translatingFields().has('respondent-' + i + '-firstName')"
-                          (input)="onMarathiFieldManualEdit('respondent', i, 'firstNameMr')"
-                        />
-                      </label>
-                    </div>
-
-                    <!-- Middle name -->
-                    <div class="input-pair">
-                      <label>
-                        Middle Name
-                        <input
-                          type="text"
-                          formControlName="middleName"
-                          placeholder="Middle name"
-                        />
-                      </label>
-                      <label>
-                        मधले नाव
-                        <input
-                          type="text"
-                          formControlName="middleNameMr"
-                          [placeholder]="translatingFields().has('respondent-' + i + '-middleName') ? 'Transliterating…' : 'Marathi translation'"
-                          [class.translating]="translatingFields().has('respondent-' + i + '-middleName')"
-                          (input)="onMarathiFieldManualEdit('respondent', i, 'middleNameMr')"
-                        />
-                      </label>
-                    </div>
-
-                    <!-- Last name -->
-                    <div class="input-pair">
-                      <label>
-                        Last Name *
-                        <input
-                          type="text"
-                          formControlName="lastName"
-                          placeholder="Last name"
-                        />
-                      </label>
-                      <label>
-                        अंतिम नाव
-                        <input
-                          type="text"
-                          formControlName="lastNameMr"
-                          [placeholder]="translatingFields().has('respondent-' + i + '-lastName') ? 'Transliterating…' : 'Marathi translation'"
-                          [class.translating]="translatingFields().has('respondent-' + i + '-lastName')"
-                          (input)="onMarathiFieldManualEdit('respondent', i, 'lastNameMr')"
-                        />
-                      </label>
-                    </div>
-
-                    <!-- Pincode + lookup -->
-                    <div class="input-pair">
-                      <label>
-                        Pin Code *
-                        <input type="text" formControlName="pincode" maxlength="6" placeholder="6-digit pincode" />
-                      </label>
-                      <div style="display: flex; align-items: end;">
-                        <button type="button" class="btn btn-secondary btn-compact" (click)="lookupPincode('respondent', i)">
-                          Lookup
-                        </button>
-                      </div>
-                    </div>
-
-                    @if (partyLookupState('respondent', partyRowTempId(ctrl)).error; as e) {
-                      <p class="api-message error span-2">{{ e }}</p>
-                    }
-
-                    <!-- Village + Taluka -->
-                    <div class="input-pair">
-                      <label>
-                        Village *
-                        <select formControlName="villageValue" (change)="onVillageSelectionChange('respondent', i)">
-                          <option [ngValue]="''">Select village</option>
-                          @for (po of partyLookupState('respondent', partyRowTempId(ctrl)).postOffices; track po.value) {
-                            <option [ngValue]="po.value">{{ po.name }}</option>
-                          }
-                        </select>
-                      </label>
-                      <label>
-                        Taluka *
-                        <select formControlName="taluka">
-                          <option [ngValue]="''">Select taluka</option>
-                          @for (t of partyLookupState('respondent', partyRowTempId(ctrl)).talukas; track t) {
-                            <option [ngValue]="t">{{ t }}</option>
-                          }
-                        </select>
-                      </label>
-                    </div>
-
-                    <!-- District + State -->
-                    <div class="input-pair">
-                      <label>
-                        District *
-                        <select formControlName="district">
-                          <option [ngValue]="''">Select district</option>
-                          @for (d of partyLookupState('respondent', partyRowTempId(ctrl)).districts; track d) {
-                            <option [ngValue]="d">{{ d }}</option>
-                          }
-                        </select>
-                      </label>
-                      <label>
-                        State
-                        <input
-                          type="text"
-                          [value]="partyStateLabel('respondent', partyRowTempId(ctrl))"
-                          readonly
-                        />
-                      </label>
-                    </div>
-
-                    <!-- Address (English triggers translation; Marathi is plain input) -->
-                    <div class="input-pair span-2">
-                      <label>
-                        Address *
-                        <input
-                          type="text"
-                          formControlName="address"
-                          placeholder="Address line"
-                        />
-                      </label>
-                      <label>
-                        पता
-                        <input
-                          type="text"
-                          formControlName="addressMr"
-                          [placeholder]="translatingFields().has('respondent-' + i + '-address') ? 'Transliterating…' : 'Marathi translation'"
-                          [class.translating]="translatingFields().has('respondent-' + i + '-address')"
-                          (input)="onMarathiFieldManualEdit('respondent', i, 'addressMr')"
-                        />
-                      </label>
-                    </div>
-
-                    <!-- Email + Mobile -->
-                    <div class="input-pair">
-                      <label>
-                        Email ID
-                        <input type="email" formControlName="email" placeholder="Email" />
-                      </label>
-                      <label>
-                        Mobile Number *
-                        <input type="text" formControlName="mobile" placeholder="10-digit mobile" />
-                      </label>
-                    </div>
-
-                    <!-- DOB + Age -->
-                    <div class="input-pair">
-                      <label>
-                        Date of Birth
-                        <input type="date" formControlName="dob" />
-                      </label>
-                      <label>
-                        Age
-                        <input type="number" formControlName="age" placeholder="Enter age" min="0" max="150" />
-                      </label>
-                    </div>
-
-                    <div class="input-pair">
-                      <label>
-                        Occupation
-                        <select formControlName="occupation">
-                          <option [ngValue]="''">Select occupation</option>
-                          @for (opt of occupations(); track opt.id) {
-                            <option [ngValue]="opt.name">{{ opt.name }}</option>
-                          }
-                        </select>
-                      </label>
-                      <label>
-                        व्यवसाय
-                        <input
-                          type="text"
-                          formControlName="occupationMr"
-                          (input)="onMarathiFieldManualEdit('respondent', i, 'occupationMr')"
-                        />
-                      </label>
-                    </div>
-
+              <div class="party-item-card">
+                <div class="party-item-header">
+                  <strong>{{ i + 1 }}. {{ getPartyFullName(ctrl) }}</strong>
+                  <div class="party-item-actions">
+                    <button type="button" class="btn-icon" (click)="openEditPartyDialog('respondent', i)"
+                      title="Edit">✏️</button>
+                    <button type="button" class="btn-icon danger" (click)="removeRespondent(i)"
+                      title="Remove">🗑️</button>
                   </div>
                 </div>
+                <div class="party-item-details">
+                  @if (ctrl.value.mobile) {
+                  <div>📞 {{ ctrl.value.mobile }}</div>
+                  }
+                  @if (ctrl.value.email) {
+                  <div>✉️ {{ ctrl.value.email }}</div>
+                  }
+                  @if (ctrl.value.address) {
+                  <div class="party-address">📍 {{ ctrl.value.address }}, {{ ctrl.value.village }}, {{ ctrl.value.taluka
+                    }}, {{ ctrl.value.district }}</div>
+                  }
+                </div>
+              </div>
+              }
+              @if (respondents.controls.length === 0) {
+              <p class="empty-state">No respondents added.</p>
               }
             </div>
           </div>
-        </section>
-      }
+        </div>
+      </div>
 
-      @case ('VAKALTNAMA') {
-        <section class="section">
-          <app-vakaltnama-panel
-            [applicationRef]="filingClientRef()"
-            [courtPlace]="filingDistrictForVakalatnama()"
-            [courtOfficeName]="filingOfficeNameForVakalatnama()"
-            [applicants]="applicantOptions()"
-            [respondents]="respondentOptions()"
-            [assignments]="vakaltnamaAssignments()"
-            (assignmentsChange)="onVakaltnamaAssignmentsChange($event)"
-          />
-        </section>
-      }
+      <!-- Add New buttons row below -->
+      <div class="parties-actions-row">
+        <button type="button" class="btn btn-primary" (click)="openAddPartyDialog('applicant')">
+          + Add Applicant
+        </button>
+        <button type="button" class="btn btn-secondary" (click)="openAddPartyDialog('respondent')">
+          + Add Respondent
+        </button>
+      </div>
 
-      @case ('DISPUTED_LAND') {
-        <section class="section">
-          <app-disputed-land-panel
-            [disputedLands]="disputedLands()"
-            (disputedLandsChange)="onDisputedLandsChange($event)"
-            [landModeFromStep1]="isRural712Subject() ? 'RURAL_7_12' : 'URBAN_PROPERTY_CARD'"
-            [ruralPlotsFromStep1]="rural712SubSurveyRows()"
-            [ruralContext]="ruralDisputedLandContext()"
-            [prefilledDistrictCode]="form.controls.urbanDistrictCode.getRawValue()"
-            [prefilledOfficeCode]="form.controls.urbanOfficeCode.getRawValue()"
-            [prefilledVillageCode]="form.controls.urbanVillageCode.getRawValue()"
-            [prefilledCtsNo]="form.controls.ctsNoInput.getRawValue()"
-            [prefilledSubCtsNo]="form.controls.selectedSubCtsNo.getRawValue()"
-            [isEpicsSubject]="isEpicsSubject()"
-          />
-        </section>
-      }
+      <!-- Party edit/add dialog -->
+      <app-party-dialog [isOpen]="isPartyDialogOpen()" [role]="partyDialogRole()" [mode]="partyDialogMode()"
+        [index]="partyDialogIndex()" [partyForm]="activePartyControl()" [translatingFields]="translatingFields()"
+        [lookupState]="activePartyControl() ? partyLookupState(partyDialogRole(), partyRowTempId(activePartyControl()!)) : null"
+        [stateLabel]="activePartyControl() ? partyStateLabel(partyDialogRole(), partyRowTempId(activePartyControl()!)) : ''"
+        [occupations]="occupations()" [dialogError]="dialogError()" (close)="closePartyDialog($event.save)"
+        (lookupPincode)="lookupPincode(partyDialogRole(), partyDialogIndex())"
+        (villageSelectionChange)="onVillageSelectionChange(partyDialogRole(), partyDialogIndex())"
+        (marathiFieldManualEdit)="onMarathiFieldManualEdit(partyDialogRole(), partyDialogIndex(), $event)" />
+    </section>
+    }
 
-      @case ('APPLICATION_DESCRIPTION') {
-        <section class="section filing-final-step">
-          <div class="filing-blocks">
-            <article class="filing-block mini-card">
-              <header class="filing-block-head">
-                <span class="filing-step-num" aria-hidden="true">1</span>
-                <div class="filing-block-titles">
-                  <h4 class="filing-block-title">Application description</h4>
-                </div>
-              </header>
-              <div class="filing-block-body">
-                <app-paragraph-list-editor
-                  [paragraphs]="descriptionParagraphs()"
-                  (paragraphsChange)="onDescriptionParagraphsChange($event)"
-                />
-              </div>
-            </article>
+    @case ('VAKALTNAMA') {
+    <section class="section">
+      <app-vakaltnama-panel [applicationRef]="filingClientRef()" [courtPlace]="filingDistrictForVakalatnama()"
+        [courtOfficeName]="filingOfficeNameForVakalatnama()" [applicants]="applicantOptions()"
+        [respondents]="respondentOptions()" [assignments]="vakaltnamaAssignments()"
+        (assignmentsChange)="onVakaltnamaAssignmentsChange($event)" />
+    </section>
+    }
 
-            <article class="filing-block mini-card" [formGroup]="form">
-              <header class="filing-block-head">
-                <span class="filing-step-num" aria-hidden="true">2</span>
-                <div class="filing-block-titles">
-                  <h4 class="filing-block-title">Affidavit</h4>
-                </div>
-                <div class="filing-block-toolbar">
-                  @if (affidavitFormatUrl) {
-                    <a class="btn btn-secondary btn-compact" [href]="affidavitFormatUrl" target="_blank" rel="noopener">
-                      Download format
-                    </a>
-                  }
-                  <button type="button" class="btn btn-secondary btn-compact" (click)="loadAffidavitTemplate()">
-                    Load sample
-                  </button>
-                </div>
-              </header>
-              <div class="filing-block-body">
-                <label class="filing-textarea-label">
-                  Affidavit <span class="req">*</span>
-                  <textarea
-                    class="filing-textarea"
-                    formControlName="affidavitText"
-                    rows="7"
-                    placeholder="Enter or paste affidavit text…"
-                  ></textarea>
-                </label>
-              </div>
-            </article>
+    @case ('DISPUTED_LAND') {
+    <section class="section">
+      <app-disputed-land-panel [disputedLands]="disputedLands()" (disputedLandsChange)="onDisputedLandsChange($event)"
+        [landModeFromStep1]="isRural712Subject() ? 'RURAL_7_12' : 'URBAN_PROPERTY_CARD'"
+        [ruralPlotsFromStep1]="rural712SubSurveyRows()" [ruralContext]="ruralDisputedLandContext()"
+        [prefilledDistrictCode]="form.controls.urbanDistrictCode.getRawValue()"
+        [prefilledOfficeCode]="form.controls.urbanOfficeCode.getRawValue()"
+        [prefilledVillageCode]="form.controls.urbanVillageCode.getRawValue()"
+        [prefilledCtsNo]="form.controls.ctsNoInput.getRawValue()"
+        [prefilledSubCtsNo]="form.controls.selectedSubCtsNo.getRawValue()" [isEpicsSubject]="isEpicsSubject()" />
+    </section>
+    }
 
-            <article class="filing-block mini-card" [formGroup]="form">
-              <header class="filing-block-head">
-                <span class="filing-step-num" aria-hidden="true">3</span>
-                <div class="filing-block-titles">
-                  <h4 class="filing-block-title">Prayer</h4>
-                </div>
-                <div class="filing-block-toolbar">
-                  @if (prayerFormatUrl) {
-                    <a class="btn btn-secondary btn-compact" [href]="prayerFormatUrl" target="_blank" rel="noopener">
-                      Download format
-                    </a>
-                  }
-                  <button type="button" class="btn btn-secondary btn-compact" (click)="loadPrayerTemplate()">
-                    Load sample
-                  </button>
-                </div>
-              </header>
-              <div class="filing-block-body">
-                <label class="filing-textarea-label">
-                  Prayer <span class="req">*</span>
-                  <textarea
-                    class="filing-textarea"
-                    formControlName="prayerText"
-                    rows="6"
-                    placeholder="Enter or paste prayer text…"
-                  ></textarea>
-                </label>
-              </div>
-            </article>
-
-            <article class="filing-block mini-card filing-block-docs">
-              <header class="filing-block-head">
-                <span class="filing-step-num" aria-hidden="true">4</span>
-                <div class="filing-block-titles">
-                  <h4 class="filing-block-title">Mapped documents</h4>
-                </div>
-              </header>
-              <div class="filing-block-body filing-block-body-flush">
-                <app-mapped-documents-panel
-                  class="panel-embedded"
-                  mode="applicant"
-                  [caseCategoryId]="caseCategoryId()"
-                  [subjectId]="filingSubjectId()"
-                  [initialAttachments]="mappedAttachments()"
-                  (attachmentsChange)="onMappedAttachmentsChange($event)"
-                />
-              </div>
-            </article>
+    @case ('APPLICATION_DESCRIPTION') {
+    <section class="section filing-final-step">
+      <div class="filing-blocks">
+        <article class="filing-block mini-card">
+          <header class="filing-block-head">
+            <span class="filing-step-num" aria-hidden="true">1</span>
+            <div class="filing-block-titles">
+              <h4 class="filing-block-title">Application description</h4>
+            </div>
+          </header>
+          <div class="filing-block-body">
+            <app-paragraph-list-editor [paragraphs]="descriptionParagraphs()"
+              (paragraphsChange)="onDescriptionParagraphsChange($event)" />
           </div>
+        </article>
 
-          <footer class="filing-final-footer">
-            <button
-              type="button"
-              class="btn btn-secondary danger"
-              (click)="hardResetFiling()"
-              [disabled]="saveInProgress()"
-            >
-              Reset form
-            </button>
-            <button
-              type="button"
-              class="btn btn-secondary"
-              (click)="previewApplication()"
-              [disabled]="saveInProgress()"
-            >
-              {{ saveInProgress() ? 'Please wait…' : 'Preview application' }}
-            </button>
-            <div class="filing-final-footer-primary">
-              <button type="button" class="btn btn-secondary" (click)="saveDraft()" [disabled]="saveInProgress()">
-                {{ saveInProgress() ? 'Saving…' : 'Save draft' }}
-              </button>
-              <button type="button" class="btn btn-primary" (click)="finalSubmit()" [disabled]="saveInProgress()">
-                {{ saveInProgress() ? 'Submitting…' : 'Submit application' }}
+        <article class="filing-block mini-card" [formGroup]="form">
+          <header class="filing-block-head">
+            <span class="filing-step-num" aria-hidden="true">2</span>
+            <div class="filing-block-titles">
+              <h4 class="filing-block-title">Affidavit</h4>
+            </div>
+            <div class="filing-block-toolbar">
+              @if (affidavitFormatUrl) {
+              <a class="btn btn-secondary btn-compact" [href]="affidavitFormatUrl" target="_blank" rel="noopener">
+                Download format
+              </a>
+              }
+              <button type="button" class="btn btn-secondary btn-compact" (click)="loadAffidavitTemplate()">
+                Load sample
               </button>
             </div>
-          </footer>
-        </section>
-      }
+          </header>
+          <div class="filing-block-body">
+            <label class="filing-textarea-label">
+              Affidavit <span class="req">*</span>
+              <textarea class="filing-textarea" formControlName="affidavitText" rows="7"
+                placeholder="Enter or paste affidavit text…"></textarea>
+            </label>
+          </div>
+        </article>
+
+        <article class="filing-block mini-card" [formGroup]="form">
+          <header class="filing-block-head">
+            <span class="filing-step-num" aria-hidden="true">3</span>
+            <div class="filing-block-titles">
+              <h4 class="filing-block-title">Prayer</h4>
+            </div>
+            <div class="filing-block-toolbar">
+              @if (prayerFormatUrl) {
+              <a class="btn btn-secondary btn-compact" [href]="prayerFormatUrl" target="_blank" rel="noopener">
+                Download format
+              </a>
+              }
+              <button type="button" class="btn btn-secondary btn-compact" (click)="loadPrayerTemplate()">
+                Load sample
+              </button>
+            </div>
+          </header>
+          <div class="filing-block-body">
+            <label class="filing-textarea-label">
+              Prayer <span class="req">*</span>
+              <textarea class="filing-textarea" formControlName="prayerText" rows="6"
+                placeholder="Enter or paste prayer text…"></textarea>
+            </label>
+          </div>
+        </article>
+
+        <article class="filing-block mini-card filing-block-docs">
+          <header class="filing-block-head">
+            <span class="filing-step-num" aria-hidden="true">4</span>
+            <div class="filing-block-titles">
+              <h4 class="filing-block-title">Mapped documents</h4>
+            </div>
+          </header>
+          <div class="filing-block-body filing-block-body-flush">
+            <app-mapped-documents-panel class="panel-embedded" mode="applicant" [caseCategoryId]="caseCategoryId()"
+              [subjectId]="filingSubjectId()" [initialAttachments]="mappedAttachments()"
+              (attachmentsChange)="onMappedAttachmentsChange($event)" />
+          </div>
+        </article>
+      </div>
+
+      <footer class="filing-final-footer">
+        <button type="button" class="btn btn-secondary danger" (click)="hardResetFiling()"
+          [disabled]="saveInProgress()">
+          Reset form
+        </button>
+        <button type="button" class="btn btn-secondary" (click)="previewApplication()" [disabled]="saveInProgress()">
+          {{ saveInProgress() ? 'Please wait…' : 'Preview application' }}
+        </button>
+        <div class="filing-final-footer-primary">
+          <button type="button" class="btn btn-secondary" (click)="saveDraft()" [disabled]="saveInProgress()">
+            {{ saveInProgress() ? 'Saving…' : 'Save draft' }}
+          </button>
+          <button type="button" class="btn btn-primary" (click)="finalSubmit()" [disabled]="saveInProgress()">
+            {{ saveInProgress() ? 'Submitting…' : 'Submit application' }}
+          </button>
+        </div>
+      </footer>
+    </section>
+    }
     }
 
     <footer class="footer-actions">
       <button type="button" class="btn btn-secondary" (click)="back()" [disabled]="stepIndex() === 0">Back</button>
       @if (!isLastStep()) {
-        <button type="button" class="btn btn-primary" (click)="next()">Next</button>
+      <button type="button" class="btn btn-primary" (click)="next()">Next</button>
       }
     </footer>
   </article>
 
   @if (notice9ModalOpen()) {
-    <div
-      class="notice9-modal-backdrop"
-      role="presentation"
-      (click)="onNotice9ModalBackdropClick($event)"
-    >
-      <div
-        class="notice9-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="notice9-modal-title"
-        (click)="$event.stopPropagation()"
-      >
-        <header class="notice9-modal-header">
-          <h4 id="notice9-modal-title">Notice 9</h4>
-          <button type="button" class="notice9-modal-close" (click)="closeNotice9Modal()" aria-label="Close">×</button>
-        </header>
+  <div class="notice9-modal-backdrop" role="presentation" (click)="onNotice9ModalBackdropClick($event)">
+    <div class="notice9-modal" role="dialog" aria-modal="true" aria-labelledby="notice9-modal-title"
+      (click)="$event.stopPropagation()">
+      <header class="notice9-modal-header">
+        <h4 id="notice9-modal-title">Notice 9</h4>
+        <button type="button" class="notice9-modal-close" (click)="closeNotice9Modal()" aria-label="Close">×</button>
+      </header>
 
-        <div class="notice9-modal-body">
-          @if (loadingNotice9()) {
-            <p class="api-message">Loading Notice 9…</p>
-          } @else if (notice9ModalError()) {
-            <p class="api-message error">{{ notice9ModalError() }}</p>
-          } @else if (notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
-            @if (isNotice9ImagePreview(noticeUrl)) {
-              <img class="notice9-modal-preview" [src]="noticeUrl" alt="Notice 9 preview" />
-            } @else if (isNotice9PdfPreview(noticeUrl)) {
-              <iframe class="notice9-modal-iframe" [src]="noticeUrl" title="Notice 9 PDF"></iframe>
-            } @else {
-              <p class="api-message">Preview is not supported for this file type. Use Open or Download below.</p>
-            }
-          } @else {
-            <p class="api-message error">Notice 9 is not available for this inward number.</p>
-          }
-        </div>
-
-        @if (notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
-          <footer class="notice9-modal-footer">
-            <a class="btn btn-secondary btn-compact" [href]="noticeUrl" target="_blank" rel="noopener noreferrer">Open</a>
-            @if (notice9Resolved().sourceKind === 'data') {
-              <a class="btn btn-primary btn-compact" [href]="noticeUrl" download="notice-9">Download</a>
-            }
-            <button type="button" class="btn btn-secondary btn-compact" (click)="closeNotice9Modal()">Close</button>
-          </footer>
+      <div class="notice9-modal-body">
+        @if (loadingNotice9()) {
+        <p class="api-message">Loading Notice 9…</p>
+        } @else if (notice9ModalError()) {
+        <p class="api-message error">{{ notice9ModalError() }}</p>
+        } @else if (notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
+        @if (isNotice9ImagePreview(noticeUrl)) {
+        <img class="notice9-modal-preview" [src]="noticeUrl" alt="Notice 9 preview" />
+        } @else if (isNotice9PdfPreview(noticeUrl)) {
+        <iframe class="notice9-modal-iframe" [src]="noticeUrl" title="Notice 9 PDF"></iframe>
         } @else {
-          <footer class="notice9-modal-footer">
-            <button type="button" class="btn btn-secondary btn-compact" (click)="closeNotice9Modal()">Close</button>
-          </footer>
+        <p class="api-message">Preview is not supported for this file type. Use Open or Download below.</p>
+        }
+        } @else {
+        <p class="api-message error">Notice 9 is not available for this inward number.</p>
         }
       </div>
+
+      @if (notice9Resolved().available && notice9Resolved().url; as noticeUrl) {
+      <footer class="notice9-modal-footer">
+        <a class="btn btn-secondary btn-compact" [href]="noticeUrl" target="_blank" rel="noopener noreferrer">Open</a>
+        @if (notice9Resolved().sourceKind === 'data') {
+        <a class="btn btn-primary btn-compact" [href]="noticeUrl" download="notice-9">Download</a>
+        }
+        <button type="button" class="btn btn-secondary btn-compact" (click)="closeNotice9Modal()">Close</button>
+      </footer>
+      } @else {
+      <footer class="notice9-modal-footer">
+        <button type="button" class="btn btn-secondary btn-compact" (click)="closeNotice9Modal()">Close</button>
+      </footer>
+      }
     </div>
+  </div>
   }
 </div>

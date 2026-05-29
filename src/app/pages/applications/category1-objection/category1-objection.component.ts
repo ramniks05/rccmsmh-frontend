@@ -1,6 +1,6 @@
 import { Component, computed, DestroyRef, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { AbstractControl, FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { catchError, debounceTime, finalize, forkJoin, map, merge, of, Subject, switchMap } from 'rxjs';
@@ -23,6 +23,7 @@ import { VakaltnamaPanelComponent } from '../vakaltnama-panel/vakaltnama-panel.c
 import { DisputedLandPanelComponent } from '../disputed-land-panel/disputed-land-panel.component';
 import { MappedDocumentsPanelComponent } from '../mapped-documents-panel/mapped-documents-panel.component';
 import { ParagraphListEditorComponent } from '../paragraph-list-editor/paragraph-list-editor.component';
+import { PartyDialogComponent } from '../party-dialog/party-dialog.component';
 import { FilingMappedAttachment } from '../../../services/mapped-documents.service';
 import {
   DisputedLandRow,
@@ -151,7 +152,8 @@ interface Category1FilingSession {
     VakaltnamaPanelComponent,
     DisputedLandPanelComponent,
     MappedDocumentsPanelComponent,
-    ParagraphListEditorComponent
+    ParagraphListEditorComponent,
+    PartyDialogComponent
   ],
   templateUrl: './category1-objection.component.html',
   styleUrl: './category1-objection.component.css'
@@ -306,6 +308,96 @@ export class Category1ObjectionComponent {
   protected readonly occupations = signal<OccupationLookupResponse[]>([]);
   protected readonly applicantPincodeLookup = signal<Record<string, PartyAddressLookupState>>({});
   protected readonly respondentPincodeLookup = signal<Record<string, PartyAddressLookupState>>({});
+
+  protected readonly isPartyDialogOpen = signal(false);
+  protected readonly partyDialogRole = signal<'applicant' | 'respondent'>('applicant');
+  protected readonly partyDialogMode = signal<'add' | 'edit'>('add');
+  protected readonly partyDialogIndex = signal<number>(-1);
+  protected readonly dialogError = signal<string | null>(null);
+  private partyGroupBackupValue: any = null;
+
+  protected readonly activePartyControl = computed(() => {
+    const role = this.partyDialogRole();
+    const idx = this.partyDialogIndex();
+    if (idx < 0) return null;
+    const arr = role === 'applicant' ? this.applicants : this.respondents;
+    return (arr.at(idx) as FormGroup) || null;
+  });
+
+  protected getPartyFullName(control: AbstractControl): string {
+    const v = (control as FormGroup).getRawValue();
+    const fullName = [v.firstName || '', v.middleName || '', v.lastName || ''].join(' ').trim();
+    return fullName || v.name || '(no name)';
+  }
+
+  protected openAddPartyDialog(role: 'applicant' | 'respondent'): void {
+    this.partyDialogRole.set(role);
+    this.partyDialogMode.set('add');
+    this.dialogError.set(null);
+    
+    if (role === 'applicant') {
+      const g = this.createPartyGroup();
+      this.applicants.push(g);
+      this.ensureLookupState('applicant', g.controls.tempId.getRawValue());
+      this.partyDialogIndex.set(this.applicants.length - 1);
+    } else {
+      const g = this.createPartyGroup();
+      this.respondents.push(g);
+      this.ensureLookupState('respondent', g.controls.tempId.getRawValue());
+      this.partyDialogIndex.set(this.respondents.length - 1);
+    }
+    
+    this.isPartyDialogOpen.set(true);
+  }
+
+  protected openEditPartyDialog(role: 'applicant' | 'respondent', index: number): void {
+    this.partyDialogRole.set(role);
+    this.partyDialogMode.set('edit');
+    this.partyDialogIndex.set(index);
+    this.dialogError.set(null);
+    
+    const arr = role === 'applicant' ? this.applicants : this.respondents;
+    const group = arr.at(index);
+    if (group) {
+      this.partyGroupBackupValue = group.getRawValue();
+    }
+    
+    this.isPartyDialogOpen.set(true);
+  }
+
+  protected closePartyDialog(save: boolean): void {
+    const role = this.partyDialogRole();
+    const mode = this.partyDialogMode();
+    const idx = this.partyDialogIndex();
+    const arr = role === 'applicant' ? this.applicants : this.respondents;
+    
+    if (!save) {
+      if (mode === 'add' && idx >= 0 && idx < arr.length) {
+        arr.removeAt(idx);
+      } else if (mode === 'edit' && idx >= 0 && idx < arr.length && this.partyGroupBackupValue) {
+        arr.at(idx).patchValue(this.partyGroupBackupValue, { emitEvent: false });
+      }
+      this.isPartyDialogOpen.set(false);
+      this.partyDialogIndex.set(-1);
+      this.partyGroupBackupValue = null;
+      this.dialogError.set(null);
+      this.schedulePersist();
+    } else {
+      if (idx >= 0 && idx < arr.length) {
+        const group = arr.at(idx);
+        group.markAllAsTouched();
+        if (group.invalid) {
+          this.dialogError.set('Please fill all required fields in the party form.');
+          return;
+        }
+      }
+      this.dialogError.set(null);
+      this.isPartyDialogOpen.set(false);
+      this.partyDialogIndex.set(-1);
+      this.partyGroupBackupValue = null;
+      this.schedulePersist();
+    }
+  }
   protected readonly urbanSearchDistricts = signal<UrbanDistrict[]>([]);
   protected readonly urbanSearchOffices = signal<UrbanOffice[]>([]);
   protected readonly epicsUrbanOfficeSnapshot = signal<{ code: string; name: string } | null>(null);
@@ -427,23 +519,60 @@ export class Category1ObjectionComponent {
     return group;
   }
 
+  private readonly applicantsValue = toSignal(
+    merge(
+      of(null),
+      this.applicants.valueChanges
+    )
+  );
+
   protected readonly applicantOptions = computed((): ApplicantOption[] => {
+    this.applicantsValue();
     return this.partyOptionsFromFormArray(this.applicants, 'Applicant');
   });
 
+  private readonly respondentsValue = toSignal(
+    merge(
+      of(null),
+      this.respondents.valueChanges
+    )
+  );
+
   protected readonly respondentOptions = computed((): ApplicantOption[] => {
+    this.respondentsValue();
     return this.partyOptionsFromFormArray(this.respondents, 'Respondent');
   });
 
   private partyOptionsFromFormArray(arr: FormArray, fallbackLabel: string): ApplicantOption[] {
     return arr.controls.map((c) => {
       const v = (c as any).getRawValue?.() as
-        | { tempId?: string; firstName?: string; middleName?: string; lastName?: string; name?: string }
+        | {
+            tempId?: string;
+            firstName?: string;
+            middleName?: string;
+            lastName?: string;
+            name?: string;
+            mobile?: string;
+            email?: string;
+            address?: string;
+            village?: string;
+            taluka?: string;
+            district?: string;
+          }
         | undefined;
       const id = v?.tempId || this.makeTempId();
       const fullName = [v?.firstName || '', v?.middleName || '', v?.lastName || ''].join(' ').trim();
       const name = fullName || (v?.name || '').trim() || fallbackLabel;
-      return { id, name };
+      return {
+        id,
+        name,
+        mobile: v?.mobile,
+        email: v?.email,
+        address: v?.address,
+        village: v?.village,
+        taluka: v?.taluka,
+        district: v?.district
+      };
     });
   }
 
@@ -487,7 +616,10 @@ export class Category1ObjectionComponent {
   }
 
   protected removeApplicant(index: number): void {
-    this.applicants.removeAt(index);
+    if (confirm('Are you sure you want to remove this applicant?')) {
+      this.applicants.removeAt(index);
+      this.schedulePersist();
+    }
   }
 
   protected addRespondent(): void {
@@ -497,7 +629,10 @@ export class Category1ObjectionComponent {
   }
 
   protected removeRespondent(index: number): void {
-    this.respondents.removeAt(index);
+    if (confirm('Are you sure you want to remove this respondent?')) {
+      this.respondents.removeAt(index);
+      this.schedulePersist();
+    }
   }
 
   // ─── Mutation suggestion helpers ───────────────────────────────────────────
@@ -563,6 +698,7 @@ export class Category1ObjectionComponent {
     const arr = role === 'applicant' ? this.applicants : this.respondents;
 
     let targetIndex = -1;
+    let isNewRow = false;
     for (let i = 0; i < arr.length; i++) {
       const g = arr.at(i) as ReturnType<Category1ObjectionComponent['createPartyGroup']>;
       if (!g.controls.firstName.getRawValue().trim()) {
@@ -578,9 +714,11 @@ export class Category1ObjectionComponent {
         this.addRespondent();
       }
       targetIndex = arr.length - 1;
+      isNewRow = true;
     }
 
     const group = arr.at(targetIndex) as ReturnType<Category1ObjectionComponent['createPartyGroup']>;
+    const backupValue = group.getRawValue();
     const { firstName, middleName, lastName } = this.parseSuggestionName(fields.applicantName);
 
     const addressParts = [fields.address, fields.city]
@@ -609,7 +747,20 @@ export class Category1ObjectionComponent {
     }
 
     this.apiError.set(null);
+    this.dialogError.set(null);
     this.schedulePersist();
+
+    // Automatically open the dialog for the prefilled party
+    this.partyDialogRole.set(role);
+    if (isNewRow) {
+      this.partyDialogMode.set('add');
+      this.partyGroupBackupValue = null;
+    } else {
+      this.partyDialogMode.set('edit');
+      this.partyGroupBackupValue = backupValue;
+    }
+    this.partyDialogIndex.set(targetIndex);
+    this.isPartyDialogOpen.set(true);
   }
 
   private prefillPartyAddressFromMutation(
@@ -982,8 +1133,6 @@ private tryAutoTranslate(
           this.loadingDistricts.set(false);
           this.resetClientRefSeedParts();
           this.filingClientRef.set(this.buildClientApplicationRef());
-          this.addApplicant();
-          this.addRespondent();
           this.hydrating = false;
           this.setupPersistencePipeline();
         }
@@ -1420,8 +1569,6 @@ private tryAutoTranslate(
       this.filingClientRef.set(this.buildClientApplicationRef());
       this.serverApplicationId.set(null);
       this.applicantIdByClientRowKeySig.set({});
-      this.addApplicant();
-      this.addRespondent();
       this.hydrating = false;
       this.setupPersistencePipeline();
       return;
@@ -1539,9 +1686,7 @@ private tryAutoTranslate(
     respondents: Array<Record<string, unknown>>
   ): void {
     while (this.applicants.length) this.applicants.removeAt(0);
-    const appList = applicants.length
-      ? applicants
-      : [{ tempId: this.makeTempId(), firstName: '', middleName: '', lastName: '', mobile: '', address: '' }];
+    const appList = applicants;
     for (const r of appList) {
       const g = this.createPartyGroup();
       const tempId = String(r['tempId'] || '').trim() || this.makeTempId();
@@ -1551,9 +1696,7 @@ private tryAutoTranslate(
     }
 
     while (this.respondents.length) this.respondents.removeAt(0);
-    const respList = respondents.length
-      ? respondents
-      : [{ tempId: this.makeTempId(), firstName: '', middleName: '', lastName: '', mobile: '', address: '' }];
+    const respList = respondents;
     for (const r of respList) {
       const g = this.createPartyGroup();
       const tempId = String(r['tempId'] || '').trim() || this.makeTempId();
@@ -2728,8 +2871,6 @@ private tryAutoTranslate(
     this.epicsUrbanOfficeSnapshot.set(null);
     while (this.applicants.length) this.applicants.removeAt(0);
     while (this.respondents.length) this.respondents.removeAt(0);
-    this.applicants.push(this.createPartyGroup());
-    this.respondents.push(this.createPartyGroup());
     this.form.patchValue(
       {
         subjectId: 0, searchMode: 'INWARD_NUMBER' as const, searchValue: '',
@@ -2907,6 +3048,34 @@ private tryAutoTranslate(
       this.applicants.controls.forEach((g) => g.markAllAsTouched());
       this.respondents.controls.forEach((g) => g.markAllAsTouched());
     }
+
+    // Diagnostics: Log validation errors to the browser console
+    this.applicants.controls.forEach((c, idx) => {
+      const g = c as FormGroup;
+      if (g.invalid) {
+        console.warn(`Applicant #${idx + 1} is invalid. Form values:`, g.value);
+        Object.keys(g.controls).forEach((key) => {
+          const ctrl = g.get(key);
+          if (ctrl && ctrl.invalid) {
+            console.warn(`  Field "${key}" failed validation:`, ctrl.errors);
+          }
+        });
+      }
+    });
+
+    this.respondents.controls.forEach((c, idx) => {
+      const g = c as FormGroup;
+      if (g.invalid) {
+        console.warn(`Respondent #${idx + 1} is invalid. Form values:`, g.value);
+        Object.keys(g.controls).forEach((key) => {
+          const ctrl = g.get(key);
+          if (ctrl && ctrl.invalid) {
+            console.warn(`  Field "${key}" failed validation:`, ctrl.errors);
+          }
+        });
+      }
+    });
+
     if (this.applicants.length < 1) { this.apiError.set('At least one applicant is required. Please add applicant details.'); return false; }
     if (this.respondents.length < 1) { this.apiError.set('At least one respondent is required. Please add respondent details.'); return false; }
     if (!this.applicants.valid) { this.apiError.set('Please complete all mandatory applicant details (name, mobile, pincode, address).'); return false; }

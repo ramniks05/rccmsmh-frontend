@@ -1,183 +1,265 @@
-<div class="vak-wrap">
+<div class="vak-wrap" [class.vak-split-layout]="isAssignmentMode()">
   @if (documentActionError()) {
-    <p class="api-message error tight">{{ documentActionError() }}</p>
+  <p class="api-message error tight">{{ documentActionError() }}</p>
   }
 
   @if (isAssignmentMode()) {
 
-    <!-- ── Create / edit group ─────────────────────────────────────── -->
-    <div class="mini-card vak-flow">
-      <div class="mini-head">
-        <strong>Vakaltnama groups</strong>
-      </div>
+  <!-- ── Create / edit group ─────────────────────────────────────── -->
+  <div class="mini-card vak-flow">
+    <div class="mini-head">
+      <strong>Select Applicants</strong>
+    </div>
 
-      <!-- Applicant checkboxes -->
-      <div class="vak-block">
-        <span class="vak-label">Select applicants</span>
-        <div class="check-grid vak-checks">
-          @for (a of applicants(); track a.id) {
-            <label
-              class="check-item"
-              [class.disabled]="isApplicantAssigned(a.id)"
-            >
-              <input
-                type="checkbox"
-                [checked]="selectedApplicantIds().includes(a.id)"
-                [disabled]="isApplicantAssigned(a.id)"
-                (change)="toggleApplicant(a.id, $any($event.target).checked)"
-              />
-              <span class="check-item-text">{{ a.name || ('Applicant ' + a.id) }}</span>
-            </label>
-          }
+    <!-- Applicant Table Selection -->
+    <div class="vak-block">
+      <div class="vak-table-container">
+        <table class="vak-table">
+          <thead>
+            <tr>
+              <th style="width: 50px; text-align: center;">Select</th>
+              <th>Applicant Name</th>
+              <th>Contact Details</th>
+              <th>Address</th>
+              <th style="width: 120px;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (a of applicants(); track a.id) {
+            <tr [class.row-assigned]="isApplicantAssigned(a.id)"
+              [class.row-selected]="selectedApplicantIds().includes(a.id)">
+              <td style="text-align: center; vertical-align: middle;">
+                <input type="checkbox" [checked]="selectedApplicantIds().includes(a.id) || isApplicantAssigned(a.id)"
+                  [disabled]="isApplicantAssigned(a.id)"
+                  (change)="toggleApplicant(a.id, $any($event.target).checked)" />
+              </td>
+              <td>
+                <strong>{{ a.name }}</strong>
+              </td>
+              <td>
+                @if (a.mobile) { <div>📞 {{ a.mobile }}</div> }
+                @if (a.email) { <div style="font-size: 0.75rem; color: #64748b;">✉️ {{ a.email }}</div> }
+              </td>
+              <td>
+                @if (a.address) {
+                <div class="vak-table-address">
+                  📍 {{ a.address }}, Moje {{ a.village }}, Tal. {{ a.taluka }}, Dist. {{ a.district }}
+                </div>
+                } @else {
+                <span class="muted">—</span>
+                }
+              </td>
+              <td>
+                @if (isApplicantAssigned(a.id)) {
+                <span class="badge badge-assigned">Assigned</span>
+                } @else if (selectedApplicantIds().includes(a.id)) {
+                <span class="badge badge-selected">Selected</span>
+                } @else {
+                <span class="badge badge-pending">Pending</span>
+                }
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="vak-flow-actions" style="margin-top: 1rem;">
+      <button type="button" class="btn btn-primary" (click)="openGroupDialog()"
+        [disabled]="selectedApplicantIds().length === 0">
+        + Create Vakalatnama Group
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Saved groups ────────────────────────────────────────────── -->
+  <div class="mini-card vak-groups">
+    <div class="mini-head">
+      <strong>Vakalatnama groups</strong>
+    </div>
+    @if (assignments().length === 0) {
+    <p class="empty-line muted">No groups yet.</p>
+    } @else {
+    <ul class="vak-group-list">
+      @for (g of assignments(); track g.id; let i = $index) {
+      <li class="vak-group-row">
+        <div class="vak-group-main">
+          <!-- Advocate section -->
+          <div class="vak-group-section">
+            <span class="vak-section-label">Advocate(s)</span>
+            <div class="vak-group-advocates-list">
+              <span class="vak-adv-name">👤 {{ g.advocate.fullName }}</span>
+              <span class="badge badge-assigned">{{ g.advocate.barCouncilNumber }}</span>
+              @for (coRaw of g.coAdvocates; track $index) {
+              @if (getCoAdvocateDetails(coRaw); as co) {
+              <span class="vak-co-adv-name">, {{ co.fullName }}</span>
+              <span class="badge badge-assigned">{{ co.barCouncilNumber }}</span>
+              }
+              }
+            </div>
+          </div>
+
+          <!-- Applicants section -->
+          <div class="vak-group-section" style="margin-top: 4px;">
+            <span class="vak-section-label">Applicant(s)</span>
+            <div class="vak-group-applicants">
+              @for (id of g.applicantIds; track id) {
+              <span class="vak-applicant-chip">{{ applicantNameById(id) }}</span>
+              }
+            </div>
+          </div>
         </div>
-      </div>
+        <div class="vak-group-actions">
+          <button type="button" class="btn btn-primary btn-compact" (click)="viewGroupDocument(g, i)">View
+            Vakalatnama</button>
+          <span class="vak-inline-actions">
+            <button type="button" class="btn-link" (click)="downloadGroupHtml(g, i)">HTML</button>
+            <span class="sep">·</span>
+            <button type="button" class="btn-link" (click)="printGroupDocument(g, i)">Print</button>
+            <span class="sep">·</span>
+            <button type="button" class="btn-link danger" (click)="removeAssignment(i)">Remove</button>
+          </span>
+        </div>
+      </li>
+      }
+    </ul>
+    }
+  </div>
 
-      <div class="vak-block vak-primary-block">
-        <span class="vak-label">Primary advocate (you)</span>
-        @if (loadingFilingAdvocate()) {
-          <p class="vak-picked muted">Loading…</p>
-        } @else if (primaryFilingAdvocate(); as adv) {
+  } @else {
+
+  <!-- ── Simple mode (no applicants defined yet) ─────────────────── -->
+  <div class="mini-card vak-flow">
+    <div class="mini-head">
+      <strong>Co-advocates (optional)</strong>
+    </div>
+    <div class="search-row" style="margin-top:10px">
+      <label class="grow">
+        <input type="text" [value]="barCouncilQuery()" (input)="setBarCouncilQuery($any($event.target).value)"
+          placeholder="Bar council number, e.g. MH123456" [disabled]="barCouncilSearchLoading()" />
+      </label>
+      <button type="button" class="btn btn-primary align-end" (click)="searchAndAddAdvocate()"
+        [disabled]="barCouncilSearchLoading()">
+        {{ barCouncilSearchLoading() ? 'Searching…' : 'Search & add' }}
+      </button>
+    </div>
+    @if (barCouncilSearchError()) {
+    <p class="api-message error tight">{{ barCouncilSearchError() }}</p>
+    }
+    @if (coAdvocates().length > 0) {
+    <ul class="vak-chip-list">
+      @for (c of coAdvocates(); track c.barCouncilNumber; let i = $index) {
+      <li>
+        <span>{{ c.fullName }} · {{ c.barCouncilNumber }}</span>
+        <button type="button" class="btn btn-secondary danger btn-compact" (click)="removeCoAdvocate(i)">Remove</button>
+      </li>
+      }
+    </ul>
+    }
+  </div>
+
+  <div class="vak-generate-row">
+    <button type="button" class="btn btn-primary" (click)="generateVakaltnama()">Generate Vakalatnama</button>
+  </div>
+
+  }
+
+  <!-- Advocate Assignment Modal -->
+  @if (isGroupDialogOpen()) {
+  <div class="vak-modal-backdrop" role="presentation" (click)="closeGroupDialog(false)">
+    <div class="vak-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <header class="vak-modal-header">
+        <h4>Assign Advocates for Vakalatnama</h4>
+        <button type="button" class="vak-modal-close" (click)="closeGroupDialog(false)">&times;</button>
+      </header>
+
+      <div class="vak-modal-body">
+        @if (advocateLookupError()) {
+        <p class="api-message error tight" style="margin-top: 0; margin-bottom: 0.5rem;">
+          {{ advocateLookupError() }}
+        </p>
+        }
+
+        <!-- Selected Applicants -->
+        <div class="vak-block">
+          <span class="vak-label">Selected Applicants</span>
+          <div class="vak-selected-applicants-box">
+            @if (selectedApplicantIds().length > 0) {
+            <div class="vak-primary-applicant">
+              <span class="vak-badge-primary-lbl">Primary Applicant:</span>
+              <strong>{{ applicantNameById(selectedApplicantIds()[0]) }}</strong>
+            </div>
+            @if (selectedApplicantIds().length > 1) {
+            <div class="vak-other-applicants">
+              <span class="vak-badge-other-lbl">Co-Applicants:</span>
+              <div class="vak-co-applicants-chips">
+                @for (id of selectedApplicantIds().slice(1); track id) {
+                <span class="vak-applicant-chip">{{ applicantNameById(id) }}</span>
+                }
+              </div>
+            </div>
+            }
+            }
+          </div>
+        </div>
+
+        <!-- Primary Advocate (You) -->
+        <div class="vak-block vak-primary-block">
+          <span class="vak-label">Primary Advocate (You)</span>
+          @if (loadingFilingAdvocate()) {
+          <p class="vak-picked muted">Loading profile…</p>
+          } @else if (primaryFilingAdvocate(); as adv) {
           <p class="vak-picked vak-primary-readonly">
             <strong>{{ adv.fullName }}</strong>
             <span class="muted">&nbsp;· {{ adv.barCouncilNumber }}</span>
             <span class="vak-you-badge">You</span>
           </p>
-        }
-        @if (advocateLookupError()) {
-          <p class="api-message error tight">{{ advocateLookupError() }}</p>
-        }
-      </div>
-
-      <div class="vak-block">
-        <span class="vak-label">Co-advocates (optional)</span>
-        <div class="search-row">
-          <label class="grow">
-            <input
-              type="text"
-              [value]="barCouncilQuery()"
-              (input)="setBarCouncilQuery($any($event.target).value)"
-              placeholder="Bar council number"
-              [disabled]="barCouncilSearchLoading() || loadingFilingAdvocate()"
-            />
-          </label>
-          <button
-            type="button"
-            class="btn btn-secondary"
-            (click)="searchAndAddAdvocate()"
-            [disabled]="barCouncilSearchLoading() || loadingFilingAdvocate()"
-          >
-            {{ barCouncilSearchLoading() ? 'Searching…' : 'Add co-advocate' }}
-          </button>
+          }
         </div>
 
-        @if (barCouncilSearchError()) {
-          <p class="api-message error tight">{{ barCouncilSearchError() }}</p>
-        }
+        <!-- Co-advocates (Optional) -->
+        <div class="vak-block">
+          <span class="vak-label">Co-advocates (optional)</span>
+          <div class="search-row" style="margin-top: 0;">
+            <label class="grow">
+              <input type="text" [value]="barCouncilQuery()" (input)="setBarCouncilQuery($any($event.target).value)"
+                placeholder="Search Bar Council number"
+                [disabled]="barCouncilSearchLoading() || loadingFilingAdvocate()"
+                (keyup.enter)="searchAndAddAdvocate()" />
+            </label>
+            <button type="button" class="btn btn-secondary" (click)="searchAndAddAdvocate()"
+              [disabled]="barCouncilSearchLoading() || loadingFilingAdvocate()">
+              {{ barCouncilSearchLoading() ? 'Searching…' : 'Add' }}
+            </button>
+          </div>
 
-        @if (groupCoAdvocates().length > 0) {
-          <ul class="vak-chip-list">
-            @for (c of groupCoAdvocates(); track c.barCouncilNumber; let i = $index) {
-              <li>
-                <span>{{ c.fullName }} · {{ c.barCouncilNumber }}</span>
-                <button type="button" class="btn btn-secondary danger btn-compact" (click)="removeCoAdvocate(i)">Remove</button>
-              </li>
-            }
-          </ul>
-        }
-      </div>
-
-      <div class="vak-flow-actions">
-        <button
-          type="button"
-          class="btn btn-primary"
-          (click)="createAssignment()"
-          [disabled]="loadingFilingAdvocate() || !primaryFilingAdvocate()"
-        >
-          Add group
-        </button>
-      </div>
-    </div>
-
-    <!-- ── Saved groups ────────────────────────────────────────────── -->
-    <div class="mini-card vak-groups">
-      <div class="mini-head">
-        <strong>Vakalatnama groups</strong>
-      </div>
-      @if (assignments().length === 0) {
-        <p class="empty-line muted">No groups yet.</p>
-      } @else {
-        <ul class="vak-group-list">
-          @for (g of assignments(); track g.id; let i = $index) {
-            <li class="vak-group-row">
-              <div class="vak-group-main">
-                <div class="vak-group-line">
-                  <strong>{{ g.advocate.fullName }}</strong>
-                  <span class="muted">&nbsp;{{ g.advocate.barCouncilNumber }}</span>
-                </div>
-                <div class="vak-group-applicants">
-                  @for (id of g.applicantIds; track id) {
-                    <span class="vak-applicant-chip">{{ applicantNameById(id) }}</span>
-                  }
-                </div>
-                @if (g.coAdvocates.length > 0) {
-                  <div class="vak-group-co muted">Co-advocates: {{ coAdvocateNames(g) }}</div>
-                }
-              </div>
-              <div class="vak-group-actions">
-                <button type="button" class="btn btn-primary btn-compact" (click)="viewGroupDocument(g, i)">View Vakalatnama</button>
-                <span class="vak-inline-actions">
-                  <button type="button" class="btn-link" (click)="downloadGroupHtml(g, i)">HTML</button>
-                  <span class="sep">·</span>
-                  <button type="button" class="btn-link" (click)="printGroupDocument(g, i)">Print</button>
-                  <span class="sep">·</span>
-                  <button type="button" class="btn-link danger" (click)="removeAssignment(i)">Remove</button>
-                </span>
-              </div>
-            </li>
+          @if (barCouncilSearchError()) {
+          <p class="api-message error tight" style="margin-top: 0.5rem;">{{ barCouncilSearchError() }}</p>
           }
-        </ul>
-      }
-    </div>
 
-  } @else {
-
-    <!-- ── Simple mode (no applicants defined yet) ─────────────────── -->
-    <div class="mini-card vak-flow">
-      <div class="mini-head">
-        <strong>Co-advocates (optional)</strong>
-      </div>
-      <div class="search-row" style="margin-top:10px">
-        <label class="grow">
-          <input
-            type="text"
-            [value]="barCouncilQuery()"
-            (input)="setBarCouncilQuery($any($event.target).value)"
-            placeholder="Bar council number, e.g. MH123456"
-            [disabled]="barCouncilSearchLoading()"
-          />
-        </label>
-        <button type="button" class="btn btn-primary align-end" (click)="searchAndAddAdvocate()" [disabled]="barCouncilSearchLoading()">
-          {{ barCouncilSearchLoading() ? 'Searching…' : 'Search & add' }}
-        </button>
-      </div>
-      @if (barCouncilSearchError()) {
-        <p class="api-message error tight">{{ barCouncilSearchError() }}</p>
-      }
-      @if (coAdvocates().length > 0) {
-        <ul class="vak-chip-list">
-          @for (c of coAdvocates(); track c.barCouncilNumber; let i = $index) {
+          @if (groupCoAdvocates().length > 0) {
+          <ul class="vak-chip-list" style="margin-top: 0.75rem;">
+            @for (c of groupCoAdvocates(); track c.barCouncilNumber; let i = $index) {
             <li>
               <span>{{ c.fullName }} · {{ c.barCouncilNumber }}</span>
-              <button type="button" class="btn btn-secondary danger btn-compact" (click)="removeCoAdvocate(i)">Remove</button>
+              <button type="button" class="btn btn-secondary danger btn-compact"
+                (click)="removeCoAdvocate(i)">Remove</button>
             </li>
+            }
+          </ul>
           }
-        </ul>
-      }
-    </div>
+        </div>
+      </div>
 
-    <div class="vak-generate-row">
-      <button type="button" class="btn btn-primary" (click)="generateVakaltnama()">Generate Vakalatnama</button>
+      <footer class="vak-modal-footer">
+        <button type="button" class="btn btn-secondary btn-compact" (click)="closeGroupDialog(false)">Cancel</button>
+        <button type="button" class="btn btn-primary btn-compact" (click)="closeGroupDialog(true)"
+          [disabled]="loadingFilingAdvocate() || !primaryFilingAdvocate()">
+          Add Group
+        </button>
+      </footer>
     </div>
-
+  </div>
   }
 </div>

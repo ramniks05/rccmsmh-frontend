@@ -14,6 +14,12 @@ import { buildMarathiSatyaPratijnalekhHtml, SatyaPratijnalekhVars } from '../../
 export interface ApplicantOption {
   id: string;
   name: string;
+  mobile?: string;
+  email?: string;
+  address?: string;
+  village?: string;
+  taluka?: string;
+  district?: string;
 }
 
 export interface VakaltnamaAssignment {
@@ -74,6 +80,7 @@ export class VakaltnamaPanelComponent {
   protected readonly selectedApplicantIds = signal<string[]>([]);
   protected readonly selectedAdvocate = signal<AdvocateLookupResponse | null>(null);
   protected readonly groupCoAdvocates = signal<AdvocateLookupResponse[]>([]);
+  protected readonly isGroupDialogOpen = signal(false);
 
   protected readonly advocateLookupError = signal<string | null>(null);
   protected readonly documentActionError = signal<string | null>(null);
@@ -123,6 +130,22 @@ export class VakaltnamaPanelComponent {
     this.barCouncilQuery.set('');
     this.advocateLookupError.set(null);
     this.barCouncilSearchError.set(null);
+  }
+
+  protected openGroupDialog(): void {
+    if (this.selectedApplicantIds().length === 0) return;
+    this.isGroupDialogOpen.set(true);
+  }
+
+  protected closeGroupDialog(save: boolean): void {
+    if (save) {
+      this.createAssignment();
+    } else {
+      this.isGroupDialogOpen.set(false);
+      this.barCouncilQuery.set('');
+      this.barCouncilSearchError.set(null);
+      this.advocateLookupError.set(null);
+    }
   }
 
   private isFilingAdvocateBarCouncil(barCouncilNumber: string): boolean {
@@ -248,6 +271,7 @@ export class VakaltnamaPanelComponent {
     };
     this.assignmentsChange.emit([...(this.assignments() ?? []), next]);
     this.resetGroupForm();
+    this.isGroupDialogOpen.set(false);
   }
 
   protected removeAssignment(index: number): void {
@@ -267,8 +291,16 @@ export class VakaltnamaPanelComponent {
     return `${names.slice(0, 2).join(', ')} (+${names.length - 2} more)`;
   }
 
+  protected getCoAdvocateDetails(co: any): AdvocateLookupResponse | null {
+    if (!co) return null;
+    return co.advocate || co;
+  }
+
   protected coAdvocateNames(group: VakaltnamaAssignment): string {
-    return group.coAdvocates.map((c) => c.fullName).filter(Boolean).join(', ');
+    return (group.coAdvocates || [])
+      .map((c) => this.getCoAdvocateDetails(c)?.fullName)
+      .filter(Boolean)
+      .join(', ');
   }
 
   protected viewGroupDocument(group: VakaltnamaAssignment, index: number): void {
@@ -359,8 +391,9 @@ export class VakaltnamaPanelComponent {
     const applicantNames = this.getApplicantNames(group.applicantIds);
     const adv = group.advocate.fullName;
     const advBar = group.advocate.barCouncilNumber;
-    const coNames = group.coAdvocates.map((c) => `${c.fullName} (${c.barCouncilNumber})`).filter(Boolean);
-    const advocateEmpowered = [adv, ...group.coAdvocates.map((c) => c.fullName)].filter(Boolean).join(', ');
+    const coAdvList = (group.coAdvocates || []).map((c) => this.getCoAdvocateDetails(c)).filter(Boolean);
+    const coNames = coAdvList.map((c) => `${c!.fullName} (${c!.barCouncilNumber})`).filter(Boolean);
+    const advocateEmpowered = [adv, ...coAdvList.map((c) => c!.fullName)].filter(Boolean).join(', ');
     const now = new Date();
     const mah = this.maharashtraMonthName(now.getMonth());
     const yy = String(now.getFullYear()).slice(-2);
