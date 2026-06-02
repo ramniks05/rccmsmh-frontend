@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, NgZone, OnInit, ChangeDetectorRef, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import {
@@ -44,6 +44,8 @@ export class AdvocateRegistrationComponent implements OnInit {
   private readonly fileUpload = inject(FileUploadService);
   private readonly lookups = inject(LookupsService);
   private readonly router = inject(Router);
+  private readonly ngZone = inject(NgZone);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   protected readonly masterStates = signal<BoundaryMasterResponse[]>([]);
   protected readonly practiceDistricts = signal<BoundaryMasterResponse[]>([]);
@@ -231,8 +233,11 @@ export class AdvocateRegistrationComponent implements OnInit {
           return this.authService.register(payload);
         }),
         finalize(() => {
-          this.submitInProgress = false;
-          this.certUploadInProgress = false;
+          this.ngZone.run(() => {
+            this.submitInProgress = false;
+            this.certUploadInProgress = false;
+            this.cdr.markForCheck();
+          });
         })
       )
       .subscribe({
@@ -248,15 +253,22 @@ export class AdvocateRegistrationComponent implements OnInit {
           setTimeout(() => void this.router.navigate(['/login'], { queryParams: { registered: 'advocate' } }), 2200);
         },
         error: (error: unknown) => {
-          if (error instanceof Error && error.message === 'NO_STORAGE_KEY') {
-            this.certUploadError.set('Certificate upload did not return a storage key. Please try again.');
-            return;
-          }
-          if (error instanceof HttpErrorResponse && error.url?.includes('/api/files/upload')) {
-            this.certUploadError.set(this.extractCertUploadError(error));
-            return;
-          }
-          this.errorMessage = this.extractApiError(error);
+          this.ngZone.run(() => {
+            this.submitInProgress = false;
+            this.certUploadInProgress = false;
+            if (error instanceof Error && error.message === 'NO_STORAGE_KEY') {
+              this.certUploadError.set('Certificate upload did not return a storage key. Please try again.');
+              this.cdr.markForCheck();
+              return;
+            }
+            if (error instanceof HttpErrorResponse && error.url?.includes('/api/files/upload')) {
+              this.certUploadError.set(this.extractCertUploadError(error));
+              this.cdr.markForCheck();
+              return;
+            }
+            this.errorMessage = this.extractApiError(error);
+            this.cdr.markForCheck();
+          });
         }
       });
   }

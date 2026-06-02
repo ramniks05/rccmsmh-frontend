@@ -1,9 +1,8 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, NgZone, ChangeDetectorRef } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { finalize } from 'rxjs';
 
 import { AuthService, LoginResponse, LoginRole } from '../../services/auth.service';
 import { TokenStorageService } from '../../services/token-storage.service';
@@ -19,6 +18,8 @@ export class LoginComponent {
   private readonly authService = inject(AuthService);
   private readonly tokenStorage = inject(TokenStorageService);
   private readonly router = inject(Router);
+  private readonly ngZone = inject(NgZone);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   protected loginInProgress = false;
   protected loginErrorMessage = '';
@@ -67,16 +68,17 @@ export class LoginComponent {
       ...this.loginForm.getRawValue()
     };
 
-    this.authService
-      .login(payload)
-      .pipe(finalize(() => (this.loginInProgress = false)))
-      .subscribe({
+    this.authService.login(payload).subscribe({
         next: (response: LoginResponse) => {
           this.tokenStorage.saveSession(response);
           this.navigateAfterLogin(response);
         },
         error: (error: unknown) => {
-          this.loginErrorMessage = this.extractApiError(error);
+          this.ngZone.run(() => {
+            this.loginInProgress = false;
+            this.loginErrorMessage = this.extractApiError(error);
+            this.cdr.markForCheck();
+          });
         }
       });
   }
@@ -104,8 +106,12 @@ export class LoginComponent {
         void this.router.navigate(complete ? ['/portal-home'] : ['/advocate/profile']);
       },
       error: () => {
-        this.tokenStorage.setProfileComplete(false);
-        void this.router.navigate(['/advocate/profile']);
+        this.ngZone.run(() => {
+          this.tokenStorage.setProfileComplete(false);
+          this.loginInProgress = false;
+          this.cdr.markForCheck();
+          void this.router.navigate(['/advocate/profile']);
+        });
       }
     });
   }

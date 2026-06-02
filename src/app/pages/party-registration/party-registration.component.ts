@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, NgZone, ChangeDetectorRef, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import {
@@ -46,6 +46,8 @@ export class PartyRegistrationComponent {
   private readonly formBuilder = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly lookups = inject(LookupsService);
+  private readonly ngZone = inject(NgZone);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   protected submitInProgress = false;
   protected successMessage = '';
@@ -197,7 +199,14 @@ export class PartyRegistrationComponent {
 
     this.authService
       .register(payload)
-      .pipe(finalize(() => (this.submitInProgress = false)))
+      .pipe(
+        finalize(() => {
+          this.ngZone.run(() => {
+            this.submitInProgress = false;
+            this.cdr.markForCheck();
+          });
+        })
+      )
       .subscribe({
         next: (response: RegistrationResponse) => {
           this.successMessage = formatRegistrationSuccessMessage(
@@ -213,7 +222,11 @@ export class PartyRegistrationComponent {
           this.pincodeHint.set('');
         },
         error: (error: unknown) => {
-          this.errorMessage = this.extractApiError(error);
+          this.ngZone.run(() => {
+            this.submitInProgress = false;
+            this.errorMessage = this.extractApiError(error);
+            this.cdr.markForCheck();
+          });
         }
       });
   }
