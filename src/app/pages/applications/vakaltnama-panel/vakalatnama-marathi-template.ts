@@ -80,9 +80,8 @@ function buildSignatureListHtml(names: string[]): string {
 
 export function buildMarathiVakalatnamaHtml(v: VakalatnamaMarathiVars): string {
   const matterDescription =v.matterDescription ?? '';
-
   const advocateBarCouncilNumber =
-    matterDescription.match(/\((\d+)\)\s*$/)?.[1] || '';
+  matterDescription.match(/\(([^()]+)\)\s*$/)?.[1] || '';
 
   const appNo = orBlank(v.applicationNo);
   const courtPlace = orBlank(v.courtPlace);
@@ -371,7 +370,7 @@ export function buildMarathiVakalatnamaHtml(v: VakalatnamaMarathiVars): string {
     <div class="footer">
         <div class="date">
             दिनांक : ${dayDev} / ${monthDev} / ${yearFull}
-            ${`<br>ठिकाण : <strong>${escDev(place)}</strong>`}
+            ${`<br>ठिकाण : ${escDev(courtPlace)}`}
         </div>
         <div class="sig-section">
             ${buildSigRows(v.signatureNames)}
