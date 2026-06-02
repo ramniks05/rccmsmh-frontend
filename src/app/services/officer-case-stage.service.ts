@@ -318,6 +318,12 @@ export interface JudgmentWorkflowContextSlice extends WorkflowArtifactSlice {
   workflowStatus?: string;
   blueprint?: string;
   message?: string;
+  /** Enable judgment text editor (from workflow-context). */
+  editable?: boolean;
+  /** Clerk may submit to PO (CLERK_DRAFT). */
+  submittable?: boolean;
+  /** PRESIDING_OFFICER | CLERK — who acts at this step. */
+  actorRole?: string;
 }
 
 export interface CaseWorkflowContext {
@@ -400,13 +406,16 @@ export interface CaseJudgmentWorkflowResponse {
   caseId: number;
   caseNo: string;
   caseStatus?: string;
-  /** Backend field: CLERK_DRAFT | PO_SCRUTINY | PO_FINALIZED | PUBLISHED */
+  /** PO_DRAFT | CLERK_DRAFT | PO_SCRUTINY | PO_FINALIZED | PUBLISHED */
   workflowStatus?: string;
   draftSummary?: string | null;
   finalSummary?: string | null;
   publishedSummary?: string | null;
   updatedAt?: string | null;
   allowedActions?: string[];
+  editable?: boolean;
+  submittable?: boolean;
+  actorRole?: string;
   digitalSignatureRef?: string | null;
   /** Normalized / legacy aliases (filled by normalizeJudgmentWorkflow). */
   status?: string;
@@ -418,6 +427,18 @@ export interface CaseJudgmentWorkflowResponse {
   message?: string | null;
 }
 
+/** Response from POST .../judgment/publish or sign-and-publish. */
+export interface CaseJudgmentPublishResponse {
+  caseId: number;
+  caseNo: string;
+  status?: string;
+  workflowStatus?: string;
+  judgmentSummary?: string | null;
+  digitalSignatureRef?: string | null;
+  disposedAt?: string | null;
+  message?: string | null;
+}
+
 /** Read workflow stage from API response (workflowStatus or status). */
 export function judgmentWorkflowStatus(
   resp: CaseJudgmentWorkflowResponse | null | undefined
@@ -425,7 +446,7 @@ export function judgmentWorkflowStatus(
   return String(resp?.workflowStatus ?? resp?.status ?? '').trim().toUpperCase();
 }
 
-/** Best available judgment text for display / textarea. */
+/** Best available judgment text for display / textarea (fallback). */
 export function judgmentTextFromResponse(
   resp: CaseJudgmentWorkflowResponse | null | undefined
 ): string {
@@ -441,6 +462,99 @@ export function judgmentTextFromResponse(
   );
 }
 
+/** Bind editor to the correct field per workflowStatus (API guide). */
+export function judgmentBindingText(
+  resp: CaseJudgmentWorkflowResponse | null | undefined
+): string {
+  if (!resp) return '';
+  const st = judgmentWorkflowStatus(resp);
+  if (st === 'PUBLISHED') {
+    return resp.publishedSummary?.trim() || resp.judgmentSummary?.trim() || '';
+  }
+  if (st === 'PO_FINALIZED') {
+    return resp.finalSummary?.trim() || resp.draftSummary?.trim() || '';
+  }
+  if (st === 'PO_DRAFT' || st === 'CLERK_DRAFT' || st === 'PO_SCRUTINY' || !st) {
+    return (
+      resp.draftSummary?.trim() ||
+      resp.draftContent?.trim() ||
+      resp.judgmentSummary?.trim() ||
+      ''
+    );
+  }
+  return judgmentTextFromResponse(resp);
+}
+
+export function judgmentFieldLabel(resp: CaseJudgmentWorkflowResponse | null | undefined): string {
+  const st = judgmentWorkflowStatus(resp);
+  if (st === 'PUBLISHED') return 'Published judgment';
+  if (st === 'PO_FINALIZED') return 'Final judgment';
+  return 'Judgment draft';
+}
+
+export function judgmentWorkflowFromPublish(
+  raw: CaseJudgmentPublishResponse
+): CaseJudgmentWorkflowResponse {
+  const workflowStatus = String(raw.workflowStatus ?? 'PUBLISHED').trim();
+  const publishedSummary = raw.judgmentSummary?.trim() || null;
+  return normalizeJudgmentWorkflow({
+    caseId: raw.caseId,
+    caseNo: raw.caseNo,
+    caseStatus: raw.status ?? 'DISPOSED',
+    workflowStatus,
+    publishedSummary,
+    judgmentSummary: publishedSummary,
+    digitalSignatureRef: raw.digitalSignatureRef ?? null,
+    disposedAt: raw.disposedAt ?? null,
+    publishedAt: raw.disposedAt ?? null,
+    message: raw.message ?? null,
+    editable: false,
+    submittable: false,
+    allowedActions: []
+  });
+}
+
+/** Infer editable from allowedActions + status when API omits or mis-sets editable. */
+export function judgmentInferredEditable(
+  resp: CaseJudgmentWorkflowResponse | null | undefined,
+  actorRole?: string
+): boolean {
+  if (!resp) {
+    return false;
+  }
+  const st = judgmentWorkflowStatus(resp);
+  if (st === 'PUBLISHED' || st === 'PO_FINALIZED') {
+    return false;
+  }
+  const actions = (resp.allowedActions ?? []).map((a) => String(a).trim().toUpperCase());
+  const actor = String(actorRole ?? resp.actorRole ?? '').trim().toUpperCase();
+  if (actor === 'PRESIDING_OFFICER') {
+    if (
+      actions.some(
+        (a) =>
+          a === 'UPDATE_PO_JUDGMENT' ||
+          a === 'PO_DRAFT_JUDGMENT' ||
+          a === 'DRAFT_JUDGMENT' ||
+          a.includes('UPDATE_PO_JUDGMENT')
+      )
+    ) {
+      return true;
+    }
+    if (!st || st === 'PO_DRAFT' || st === 'PO_SCRUTINY') {
+      return true;
+    }
+  }
+  if (actor === 'CLERK') {
+    if (actions.some((a) => a === 'CLERK_UPDATE_JUDGMENT' || a.includes('CLERK_UPDATE'))) {
+      return true;
+    }
+    if (st === 'CLERK_DRAFT') {
+      return true;
+    }
+  }
+  return resp.editable === true;
+}
+
 /** Map backend judgment JSON to fields the UI expects. */
 export function normalizeJudgmentWorkflow(
   raw: CaseJudgmentWorkflowResponse
@@ -450,7 +564,7 @@ export function normalizeJudgmentWorkflow(
     raw.draftSummary ?? raw.draftContent ?? raw.judgmentSummary ?? null;
   const finalSummary = raw.finalSummary ?? raw.finalContent ?? null;
   const publishedSummary = raw.publishedSummary ?? null;
-  return {
+  const normalized: CaseJudgmentWorkflowResponse = {
     ...raw,
     workflowStatus,
     status: workflowStatus,
@@ -462,6 +576,12 @@ export function normalizeJudgmentWorkflow(
     judgmentSummary: draftSummary,
     publishedAt: raw.publishedAt ?? null
   };
+  if (normalized.editable === undefined || normalized.editable === false) {
+    if (judgmentInferredEditable(normalized)) {
+      normalized.editable = true;
+    }
+  }
+  return normalized;
 }
 
 /** Backend accepts any of these field names for draft save. */
@@ -870,8 +990,8 @@ export class OfficerCaseStageService {
   /** PO publishes judgment → case DISPOSED */
   publishJudgment(caseId: number): Observable<CaseJudgmentWorkflowResponse> {
     return this.http
-      .post<CaseJudgmentWorkflowResponse>(`${this.base}/api/cases/officer/${caseId}/judgment/publish`, {})
-      .pipe(map((r) => normalizeJudgmentWorkflow(r)));
+      .post<CaseJudgmentPublishResponse>(`${this.base}/api/cases/officer/${caseId}/judgment/publish`, {})
+      .pipe(map((r) => judgmentWorkflowFromPublish(r)));
   }
 
   /** PO signs and publishes judgment (from PO_SCRUTINY or PO_FINALIZED). */
@@ -880,11 +1000,11 @@ export class OfficerCaseStageService {
     payload: CaseJudgmentSignPublishRequest
   ): Observable<CaseJudgmentWorkflowResponse> {
     return this.http
-      .post<CaseJudgmentWorkflowResponse>(
+      .post<CaseJudgmentPublishResponse>(
         `${this.base}/api/cases/officer/${caseId}/judgment/sign-and-publish`,
         payload
       )
-      .pipe(map((r) => normalizeJudgmentWorkflow(r)));
+      .pipe(map((r) => judgmentWorkflowFromPublish(r)));
   }
 
   /** Pass / record final judgment body (when blueprint uses direct pass). */

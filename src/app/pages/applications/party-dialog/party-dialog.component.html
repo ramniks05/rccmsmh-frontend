@@ -1,0 +1,189 @@
+@if (isOpen() && partyForm()) {
+<div class="party-modal-backdrop" role="presentation" (click)="close.emit({ save: false })">
+  <div class="party-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <header class="party-modal-header">
+      <h4>
+        {{ mode() === 'add' ? 'Add' : 'Edit' }}
+        {{ role() === 'applicant' ? 'Applicant' : 'Respondent' }}
+      </h4>
+      <button type="button" class="party-modal-close" (click)="close.emit({ save: false })">&times;</button>
+    </header>
+
+    <div class="party-modal-body" [formGroup]="partyForm()!">
+      @if (dialogError()) {
+      <p class="api-message error tight" style="margin-top: 0; margin-bottom: 1.25rem;">
+        {{ dialogError() }}
+      </p>
+      }
+
+      <div class="grid">
+        <!-- Name row (English) -->
+        <div class="name-row span-2">
+          <label>
+            First Name *
+            <input type="text" formControlName="firstName" placeholder="First name" />
+          </label>
+          <label>
+            Middle Name
+            <input type="text" formControlName="middleName" placeholder="Middle name" />
+          </label>
+          <label>
+            Last Name *
+            <input type="text" formControlName="lastName" placeholder="Last name" />
+          </label>
+        </div>
+
+        <!-- Name row (Marathi) -->
+        <div class="name-row span-2 marathi-row">
+          <label>
+            प्रथम नाव
+            <input type="text" formControlName="firstNameMr"
+              [placeholder]="translatingFields().has(role() + '-' + index() + '-firstName') ? 'Transliterating…' : 'Marathi translation'"
+              [class.translating]="translatingFields().has(role() + '-' + index() + '-firstName')"
+              (input)="marathiFieldManualEdit.emit('firstNameMr')" />
+          </label>
+          <label>
+            मधले नाव
+            <input type="text" formControlName="middleNameMr"
+              [placeholder]="translatingFields().has(role() + '-' + index() + '-middleName') ? 'Transliterating…' : 'Marathi translation'"
+              [class.translating]="translatingFields().has(role() + '-' + index() + '-middleName')"
+              (input)="marathiFieldManualEdit.emit('middleNameMr')" />
+          </label>
+          <label>
+            अंतिम नाव
+            <input type="text" formControlName="lastNameMr"
+              [placeholder]="translatingFields().has(role() + '-' + index() + '-lastName') ? 'Transliterating…' : 'Marathi translation'"
+              [class.translating]="translatingFields().has(role() + '-' + index() + '-lastName')"
+              (input)="marathiFieldManualEdit.emit('lastNameMr')" />
+          </label>
+        </div>
+
+        <!-- Pincode + lookup -->
+        <div class="input-pair">
+          <label>
+            Pin Code *
+            <input type="text" formControlName="pincode" maxlength="6" placeholder="6-digit pincode" />
+          </label>
+          <div style="display: flex; align-items: end;">
+            <button type="button" class="btn btn-secondary btn-compact"
+              (click)="lookupPincode.emit()">
+              Lookup
+            </button>
+          </div>
+        </div>
+
+        @if (lookupState()?.error; as e) {
+        <p class="api-message error span-2">{{ e }}</p>
+        }
+
+        <!-- Village -->
+        <div class="input-pair">
+          <label>
+            Village *
+            <select formControlName="villageValue"
+              (change)="villageSelectionChange.emit()">
+              <option [ngValue]="''">Select village</option>
+              @for (po of lookupState()?.postOffices; track po.value) {
+              <option [ngValue]="po.value">{{ po.name }}</option>
+              }
+            </select>
+          </label>
+        </div>
+
+        <!-- Taluka -->
+        <div class="input-pair">
+          <label>
+            Taluka *
+            <select formControlName="taluka">
+              <option [ngValue]="''">Select taluka</option>
+              @for (t of lookupState()?.talukas; track t) {
+              <option [ngValue]="t">{{ t }}</option>
+              }
+            </select>
+          </label>
+        </div>
+
+        <!-- District + State -->
+        <div class="input-pair">
+          <label>
+            District *
+            <select formControlName="district">
+              <option [ngValue]="''">Select district</option>
+              @for (d of lookupState()?.districts; track d) {
+              <option [ngValue]="d">{{ d }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            State
+            <input type="text" [value]="stateLabel()" readonly />
+          </label>
+        </div>
+
+        <!-- Address -->
+        <div class="input-pair span-2">
+          <label>
+            Address *
+            <input type="text" formControlName="address" placeholder="Address line" />
+          </label>
+          <label>
+            पता
+            <input type="text" formControlName="addressMr"
+              [placeholder]="translatingFields().has(role() + '-' + index() + '-address') ? 'Transliterating…' : 'Marathi translation'"
+              [class.translating]="translatingFields().has(role() + '-' + index() + '-address')"
+              (input)="marathiFieldManualEdit.emit('addressMr')" />
+          </label>
+        </div>
+
+        <!-- Email + Mobile -->
+        <div class="input-pair">
+          <label>
+            Email ID
+            <input type="email" formControlName="email" placeholder="Email" />
+          </label>
+          <label>
+            Mobile Number *
+            <input type="text" formControlName="mobile" placeholder="10-digit mobile" />
+          </label>
+        </div>
+
+        <!-- DOB + Age -->
+        <div class="input-pair">
+          <label>
+            Date of Birth
+            <input type="date" formControlName="dob" />
+          </label>
+          <label>
+            Age
+            <input type="number" formControlName="age" placeholder="Enter age" min="0" max="150" />
+          </label>
+        </div>
+
+        <!-- Occupation -->
+        <div class="input-pair">
+          <label>
+            Occupation
+            <select formControlName="occupation">
+              <option [ngValue]="''">Select occupation</option>
+              @for (opt of occupations(); track opt.id) {
+              <option [ngValue]="opt.name">{{ opt.name }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            व्यवसाय
+            <input type="text" formControlName="occupationMr"
+              (input)="marathiFieldManualEdit.emit('occupationMr')" />
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <footer class="party-modal-footer">
+      <button type="button" class="btn btn-secondary btn-compact"
+        (click)="close.emit({ save: false })">Cancel</button>
+      <button type="button" class="btn btn-primary btn-compact" (click)="close.emit({ save: true })">Save</button>
+    </footer>
+  </div>
+</div>
+}

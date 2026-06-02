@@ -26,6 +26,20 @@
 
 /* ── Roznamah workflow ─────────────────────────────────────────── */
 .roznama-workflow-section {
+  padding-top: 0;
+}
+
+.workflow-header--dedicated {
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.workflow-header--dedicated + .workflow-status {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.workflow-header--dedicated ~ .workflow-action-body {
   padding-top: 0.25rem;
 }
 
@@ -210,7 +224,11 @@
 
 /* ── Judgment workflow ───────────────────────────────────────── */
 .judgment-workflow-section {
-  padding-top: 0.25rem;
+  padding-top: 0;
+}
+
+.judgment-workflow-section .workflow-action-body {
+  padding-top: 0;
 }
 
 .judgment-workflow-header {
@@ -302,6 +320,28 @@
   color: #0f172a;
 }
 
+.judgment-step-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.judgment-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.judgment-status-bar .badge {
+  font-size: 0.72rem;
+}
+
+.judgment-actor {
+  font-size: 0.82rem;
+}
+
 .judgment-empty {
   margin: 0 0 0.75rem;
   font-size: 0.85rem;
@@ -374,8 +414,12 @@
   gap: 0.6rem;
 }
 
-.judgment-refresh-btn {
-  margin-left: auto;
+.judgment-editor-actions--minimal {
+  justify-content: flex-start;
+}
+
+.judgment-editor-actions--minimal .judgment-actions-group {
+  gap: 0.75rem;
 }
 
 .judgment-editor-panel .form-line {

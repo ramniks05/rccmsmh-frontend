@@ -314,3 +314,125 @@
   .category-card { flex-wrap: wrap; }
   .breadcrumb { display: none; }
 }
+
+/* ── Compact Top Bar ────────────────────────────────────────────── */
+.compact-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  background: #ffffff;
+  border: 1px solid #e8edf5;
+  border-radius: 12px;
+  padding: 0.65rem 1.25rem;
+  box-shadow: 0 4px 12px rgba(11, 61, 145, 0.03);
+  margin-bottom: 1.25rem;
+}
+
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.btn-compact-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.4rem 0.75rem;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: all 140ms;
+}
+
+.btn-compact-back:hover {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0369a1;
+  transform: translateX(-1px);
+}
+
+.top-bar-sep {
+  color: #cbd5e1;
+  font-weight: 300;
+  font-size: 1rem;
+}
+
+.top-bar-cat-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+  color: #0f172a;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-bar-cat-title strong {
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.category-local-compact {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.category-code-compact {
+  background: rgba(11, 61, 145, 0.08);
+  color: #0b3d91;
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  text-transform: uppercase;
+}
+
+/* Compact Breadcrumb */
+.breadcrumb-compact {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.breadcrumb-compact .breadcrumb-item {
+  color: #64748b;
+}
+
+.breadcrumb-compact .breadcrumb-item.active {
+  color: #0b3d91;
+  font-weight: 700;
+}
+
+.breadcrumb-compact .breadcrumb-sep {
+  color: #cbd5e1;
+}
+
+.breadcrumb-compact .breadcrumb-item.muted {
+  color: #cbd5e1;
+}
+
+@media (max-width: 768px) {
+  .compact-top-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+  }
+  .breadcrumb-compact {
+    display: none;
+  }
+}
