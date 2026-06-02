@@ -1,8 +1,15 @@
-<section class="app-page preview-page">
+<section class="app-page preview-page" [class.preview-embedded]="embedded()">
 
+  @if (!embedded()) {
   <div class="back-row">
-    <a [routerLink]="backLink" class="back-link">← Back</a>
+    @if (previewFromFiling) {
+      <button type="button" class="back-link back-link-btn" (click)="continueFiling()">← Continue filing</button>
+      <span class="muted preview-from-filing-hint">Draft is saved. Return here to keep editing your application.</span>
+    } @else {
+      <a [routerLink]="backLink" class="back-link">← Back</a>
+    }
   </div>
+  }
 
   @if (loading()) {
     <div class="loading-card"><p class="muted">Loading application…</p></div>

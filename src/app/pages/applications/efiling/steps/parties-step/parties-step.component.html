@@ -1,0 +1,141 @@
+<section class="section">
+
+  @if (filing.mutationSuggestions().length > 0) {
+  <div class="mini-card suggestion-panel">
+    <div class="suggestion-panel-head">
+      <span class="suggestion-title">People from mutation record</span>
+    </div>
+    <div class="suggestion-list">
+      @for (sug of filing.mutationSuggestions(); track $index) {
+      <div class="suggestion-card" [class.sug-applied]="filing.suggestionAppliedAs(sug) !== null">
+        <div class="sug-info">
+          <strong class="sug-name">{{ filing.suggestionDisplayName(sug) }}</strong>
+          @if (sug.mobile_number) {
+          <span class="sug-detail">&#x1F4DE;&nbsp;{{ sug.mobile_number }}</span>
+          }
+          @if (sug.district_name || sug.taluka) {
+          <span class="sug-detail">&#x1F4CD;&nbsp;{{ sug.district_name }}{{ sug.taluka ? ', ' + sug.taluka : ''
+            }}</span>
+          }
+          @if (sug.address) {
+          <span class="sug-detail sug-address">{{ sug.address }}</span>
+          }
+        </div>
+        <div class="sug-actions">
+          @if (filing.suggestionAppliedAs(sug); as appliedRole) {
+          <span class="sug-applied-badge">&#x2713; Added as {{ appliedRole }}</span>
+          } @else {
+          <button type="button" class="btn btn-primary btn-compact" (click)="filing.applySuggestion(sug, 'applicant')">
+            + Applicant
+          </button>
+          <button type="button" class="btn btn-secondary btn-compact" (click)="filing.applySuggestion(sug, 'respondent')">
+            + Respondent
+          </button>
+          }
+        </div>
+      </div>
+      }
+    </div>
+  </div>
+  }
+
+  <div class="parties-container">
+    <!-- Left Panel: Applicant details list -->
+    <div class="parties-panel applicant-panel">
+      <div class="mini-card" style="height: 100%;">
+        <div class="mini-head">
+          <strong>Applicants</strong>
+        </div>
+        <div class="party-list">
+          @for (ctrl of filing.applicants.controls; track filing.partyRowTempId(ctrl); let i = $index) {
+          <div class="party-item-card">
+            <div class="party-item-header">
+              <strong>{{ i + 1 }}. {{ filing.getPartyFullName(ctrl) }}</strong>
+              <div class="party-item-actions">
+                <button type="button" class="btn-icon" (click)="filing.openEditPartyDialog('applicant', i)"
+                  title="Edit">✏️</button>
+                <button type="button" class="btn-icon danger" (click)="filing.removeApplicant(i)"
+                  title="Remove">🗑️</button>
+              </div>
+            </div>
+            <div class="party-item-details">
+              @if (ctrl.value.mobile) {
+              <div>📞 {{ ctrl.value.mobile }}</div>
+              }
+              @if (ctrl.value.email) {
+              <div>✉️ {{ ctrl.value.email }}</div>
+              }
+              @if (ctrl.value.address) {
+              <div class="party-address">📍 {{ ctrl.value.address }}, {{ ctrl.value.village }}, {{ ctrl.value.taluka
+                }}, {{ ctrl.value.district }}</div>
+              }
+            </div>
+          </div>
+          }
+          @if (filing.applicants.controls.length === 0) {
+          <p class="empty-state">No applicants added.</p>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Respondent details list -->
+    <div class="parties-panel respondent-panel">
+      <div class="mini-card" style="height: 100%;">
+        <div class="mini-head">
+          <strong>Respondents</strong>
+        </div>
+        <div class="party-list">
+          @for (ctrl of filing.respondents.controls; track filing.partyRowTempId(ctrl); let i = $index) {
+          <div class="party-item-card">
+            <div class="party-item-header">
+              <strong>{{ i + 1 }}. {{ filing.getPartyFullName(ctrl) }}</strong>
+              <div class="party-item-actions">
+                <button type="button" class="btn-icon" (click)="filing.openEditPartyDialog('respondent', i)"
+                  title="Edit">✏️</button>
+                <button type="button" class="btn-icon danger" (click)="filing.removeRespondent(i)"
+                  title="Remove">🗑️</button>
+              </div>
+            </div>
+            <div class="party-item-details">
+              @if (ctrl.value.mobile) {
+              <div>📞 {{ ctrl.value.mobile }}</div>
+              }
+              @if (ctrl.value.email) {
+              <div>✉️ {{ ctrl.value.email }}</div>
+              }
+              @if (ctrl.value.address) {
+              <div class="party-address">📍 {{ ctrl.value.address }}, {{ ctrl.value.village }}, {{ ctrl.value.taluka
+                }}, {{ ctrl.value.district }}</div>
+              }
+            </div>
+          </div>
+          }
+          @if (filing.respondents.controls.length === 0) {
+          <p class="empty-state">No respondents added.</p>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add New buttons row below -->
+  <div class="parties-actions-row">
+    <button type="button" class="btn btn-primary" (click)="filing.openAddPartyDialog('applicant')">
+      + Add Applicant
+    </button>
+    <button type="button" class="btn btn-secondary" (click)="filing.openAddPartyDialog('respondent')">
+      + Add Respondent
+    </button>
+  </div>
+
+  <!-- Party edit/add dialog -->
+  <app-party-dialog [isOpen]="filing.isPartyDialogOpen()" [role]="filing.partyDialogRole()" [mode]="filing.partyDialogMode()"
+    [index]="filing.partyDialogIndex()" [partyForm]="filing.activePartyControl()" [translatingFields]="filing.translatingFields()"
+    [lookupState]="filing.activePartyControl() ? filing.partyLookupState(filing.partyDialogRole(), filing.partyRowTempId(filing.activePartyControl()!)) : null"
+    [stateLabel]="filing.activePartyControl() ? filing.partyStateLabel(filing.partyDialogRole(), filing.partyRowTempId(filing.activePartyControl()!)) : ''"
+    [occupations]="filing.occupations()" [dialogError]="filing.dialogError()" (close)="filing.closePartyDialog($event.save)"
+    (lookupPincode)="filing.lookupPincode(filing.partyDialogRole(), filing.partyDialogIndex())"
+    (villageSelectionChange)="filing.onVillageSelectionChange(filing.partyDialogRole(), filing.partyDialogIndex())"
+    (marathiFieldManualEdit)="filing.onMarathiFieldManualEdit(filing.partyDialogRole(), filing.partyDialogIndex(), $event)" />
+</section>

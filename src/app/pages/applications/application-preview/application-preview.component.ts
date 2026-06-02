@@ -1,5 +1,5 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { Component, effect, inject, input, OnInit, signal } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { finalize } from 'rxjs';
 
@@ -29,6 +29,7 @@ import {
   toRecord,
   toRecordArray
 } from '../../../shared/application-preview.util';
+import { CATEGORY1_FILING_RETURN_SESSION_KEY } from '../efiling/services/category1-filing.service';
 
 type PreviewTab = 'application' | 'history' | 'notices' | 'hearings' | 'ordersheet' | 'judgment';
 
@@ -39,12 +40,18 @@ type PreviewTab = 'application' | 'history' | 'notices' | 'hearings' | 'ordershe
   styleUrl: './application-preview.component.css'
 })
 export class ApplicationPreviewComponent implements OnInit {
+  /** When set with `embedded`, loads preview for this id (filing dialog). */
+  applicationId = input<number | null>(null);
+  /** Renders inside filing modal — no back link / full page chrome. */
+  embedded = input(false);
+
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly service = inject(FilingApplicationService);
   private readonly tokenStorage = inject(TokenStorageService);
   private readonly sanitizer = inject(DomSanitizer);
 
-  private applicationId = 0;
+  private loadedApplicationId = 0;
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -55,18 +62,59 @@ export class ApplicationPreviewComponent implements OnInit {
   protected readonly historyLoading = signal(false);
   protected readonly historyError = signal<string | null>(null);
 
-  protected readonly backLink = this.tokenStorage.isOfficer() ? '/cases' : '/applications';
+  protected backLink = this.tokenStorage.isOfficer() ? '/cases' : '/applications';
+  protected previewFromFiling = false;
+  /** Resolved case category for “Continue filing” (query param, session, or preview API). */
+  protected continueFilingCaseCategoryId = 0;
+
+  constructor() {
+    effect(() => {
+      if (!this.embedded()) return;
+      const id = Number(this.applicationId() ?? 0);
+      if (id > 0) {
+        this.loadApplication(id);
+      }
+    });
+  }
 
   ngOnInit(): void {
-    this.applicationId = Number(this.route.snapshot.paramMap.get('id'));
-    if (!this.applicationId) {
+    if (this.embedded()) return;
+
+    const from = this.route.snapshot.queryParamMap.get('from');
+    this.previewFromFiling = from === 'filing';
+    if (this.previewFromFiling) {
+      this.continueFilingCaseCategoryId = this.resolveContinueFilingCaseCategoryId();
+    } else {
+      this.backLink = this.tokenStorage.isOfficer() ? '/cases' : '/applications';
+    }
+
+    const id = Number(this.route.snapshot.paramMap.get('id'));
+    if (!id) {
       this.error.set('Invalid application ID.');
       this.loading.set(false);
       return;
     }
-    this.service.getApplicationPreview(this.applicationId).subscribe({
+    this.loadApplication(id);
+  }
+
+  private loadApplication(id: number): void {
+    if (id === this.loadedApplicationId && this.data()) return;
+    this.loadedApplicationId = id;
+    this.loading.set(true);
+    this.error.set(null);
+    this.data.set(null);
+    this.history.set(null);
+    this.activeTab.set('application');
+
+    this.service.getApplicationPreview(id).subscribe({
       next: (resp) => {
         this.data.set(resp);
+        if (this.previewFromFiling && this.continueFilingCaseCategoryId < 1) {
+          const fromApi = Number(resp.application?.caseCategoryId ?? 0);
+          if (fromApi > 0) {
+            this.continueFilingCaseCategoryId = fromApi;
+          }
+        }
         if (resp.applicationHistory) {
           this.history.set(resp.applicationHistory);
         } else {
@@ -81,6 +129,32 @@ export class ApplicationPreviewComponent implements OnInit {
     });
   }
 
+  protected continueFiling(): void {
+    const catId = this.continueFilingCaseCategoryId;
+    if (catId < 1) {
+      void this.router.navigate(['/applications/new']);
+      return;
+    }
+    void this.router.navigate(['/applications/new'], { queryParams: { caseCategoryId: catId } });
+  }
+
+  private resolveContinueFilingCaseCategoryId(): number {
+    const fromQuery = Number(this.route.snapshot.queryParamMap.get('caseCategoryId') || 0);
+    if (fromQuery > 0) return fromQuery;
+
+    try {
+      const raw = sessionStorage.getItem(CATEGORY1_FILING_RETURN_SESSION_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { caseCategoryId?: number };
+        const fromSession = Number(parsed.caseCategoryId ?? 0);
+        if (fromSession > 0) return fromSession;
+      }
+    } catch {
+      /**/
+    }
+    return 0;
+  }
+
   protected setTab(tab: PreviewTab): void {
     this.activeTab.set(tab);
     if (tab === 'history' && !this.history() && !this.historyLoading()) {
@@ -89,11 +163,11 @@ export class ApplicationPreviewComponent implements OnInit {
   }
 
   protected loadHistory(): void {
-    if (!this.applicationId || this.historyLoading()) return;
+    if (!this.loadedApplicationId || this.historyLoading()) return;
     this.historyLoading.set(true);
     this.historyError.set(null);
     this.service
-      .getApplicationHistory(this.applicationId)
+      .getApplicationHistory(this.loadedApplicationId)
       .pipe(finalize(() => this.historyLoading.set(false)))
       .subscribe({
         next: (h) => this.history.set(h),

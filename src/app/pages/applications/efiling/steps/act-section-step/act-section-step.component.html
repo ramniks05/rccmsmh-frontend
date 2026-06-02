@@ -1,0 +1,42 @@
+<section class="section">
+  <div class="mini-card" [formGroup]="filing.form">
+
+    @if (filing.isEpicsSubject() && filing.form.controls.searchMode.value !== 'INWARD_NUMBER') {
+    <label class="span-2">
+      Office (from step 1)
+      <select disabled tabindex="-1" [attr.aria-label]="filing.epicsUrbanOfficeReadonlySelectLabel()">
+        <option>{{ filing.epicsUrbanOfficeReadonlySelectLabel() }}</option>
+      </select>
+    </label>
+    }
+
+    @if (filing.isRural712Subject()) {
+    <label class="span-2">
+      Location (from step 1 — Eferfar / 7/12)
+      <input type="text" [value]="filing.rural712ReadonlyLocationLabel()" readonly />
+    </label>
+    }
+
+    <div class="grid">
+      <label class="span-2">
+        Act *
+        <select formControlName="actId">
+          <option [ngValue]="0">Select act</option>
+          @for (a of filing.acts(); track a.id) {
+          <option [ngValue]="a.id">{{ a.actCode }} - {{ a.actName }}</option>
+          }
+        </select>
+      </label>
+
+      <label class="span-2">
+        Section *
+        <select formControlName="sectionId" [disabled]="filing.form.controls.actId.value < 1">
+          <option [ngValue]="0">Select section</option>
+          @for (s of filing.sectionsForSelectedAct(); track s.id) {
+          <option [ngValue]="s.id">{{ s.name }}</option>
+          }
+        </select>
+      </label>
+    </div>
+  </div>
+</section>

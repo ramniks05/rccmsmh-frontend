@@ -1,0 +1,93 @@
+<div class="rccms-app">
+  <article class="card">
+
+    <nav class="stepper" aria-label="Application steps">
+      <div class="stepper-progress-wrap" aria-hidden="true">
+        <div class="stepper-progress-track">
+          <div class="stepper-progress-fill" [style.width.%]="filing.stepProgressPercent()"></div>
+        </div>
+      </div>
+      <div class="stepper-scroll">
+        <div class="stepper-inner">
+          @for (s of filing.steps; track s.key; let i = $index; let last = $last) {
+          <div class="step-wrap">
+            <button type="button" class="step" [class.active]="i === filing.stepIndex()" [class.done]="i < filing.stepIndex()"
+              [class.upcoming]="i > filing.stepIndex()" [attr.aria-current]="i === filing.stepIndex() ? 'step' : null"
+              (click)="filing.selectStep(i)">
+              <span class="step-ring">
+                @if (i < filing.stepIndex()) { <span class="step-check" aria-hidden="true">✓</span>
+              } @else {
+              <span class="step-num">{{ i + 1 }}</span>
+              }
+              </span>
+              <span class="step-label">{{ s.title }}</span>
+            </button>
+          </div>
+          @if (!last) {
+          <span class="step-segment" [class.filled]="i < filing.stepIndex()" aria-hidden="true"></span>
+          }
+          }
+        </div>
+      </div>
+    </nav>
+
+    @if (filing.apiError()) {
+    <p class="api-message error">{{ filing.apiError() }}</p>
+    }
+    @if (filing.apiMessage()) {
+    <p class="api-message success">{{ filing.apiMessage() }}</p>
+    }
+
+    @switch (filing.activeStep().key) {
+    @case ('DISPUTED_ORDER') {
+    <app-disputed-order-step />
+    }
+    @case ('DISPUTED_LAND') {
+    <app-disputed-land-step />
+    }
+    @case ('ACT_SECTION') {
+    <app-act-section-step />
+    }
+    @case ('PARTIES') {
+    <app-parties-step />
+    }
+    @case ('VAKALTNAMA') {
+    <app-vakaltnama-step />
+    }
+    @case ('APPLICATION_DESCRIPTION') {
+    <app-description-step />
+    }
+    }
+
+    <footer class="footer-actions">
+      @if (!filing.isLastStep() && (filing.serverApplicationId() || filing.form.controls.subjectId.value > 0)) {
+      <button type="button" class="btn btn-secondary danger" (click)="filing.hardResetFiling()" style="height: 36px !important; font-size: 0.82rem !important; padding: 0 1rem !important; border-radius: 8px !important; margin-right: auto;">
+        Reset Form
+      </button>
+      }
+      <button type="button" class="btn btn-secondary" (click)="filing.back()" [disabled]="filing.stepIndex() === 0">Back</button>
+      @if (!filing.isLastStep()) {
+      <button type="button" class="btn btn-primary" (click)="filing.next()">Next</button>
+      }
+    </footer>
+  </article>
+
+  @if (filing.previewModalOpen() && filing.previewModalApplicationId(); as previewId) {
+  <div class="app-preview-modal-backdrop" role="presentation" (click)="filing.onPreviewModalBackdropClick($event)">
+    <div class="app-preview-modal" role="dialog" aria-modal="true" aria-labelledby="app-preview-modal-title"
+      (click)="$event.stopPropagation()">
+      <header class="app-preview-modal-header">
+        <h4 id="app-preview-modal-title">Application preview</h4>
+        <button type="button" class="app-preview-modal-close" (click)="filing.closePreviewModal()"
+          aria-label="Close preview">&times;</button>
+      </header>
+      <div class="app-preview-modal-body">
+        <app-application-preview [applicationId]="previewId" [embedded]="true" />
+      </div>
+      <footer class="app-preview-modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="filing.closePreviewModal()">Close</button>
+      </footer>
+    </div>
+  </div>
+  }
+</div>

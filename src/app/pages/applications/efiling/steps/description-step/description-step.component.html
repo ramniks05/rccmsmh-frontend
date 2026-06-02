@@ -1,0 +1,100 @@
+<section class="section filing-final-step">
+  <div class="filing-blocks">
+    <article class="filing-block mini-card">
+      <header class="filing-block-head">
+        <span class="filing-step-num" aria-hidden="true">1</span>
+        <div class="filing-block-titles">
+          <h4 class="filing-block-title">Application description</h4>
+        </div>
+      </header>
+      <div class="filing-block-body">
+        <app-paragraph-list-editor [paragraphs]="filing.descriptionParagraphs()"
+          (paragraphsChange)="filing.onDescriptionParagraphsChange($event)" />
+      </div>
+    </article>
+
+    <article class="filing-block mini-card" [formGroup]="filing.form">
+      <header class="filing-block-head">
+        <span class="filing-step-num" aria-hidden="true">2</span>
+        <div class="filing-block-titles">
+          <h4 class="filing-block-title">Affidavit</h4>
+        </div>
+        <div class="filing-block-toolbar">
+          @if (filing.affidavitFormatUrl) {
+          <a class="btn btn-secondary btn-compact" [href]="filing.affidavitFormatUrl" target="_blank" rel="noopener">
+            Download format
+          </a>
+          }
+          <button type="button" class="btn btn-secondary btn-compact" (click)="filing.loadAffidavitTemplate()">
+            Load sample
+          </button>
+        </div>
+      </header>
+      <div class="filing-block-body">
+        <label class="filing-textarea-label">
+          Affidavit <span class="req">*</span>
+          <textarea class="filing-textarea" formControlName="affidavitText" rows="7"
+            placeholder="Enter or paste affidavit text…"></textarea>
+        </label>
+      </div>
+    </article>
+
+    <article class="filing-block mini-card" [formGroup]="filing.form">
+      <header class="filing-block-head">
+        <span class="filing-step-num" aria-hidden="true">3</span>
+        <div class="filing-block-titles">
+          <h4 class="filing-block-title">Prayer</h4>
+        </div>
+        <div class="filing-block-toolbar">
+          @if (filing.prayerFormatUrl) {
+          <a class="btn btn-secondary btn-compact" [href]="filing.prayerFormatUrl" target="_blank" rel="noopener">
+            Download format
+          </a>
+          }
+          <button type="button" class="btn btn-secondary btn-compact" (click)="filing.loadPrayerTemplate()">
+            Load sample
+          </button>
+        </div>
+      </header>
+      <div class="filing-block-body">
+        <label class="filing-textarea-label">
+          Prayer <span class="req">*</span>
+          <textarea class="filing-textarea" formControlName="prayerText" rows="6"
+            placeholder="Enter or paste prayer text…"></textarea>
+        </label>
+      </div>
+    </article>
+
+    <article class="filing-block mini-card filing-block-docs">
+      <header class="filing-block-head">
+        <span class="filing-step-num" aria-hidden="true">4</span>
+        <div class="filing-block-titles">
+          <h4 class="filing-block-title">Mapped documents</h4>
+        </div>
+      </header>
+      <div class="filing-block-body filing-block-body-flush">
+        <app-mapped-documents-panel #mappedDocs class="panel-embedded" mode="applicant" [caseCategoryId]="filing.caseCategoryId()"
+          [subjectId]="filing.filingSubjectId()" [initialAttachments]="filing.mappedAttachments()"
+          (attachmentsChange)="filing.onMappedAttachmentsChange($event)" />
+      </div>
+    </article>
+  </div>
+
+  <footer class="filing-final-footer">
+    <button type="button" class="btn btn-secondary danger" (click)="filing.hardResetFiling()"
+      [disabled]="filing.saveInProgress()">
+      Reset form
+    </button>
+    <button type="button" class="btn btn-secondary" (click)="filing.previewApplication()" [disabled]="filing.saveInProgress()">
+      {{ filing.saveInProgress() ? 'Please wait…' : 'Preview application' }}
+    </button>
+    <div class="filing-final-footer-primary">
+      <button type="button" class="btn btn-secondary" (click)="filing.saveDraft()" [disabled]="filing.saveInProgress()">
+        {{ filing.saveInProgress() ? 'Saving…' : 'Save draft' }}
+      </button>
+      <button type="button" class="btn btn-primary" (click)="filing.finalSubmit(mappedDocs)" [disabled]="filing.saveInProgress()">
+        {{ filing.saveInProgress() ? 'Submitting…' : 'Submit application' }}
+      </button>
+    </div>
+  </footer>
+</section>
