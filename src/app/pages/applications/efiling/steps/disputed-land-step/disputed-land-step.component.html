@@ -1,0 +1,13 @@
+<section class="section">
+  <app-disputed-land-panel [disputedLands]="filing.disputedLands()"
+    (disputedLandsChange)="filing.onDisputedLandsChange($event)"
+    [landModeFromStep1]="filing.isRural712Subject() ? 'RURAL_7_12' : 'URBAN_PROPERTY_CARD'"
+    [ruralPlotsFromStep1]="filing.rural712SubSurveyRows()" [ruralContext]="filing.ruralDisputedLandContext()"
+    [prefilledDistrictCode]="filing.form.controls.urbanDistrictCode.getRawValue()"
+    [prefilledOfficeCode]="filing.form.controls.urbanOfficeCode.getRawValue()"
+    [prefilledVillageCode]="filing.form.controls.urbanVillageCode.getRawValue()"
+    [prefilledCtsNo]="filing.form.controls.ctsNoInput.getRawValue()"
+    [prefilledSubCtsNo]="filing.form.controls.selectedSubCtsNo.getRawValue()"
+    [isEpicsSubject]="filing.isEpicsSubject()"
+    [epicsMutationPropertyLookup]="filing.epicsMutationPropertyLookup()" />
+</section>

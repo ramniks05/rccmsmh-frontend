@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, OnInit, output, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { finalize } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 
@@ -64,14 +64,21 @@ export type DisputedLandRow =
       propertyDetail?: Record<string, unknown>;
     };
 
+export interface EpicsMutationPropertyLookup {
+  villageCode: string;
+  ctsNo: string;
+  districtName: string;
+}
+
 @Component({
   selector: 'app-disputed-land-panel',
   imports: [],
   templateUrl: './disputed-land-panel.component.html',
   styleUrl: './disputed-land-panel.component.css'
 })
-export class DisputedLandPanelComponent implements OnInit {
+export class DisputedLandPanelComponent {
   private readonly api = inject(LandRecordsService);
+  private urbanPrefillStarted = false;
 
   /** Disputed lands list owned by parent; emit when user adds/removes. */
   disputedLands = input<DisputedLandRow[]>([]);
@@ -93,8 +100,12 @@ export class DisputedLandPanelComponent implements OnInit {
   prefilledCtsNo = input<string>('');
   prefilledSubCtsNo = input<string>('');
   isEpicsSubject = input<boolean>(false);
+  /** Inward-number mutation search: village + CTS when urban location fields are empty. */
+  epicsMutationPropertyLookup = input<EpicsMutationPropertyLookup | null>(null);
 
   protected readonly mode = signal<DisputedLandType>('URBAN_PROPERTY_CARD');
+  /** True when property rows were loaded from step-1 inward mutation (no district/office on form). */
+  private readonly inwardMutationLandMode = signal(false);
 
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -312,28 +323,47 @@ export class DisputedLandPanelComponent implements OnInit {
     return v || '—';
   }
 
-  ngOnInit(): void {
-    const mode = this.landModeFromStep1();
-    this.mode.set(mode);
+  constructor() {
+    effect(() => {
+      if (this.urbanPrefillStarted) return;
 
-    if (mode === 'RURAL_7_12') {
-      return;
-    }
+      const mode = this.landModeFromStep1();
+      this.mode.set(mode);
+      if (mode === 'RURAL_7_12') return;
 
-    const stored = this.readStoredEpicsFields();
-    const district = (this.prefilledDistrictCode().trim() || stored.districtCode).trim();
-    const office = (this.prefilledOfficeCode().trim() || stored.officeCode).trim();
-    const village = (this.prefilledVillageCode().trim() || stored.villageCode).trim();
-    const cts = (this.prefilledCtsNo().trim() || stored.ctsNo).trim();
-    const subCts = (this.prefilledSubCtsNo().trim() || stored.subCtsNo).trim();
-    const isEpics = this.isEpicsSubject() || stored.isEpics;
+      const stored = this.readStoredEpicsFields();
+      const isEpics = this.isEpicsSubject() || stored.isEpics;
+      if (!isEpics) {
+        this.error.set('Select an ePICS subject and complete step 1 before adding disputed land.');
+        return;
+      }
 
-    if (!isEpics || !district || !office || !village) {
-      this.error.set('Complete urban property search before adding disputed land.');
-      return;
-    }
+      const district = (this.prefilledDistrictCode().trim() || stored.districtCode).trim();
+      const office = (this.prefilledOfficeCode().trim() || stored.officeCode).trim();
+      const village = (this.prefilledVillageCode().trim() || stored.villageCode).trim();
+      const cts = (this.prefilledCtsNo().trim() || stored.ctsNo).trim();
+      const subCts = (this.prefilledSubCtsNo().trim() || stored.subCtsNo).trim();
 
-    this.applyUrbanPrefill(district, office, village, cts, subCts);
+      const mutationLookup =
+        this.epicsMutationPropertyLookup() ?? stored.mutationPropertyLookup;
+
+      if (district && office && village) {
+        this.urbanPrefillStarted = true;
+        this.inwardMutationLandMode.set(false);
+        this.applyUrbanPrefill(district, office, village, cts, subCts);
+        return;
+      }
+
+      if (mutationLookup?.villageCode && mutationLookup.ctsNo) {
+        this.urbanPrefillStarted = true;
+        this.applyInwardMutationPrefill(mutationLookup);
+        return;
+      }
+
+      this.error.set(
+        'Complete urban property search on step 1, or search by inward number so village and CTS are available.'
+      );
+    });
   }
 
   // ── Read ePICS fields from the parent's sessionStorage snapshot ───────────
@@ -344,6 +374,7 @@ export class DisputedLandPanelComponent implements OnInit {
     ctsNo: string;
     subCtsNo: string;
     isEpics: boolean;
+    mutationPropertyLookup: EpicsMutationPropertyLookup | null;
   } {
     const empty = {
       districtCode: '',
@@ -351,7 +382,8 @@ export class DisputedLandPanelComponent implements OnInit {
       villageCode: '',
       ctsNo: '',
       subCtsNo: '',
-      isEpics: false
+      isEpics: false,
+      mutationPropertyLookup: null as EpicsMutationPropertyLookup | null
     };
     try {
       // The parent writes keys like: rccms.category1.filing.v2.case2
@@ -371,6 +403,12 @@ export class DisputedLandPanelComponent implements OnInit {
           selectedSubCtsNo?: string;
         };
         selectedSubject?: { subjectCode?: string; subjectName?: string } | null;
+        mutationDetails?: {
+          villageCode?: string;
+          ctsNumber?: string;
+          districtName?: string;
+        } | null;
+        mutationFound?: boolean;
       };
 
       const f = snap?.form ?? {};
@@ -383,6 +421,18 @@ export class DisputedLandPanelComponent implements OnInit {
         subjectName.includes('EPICS') ||
         subjectName.includes('EPCS');
 
+      const md = snap?.mutationDetails;
+      const mutationVillage = String(md?.villageCode ?? '').trim();
+      const mutationCts = String(md?.ctsNumber ?? '').trim();
+      const mutationPropertyLookup =
+        snap?.mutationFound && mutationVillage && mutationCts
+          ? {
+              villageCode: mutationVillage,
+              ctsNo: mutationCts,
+              districtName: String(md?.districtName ?? '').trim()
+            }
+          : null;
+
       return {
         districtCode: String(f.urbanDistrictCode ?? '').trim(),
         officeCode:   String(f.urbanOfficeCode   ?? '').trim(),
@@ -390,6 +440,7 @@ export class DisputedLandPanelComponent implements OnInit {
         ctsNo:        String(f.ctsNoInput        ?? '').trim(),
         subCtsNo:     String(f.selectedSubCtsNo  ?? '').trim(),
         isEpics,
+        mutationPropertyLookup
       };
     } catch {
       return empty;
@@ -397,6 +448,19 @@ export class DisputedLandPanelComponent implements OnInit {
   }
 
   // ── Prefill chain ─────────────────────────────────────────────────────────
+
+  /** Step-1 inward mutation search: load property table using village + CTS only. */
+  private applyInwardMutationPrefill(lookup: EpicsMutationPropertyLookup): void {
+    this.mode.set('URBAN_PROPERTY_CARD');
+    this.inwardMutationLandMode.set(true);
+    this.error.set(null);
+    this.urbanVillageCode.set(lookup.villageCode);
+    this.urbanParentCts.set(lookup.ctsNo);
+    this.urbanSelectedSubCts.set(lookup.ctsNo);
+    this.urbanPropertyDetails.set([]);
+    this.clearDisputedAreaState();
+    this.prefillLoadPropertyDetails(lookup.villageCode, lookup.ctsNo);
+  }
 
   /**
    * Step 1: Switch to urban mode, set all code signals, restore the office
@@ -771,13 +835,17 @@ export class DisputedLandPanelComponent implements OnInit {
   }
 
   private buildUrbanPropertyAddKey(row: Record<string, unknown>, index: number): string | null {
-    const districtCode = this.urbanDistrictCode().trim() || this.prefilledDistrictCode().trim();
-    const officeCode = this.urbanOfficeCode().trim() || this.prefilledOfficeCode().trim();
     const villageCode = this.urbanVillageCode().trim() || this.prefilledVillageCode().trim();
     const parentCts = this.urbanParentCts().trim() || this.prefilledCtsNo().trim();
-    const subCts = this.urbanSelectedSubCts().trim() || this.prefilledSubCtsNo().trim();
-    if (!districtCode || !officeCode || !villageCode || !parentCts || !subCts) return null;
-    return `URBAN|${villageCode}|${parentCts}|${subCts}|${this.urbanPropertyRowIdentity(row, index)}`;
+    const subCts =
+      this.urbanSelectedSubCts().trim() ||
+      this.prefilledSubCtsNo().trim() ||
+      parentCts ||
+      this.epicsMutationPropertyLookup()?.ctsNo.trim() ||
+      '';
+    if (!villageCode || !subCts) return null;
+    const parentKey = parentCts || subCts;
+    return `URBAN|${villageCode}|${parentKey}|${subCts}|${this.urbanPropertyRowIdentity(row, index)}`;
   }
 
   protected addUrbanPropertyRow(row: Record<string, unknown>, index: number): void {
@@ -817,23 +885,42 @@ export class DisputedLandPanelComponent implements OnInit {
     const villageCode = this.urbanVillageCode().trim() || this.prefilledVillageCode().trim();
     const parentCts = this.urbanParentCts().trim() || this.prefilledCtsNo().trim();
     const subCts = this.urbanSelectedSubCts().trim() || this.prefilledSubCtsNo().trim();
+    const inwardMode = this.inwardMutationLandMode();
+    const mutationLookup = this.epicsMutationPropertyLookup();
 
-    if (!districtCode || !officeCode || !villageCode) {
+    if (!villageCode) {
+      this.error.set('Village is required from step 1 (urban search or inward mutation).');
+      return;
+    }
+    const resolvedSubCts = subCts || parentCts || mutationLookup?.ctsNo.trim() || '';
+    if (!resolvedSubCts) {
+      this.error.set('CTS number is required from step 1.');
+      return;
+    }
+    if (!inwardMode && (!districtCode || !officeCode)) {
       this.error.set('Complete district, office and village on step 1 first.');
       return;
     }
-    if (!parentCts) {
+    if (!inwardMode && !parentCts) {
       this.error.set('Enter parent CTS number on step 1 first.');
       return;
     }
-    if (!subCts) {
+    if (!inwardMode && !subCts) {
       this.error.set('Select sub-CTS number on step 1 first.');
       return;
     }
 
-    const dist = this.urbanDistricts().find((d) => d.district_code.trim() === districtCode);
-    const off = this.urbanOffices().find((o) => o.office_code.trim() === officeCode);
+    const dist = districtCode
+      ? this.urbanDistricts().find((d) => d.district_code.trim() === districtCode)
+      : undefined;
+    const off = officeCode
+      ? this.urbanOffices().find((o) => o.office_code.trim() === officeCode)
+      : undefined;
     const vil = this.urbanVillages().find((v) => v.village_code.trim() === villageCode);
+    const resolvedParentCts = parentCts || resolvedSubCts;
+    const districtName =
+      dist?.district_name ?? mutationLookup?.districtName ?? (districtCode || '—');
+    const officeName = off ? off.office_english_name || off.office_name : officeCode || '—';
 
     const key = this.buildUrbanPropertyAddKey(row, index);
     if (!key) return;
@@ -846,15 +933,15 @@ export class DisputedLandPanelComponent implements OnInit {
       ...existing,
       {
         type: 'URBAN_PROPERTY_CARD',
-        districtCode,
-        districtName: dist?.district_name ?? districtCode,
-        officeCode,
-        officeName: off ? off.office_english_name || off.office_name : officeCode,
+        districtCode: districtCode || '—',
+        districtName,
+        officeCode: officeCode || '—',
+        officeName,
         villageCode,
         villageName: vil ? vil.village_english_name || vil.village_name : villageCode,
-        parentCtsNo: parentCts,
-        ctsNo: subCts,
-        subCtsNo: subCts,
+        parentCtsNo: resolvedParentCts,
+        ctsNo: resolvedSubCts,
+        subCtsNo: resolvedSubCts,
         propertyDetail: {
           ...(Object.keys(row).length ? row : {}),
           ...(disputedArea ? { disputed_area: disputedArea } : {}),

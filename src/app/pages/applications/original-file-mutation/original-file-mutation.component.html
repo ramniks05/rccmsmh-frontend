@@ -9,177 +9,171 @@
 
   <nav class="stepper" aria-label="Application steps">
     @for (s of steps; track s.key; let i = $index) {
-      <button type="button" class="step" [class.active]="i === stepIndex()" (click)="stepIndex.set(i)">
-        <span class="num">{{ i + 1 }}</span>
-        <span class="label">{{ s.title }}</span>
-      </button>
+    <button type="button" class="step" [class.active]="i === stepIndex()" (click)="stepIndex.set(i)">
+      <span class="num">{{ i + 1 }}</span>
+      <span class="label">{{ s.title }}</span>
+    </button>
     }
   </nav>
 
   @if (apiMessage()) {
-    <p class="api-message success">{{ apiMessage() }}</p>
+  <p class="api-message success">{{ apiMessage() }}</p>
   }
   @if (apiError()) {
-    <p class="api-message error">{{ apiError() }}</p>
+  <p class="api-message error">{{ apiError() }}</p>
   }
 
   @switch (activeStep().key) {
-    @case ('APPLICANTS') {
-      <section class="section">
-        <div class="row-actions">
-          <button type="button" class="btn btn-secondary" (click)="addApplicant()">Add applicant</button>
-        </div>
+  @case ('APPLICANTS') {
+  <section class="section">
+    <div class="row-actions">
+      <button type="button" class="btn btn-secondary" (click)="addApplicant()">Add applicant</button>
+    </div>
 
-        @for (g of applicants.controls; track g; let i = $index) {
-          <div class="mini-card" [formGroup]="$any(g)">
-            <div class="mini-head">
-              <strong>Applicant {{ i + 1 }}</strong>
-              <button type="button" class="btn btn-secondary danger" (click)="removeApplicant(i)" [disabled]="applicants.length <= 1">
-                Remove
-              </button>
-            </div>
-            <div class="grid">
-              <label>
-                Full name *
-                <input type="text" formControlName="fullName" />
-              </label>
-              <label>
-                Full name (local)
-                <input type="text" formControlName="fullNameLocal" />
-              </label>
-              <label>
-                Mobile
-                <input type="text" formControlName="mobile" />
-              </label>
-              <label>
-                Address
-                <input type="text" formControlName="address" />
-              </label>
-            </div>
-          </div>
-        }
-      </section>
+    @for (g of applicants.controls; track g; let i = $index) {
+    <div class="mini-card" [formGroup]="$any(g)">
+      <div class="mini-head">
+        <strong>Applicant {{ i + 1 }}</strong>
+        <button type="button" class="btn btn-secondary danger" (click)="removeApplicant(i)"
+          [disabled]="applicants.length <= 1">
+          Remove
+        </button>
+      </div>
+      <div class="grid">
+        <label>
+          Full name *
+          <input type="text" formControlName="fullName" />
+        </label>
+        <label>
+          Full name (local)
+          <input type="text" formControlName="fullNameLocal" />
+        </label>
+        <label>
+          Mobile
+          <input type="text" formControlName="mobile" />
+        </label>
+        <label>
+          Address
+          <input type="text" formControlName="address" />
+        </label>
+      </div>
+    </div>
     }
+  </section>
+  }
 
-    @case ('RESPONDENTS') {
-      <section class="section">
-        <div class="row-actions">
-          <button type="button" class="btn btn-secondary" (click)="addRespondent()">Add respondent</button>
-        </div>
+  @case ('RESPONDENTS') {
+  <section class="section">
+    <div class="row-actions">
+      <button type="button" class="btn btn-secondary" (click)="addRespondent()">Add respondent</button>
+    </div>
 
-        @for (g of respondents.controls; track g; let i = $index) {
-          <div class="mini-card" [formGroup]="$any(g)">
-            <div class="mini-head">
-              <strong>Respondent {{ i + 1 }}</strong>
-              <button type="button" class="btn btn-secondary danger" (click)="removeRespondent(i)" [disabled]="respondents.length <= 1">
-                Remove
-              </button>
-            </div>
-            <div class="grid">
-              <label>
-                Full name *
-                <input type="text" formControlName="fullName" />
-              </label>
-              <label>
-                Full name (local)
-                <input type="text" formControlName="fullNameLocal" />
-              </label>
-              <label>
-                Mobile
-                <input type="text" formControlName="mobile" />
-              </label>
-              <label>
-                Address
-                <input type="text" formControlName="address" />
-              </label>
-            </div>
-          </div>
-        }
-      </section>
+    @for (g of respondents.controls; track g; let i = $index) {
+    <div class="mini-card" [formGroup]="$any(g)">
+      <div class="mini-head">
+        <strong>Respondent {{ i + 1 }}</strong>
+        <button type="button" class="btn btn-secondary danger" (click)="removeRespondent(i)"
+          [disabled]="respondents.length <= 1">
+          Remove
+        </button>
+      </div>
+      <div class="grid">
+        <label>
+          Full name *
+          <input type="text" formControlName="fullName" />
+        </label>
+        <label>
+          Full name (local)
+          <input type="text" formControlName="fullNameLocal" />
+        </label>
+        <label>
+          Mobile
+          <input type="text" formControlName="mobile" />
+        </label>
+        <label>
+          Address
+          <input type="text" formControlName="address" />
+        </label>
+      </div>
+    </div>
     }
+  </section>
+  }
 
-    @case ('VAKALTNAMA') {
-      <section class="section">
-        <app-vakaltnama-panel
-          [coAdvocates]="vakaltnamaCoAdvocates()"
-          (coAdvocatesChange)="vakaltnamaCoAdvocates.set($event)"
-        />
-      </section>
-    }
+  @case ('VAKALTNAMA') {
+  <section class="section">
+    <app-vakaltnama-panel [coAdvocates]="vakaltnamaCoAdvocates()"
+      (coAdvocatesChange)="vakaltnamaCoAdvocates.set($event)" />
+  </section>
+  }
 
-    @case ('LAND_DETAILS') {
-      <section class="section" [formGroup]="form.controls.land">
-        <div class="grid">
-          <label>
-            District *
-            <input type="text" formControlName="district" />
-          </label>
-          <label>
-            Taluka *
-            <input type="text" formControlName="taluka" />
-          </label>
-          <label>
-            Village *
-            <input type="text" formControlName="village" />
-          </label>
-          <label>
-            Survey no.
-            <input type="text" formControlName="surveyNumber" />
-          </label>
-          <label>
-            Gut no.
-            <input type="text" formControlName="gutNumber" />
-          </label>
-          <label class="span-2">
-            Remarks
-            <input type="text" formControlName="remarks" />
-          </label>
-        </div>
-      </section>
-    }
+  @case ('LAND_DETAILS') {
+  <section class="section" [formGroup]="form.controls.land">
+    <div class="grid">
+      <label>
+        District *
+        <input type="text" formControlName="district" />
+      </label>
+      <label>
+        Taluka *
+        <input type="text" formControlName="taluka" />
+      </label>
+      <label>
+        Village *
+        <input type="text" formControlName="village" />
+      </label>
+      <label>
+        Survey no.
+        <input type="text" formControlName="surveyNumber" />
+      </label>
+      <label>
+        Gut no.
+        <input type="text" formControlName="gutNumber" />
+      </label>
+      <label class="span-2">
+        Remarks
+        <input type="text" formControlName="remarks" />
+      </label>
+    </div>
+  </section>
+  }
 
-    @case ('PO_COURT') {
-      <section class="section" [formGroup]="form.controls.poCourt">
-        <div class="grid">
-          <label>
-            Court name *
-            <input type="text" formControlName="courtName" />
-          </label>
-          <label>
-            Officer name *
-            <input type="text" formControlName="officerName" />
-          </label>
-        </div>
-      </section>
-    }
+  @case ('PO_COURT') {
+  <section class="section" [formGroup]="form.controls.poCourt">
+    <div class="grid">
+      <label>
+        Court name *
+        <input type="text" formControlName="courtName" />
+      </label>
+      <label>
+        Officer name *
+        <input type="text" formControlName="officerName" />
+      </label>
+    </div>
+  </section>
+  }
 
-    @case ('PREVIEW') {
-      <section class="section">
-        <pre class="preview">{{ previewJson() }}</pre>
-      </section>
-    }
+  @case ('PREVIEW') {
+  <section class="section">
+    <pre class="preview">{{ previewJson() }}</pre>
+  </section>
+  }
 
-    @case ('SUBMIT') {
-      <section class="section">
-        <p class="sub">Save draft now, or final submit (dummy local save for now).</p>
-        <div class="row-actions">
-          <button type="button" class="btn btn-secondary" (click)="saveDraft()">Save as draft</button>
-          <button type="button" class="btn btn-primary" (click)="finalSubmit()">Final submit</button>
-        </div>
-      </section>
-    }
+  @case ('SUBMIT') {
+  <section class="section">
+    <p class="sub">Save draft now, or final submit (dummy local save for now).</p>
+    <div class="row-actions">
+      <button type="button" class="btn btn-secondary" (click)="saveDraft()">Save as draft</button>
+      <button type="button" class="btn btn-primary" (click)="finalSubmit()">Final submit</button>
+    </div>
+  </section>
+  }
   }
 
   <footer class="footer-actions">
     <button type="button" class="btn btn-secondary" (click)="back()" [disabled]="stepIndex() === 0">Back</button>
-    <button
-      type="button"
-      class="btn btn-primary"
-      (click)="next()"
-      [disabled]="stepIndex() === steps.length - 1"
-    >
+    <button type="button" class="btn btn-primary" (click)="next()" [disabled]="stepIndex() === steps.length - 1">
       Next
     </button>
   </footer>
 </article>
-

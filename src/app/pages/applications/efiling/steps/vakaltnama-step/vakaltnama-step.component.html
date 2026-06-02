@@ -1,0 +1,6 @@
+<section class="section">
+  <app-vakaltnama-panel [applicationRef]="filing.filingClientRef()" [courtPlace]="filing.filingDistrictForVakalatnama()"
+    [courtOfficeName]="filing.filingOfficeNameForVakalatnama()" [applicants]="filing.applicantOptions()"
+    [respondents]="filing.respondentOptions()" [assignments]="filing.vakaltnamaAssignments()"
+    (assignmentsChange)="filing.onVakaltnamaAssignmentsChange($event)" />
+</section>
