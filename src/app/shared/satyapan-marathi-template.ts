@@ -30,10 +30,10 @@ function orBlank(value: string | undefined | null): string {
 
 export interface SatyapanNamunaVars {
   // Opening statement
-  deponentName: string;       // मी [name]
+  representativeSelfLine: string;       // मी [name]
   deponentAge: string;        // वय सुमारे [age] वर्षे
   deponentOccupation: string; // धंदा: [occupation]
-  deponentAddress: string;    // राहणार: [address]
+  representativeAddress: string;    // राहणार: [address]
   deponentTaluka: string;     // तालुका: [taluka]
   deponentDistrict: string;   // जिल्हा: [district]
 
@@ -44,25 +44,25 @@ export interface SatyapanNamunaVars {
   footerPlace: string;        // ठिकाण
 
   // Footer left — advocate
-  advocateName: string;       // वकिलाचे नाव व स्वाक्षरी
+  advocateEmpoweredLine: string;       // वकिलाचे नाव व स्वाक्षरी
 
   // Footer right — deponent
-  signatoryName: string;      // प्रतिज्ञा करणार / सत्यापन करणार — नांव
+  signatureNames: string[];      // प्रतिज्ञा करणार / सत्यापन करणार — नांव
 }
 
 export function buildMarathiSatyapanNamunaHtml(v: SatyapanNamunaVars): string {
-  const deponentName       = orBlank(v.deponentName);
+  const deponentName       = orBlank(v.representativeSelfLine);
   const deponentAge        = orBlank(v.deponentAge);
   const deponentOccupation = orBlank(v.deponentOccupation);
-  const deponentAddress    = orBlank(v.deponentAddress);
+  const deponentAddress    = orBlank(v.representativeAddress);
   const deponentTaluka     = orBlank(v.deponentTaluka);
   const deponentDistrict   = orBlank(v.deponentDistrict);
   const day                = orBlank(v.dateDay);
   const month              = orBlank(v.dateMonth);
   const yy                 = orBlank(v.dateYear);
   const place              = orBlank(v.footerPlace);
-  const advocateName       = orBlank(v.advocateName);
-  const sigName            = orBlank(v.signatoryName);
+  const advocateName       = orBlank(v.advocateEmpoweredLine);
+  const sigName            = orBlank(v.signatureNames?.[0] ?? '');
 
   const dateFull = [
     day   ? toDevanagariDigits(day)   : '',

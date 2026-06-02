@@ -29,48 +29,46 @@ function orBlank(value: string | undefined | null): string {
 }
 
 export interface ShapathPatraVars {
-  // Opening statement
-  deponentName: string;         // मी [name]
-  deponentAge: string;          // वय [age] वर्षे
-  deponentAddress: string;      // राहणार: [address]
+  // ─── EXISTING — mapped from VakalatnamaMarathiVars / backend API ─────────
+  representativeSelfLine: string;  // deponent name — "किशोर सुभाषअप्पा हजारे"
+  representativeAddress?: string;  // राहणार: [address] — new optional
+  advocateEmpoweredLine: string;   // विधीज्ञ श्री. [name] — "Harsh Singh"
+  signatureNames: string[];        // signatoryName — signatureNames[0]
+  matterDescription: string;       // advocateRegistrationNo extracted from this
 
-  // Point 2 & 3 — paragraph range
-  paraRangeFrom2: string;       // परिच्छेद क्र. [from] ते — point 2
-  paraRangeTo2: string;         // ते [to] — point 2
-  paraRangeFrom3: string;       // परिच्छेद क्र. [from] ते — point 3
-  paraRangeTo3: string;         // ते [to] — point 3
-
-  // Point 12 — pending case details (optional)
-  pendingCaseDetails: string;   // प्रलंबित असल्यास तपशील
-
-  // Point 11 — advocate name
-  advocateName: string;         // विधीज्ञ श्री. [name]
-
-  // Point 13 — contact info
-  applicantPhone: string;       // अर्जदार भ्रमणध्वनी
-  advocatePhone: string;        // विधीज्ञ भ्रमणध्वनी
-  applicantEmail: string;       // अर्जदार ईमेल
-  advocateEmail: string;        // विधीज्ञ ईमेल
-
-  // Footer
-  signatoryName: string;        // श्री. [name] यांनी माझ्यासमोर...
+  // ─── NEW — not in backend API yet, all optional so doc still renders ──────
+  deponentAge?: string;            // वय [age] वर्षे
+  paraRangeFrom2?: string;         // परिच्छेद क्र. [from] — point 2
+  paraRangeTo2?: string;           // ते [to] — point 2
+  paraRangeFrom3?: string;         // परिच्छेद क्र. [from] — point 3
+  paraRangeTo3?: string;           // ते [to] — point 3
+  pendingCaseDetails?: string;     // प्रलंबित तपशील — point 12
+  applicantPhone?: string;         // अर्जदार भ्रमणध्वनी
+  advocatePhone?: string;          // विधीज्ञ भ्रमणध्वनी
+  applicantEmail?: string;         // अर्जदार ईमेल
+  advocateEmail?: string;          // विधीज्ञ ईमेल
 }
 
 export function buildMarathiShapathPatraHtml(v: ShapathPatraVars): string {
-  const deponentName    = orBlank(v.deponentName);
-  const deponentAge     = orBlank(v.deponentAge);
-  const deponentAddress = orBlank(v.deponentAddress);
-  const paraFrom2       = orBlank(v.paraRangeFrom2);
-  const paraTo2         = orBlank(v.paraRangeTo2);
-  const paraFrom3       = orBlank(v.paraRangeFrom3);
-  const paraTo3         = orBlank(v.paraRangeTo3);
-  const pendingDetails  = orBlank(v.pendingCaseDetails);
-  const advocateName    = orBlank(v.advocateName);
-  const appPhone        = orBlank(v.applicantPhone);
-  const advPhone        = orBlank(v.advocatePhone);
-  const appEmail        = orBlank(v.applicantEmail);
-  const advEmail        = orBlank(v.advocateEmail);
-  const sigName         = orBlank(v.signatoryName);
+  const deponentName    = orBlank(v.representativeSelfLine);
+  const deponentAge     = orBlank(v.deponentAge ?? '');
+  const deponentAddress = orBlank(v.representativeAddress ?? '');
+  const paraFrom2       = orBlank(v.paraRangeFrom2 ?? '');
+  const paraTo2         = orBlank(v.paraRangeTo2 ?? '');
+  const paraFrom3       = orBlank(v.paraRangeFrom3 ?? '');
+  const paraTo3         = orBlank(v.paraRangeTo3 ?? '');
+  const pendingDetails  = orBlank(v.pendingCaseDetails ?? '');
+  const advocateName    = orBlank(v.advocateEmpoweredLine);
+  const appPhone        = orBlank(v.applicantPhone ?? '');
+  const advPhone        = orBlank(v.advocatePhone ?? '');
+  const appEmail        = orBlank(v.applicantEmail ?? '');
+  const advEmail        = orBlank(v.advocateEmail ?? '');
+  const sigName         = orBlank(v.signatureNames?.[0] ?? '');
+
+  // Extract advocate registration from matterDescription — e.g. "(MAH/2026/1111)"
+  const advocateReg = orBlank(
+    v.matterDescription?.match(/\(([^()]+)\)\s*$/)?.[1] ?? ''
+  );
 
   return `<!DOCTYPE html>
 <html lang="mr">
@@ -162,11 +160,10 @@ export function buildMarathiShapathPatraHtml(v: ShapathPatraVars): string {
 
     <div class="sub-title">अर्ज / अपील ज्ञापनासमवेतचे शपथपत्र</div>
 
-    <!-- Opening statement -->
     <p class="statement-opening">
         मी ${deponentName ? `<strong class="val">${escDev(deponentName)}</strong>` : ''},
-        वय ${deponentAge ? `<strong class="val">${escDev(deponentAge)}</strong>` : ''} वर्षे,
-        राहणार: ${deponentAddress ? `<strong class="val">${escDev(deponentAddress)}</strong>` : ''}
+        ${deponentAge ? `वय <strong class="val">${escDev(deponentAge)}</strong> वर्षे,` : ''}
+        ${deponentAddress ? `राहणार: <strong class="val">${escDev(deponentAddress)}</strong>` : ''}
         दृढपूर्वक खालीलप्रमाणे कथन करतो की,
     </p>
 
@@ -239,6 +236,7 @@ export function buildMarathiShapathPatraHtml(v: ShapathPatraVars): string {
             <div class="point-content">
                 प्रस्तुत प्रकरणात, उपरोक्त काम माझ्यावतीने पाहण्यासाठी विधीज्ञ श्री.
                 ${advocateName ? `<strong class="val">${escDev(advocateName)}</strong>` : ''}
+                ${advocateReg ? `(${escapeHtml(advocateReg)})` : ''}
                 यांना प्राधिकृत करण्यात आलेले आहे. त्याबाबतचे वकीलपत्र / प्राधिकार पत्र सोबत जोडलेले आहे.
             </div>
         </li>
@@ -277,14 +275,10 @@ export function buildMarathiShapathPatraHtml(v: ShapathPatraVars): string {
         <p style="text-align: justify; font-size: 12pt;">
             श्री. ${sigName ? `<strong class="val">${escDev(sigName)}</strong>` : ''} यांनी माझ्यासमोर उपरोक्त शपथपत्र स्वाक्षरीकृत केलेले आहे.
         </p>
-
         <br><br>
-
         <table class="footer-table">
             <tr>
-                <td style="width: 50%; font-size: 12pt;">
-                    &nbsp;
-                </td>
+                <td style="width: 50%; font-size: 12pt;">&nbsp;</td>
                 <td style="text-align: right; font-size: 12pt;">
                     <div style="display: inline-block; text-align: center;">
                         <br><br>
