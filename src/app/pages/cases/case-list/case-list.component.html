@@ -1271,8 +1271,8 @@
                   </button>
                 }
                 @if (showJudgmentSubmitToPoButton()) {
-                  <button type="button" class="btn btn-primary" (click)="submitJudgmentToPO()" [disabled]="judgmentSubmitting()">
-                    {{ judgmentSubmitting() ? 'Submitting…' : 'Submit to PO' }}
+                  <button type="button" class="btn btn-primary" (click)="submitJudgmentToPO()" [disabled]="judgmentSubmitting() || judgmentSaving()">
+                    {{ judgmentSubmitting() ? 'Sending…' : 'Send to PO for review' }}
                   </button>
                 }
                 @if (showJudgmentFinalizeButton()) {
