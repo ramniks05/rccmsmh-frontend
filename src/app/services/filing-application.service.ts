@@ -5,6 +5,7 @@ import { map } from 'rxjs/operators';
 
 import { normalizeApplicationPreviewResponse } from '../shared/application-preview.util';
 
+import { RCCMS_API } from '../core/rccms-api.paths';
 import { environment } from '../../environments/environment';
 import { FilingMappedAttachment } from './mapped-documents.service';
 
@@ -191,25 +192,65 @@ export class FilingApplicationService {
   private readonly apiBaseUrl = environment.apiBaseUrl;
 
   save(request: FilingApplicationSaveRequest): Observable<FilingApplicationSaveResponse> {
-    return this.http.post<FilingApplicationSaveResponse>(`${this.apiBaseUrl}/api/filing-applications/save`, request);
+    return this.http.post<FilingApplicationSaveResponse>(
+      `${this.apiBaseUrl}${RCCMS_API.filingApplications.save}`,
+      request
+    );
   }
 
-  /** GET /api/filing-applications/mine — list of the logged-in advocate/party's own applications */
+  /** GET /api/filing-applications/mine — advocate/party application list */
   getMyApplications(): Observable<MyApplicationItem[]> {
-    return this.http.get<MyApplicationItem[]>(`${this.apiBaseUrl}/api/filing-applications/mine`);
+    return this.http.get<MyApplicationItem[]>(
+      `${this.apiBaseUrl}${RCCMS_API.filingApplications.mine}`
+    );
   }
 
-  /** GET /api/filing-applications/{id}/preview — full read-only view for party/advocate */
+  /** GET /api/filing-applications/{applicationId}/preview — advocate/party */
   getApplicationPreview(applicationId: number): Observable<ApplicationPreviewResponse> {
     return this.http
-      .get<unknown>(`${this.apiBaseUrl}/api/filing-applications/${applicationId}/preview`)
+      .get<unknown>(`${this.apiBaseUrl}${RCCMS_API.filingApplications.preview(applicationId)}`)
       .pipe(map((raw) => normalizeApplicationPreviewResponse(raw)));
   }
 
-  /** GET /api/filing-applications/{applicationId}/history — filer timeline (advocate / party) */
+  /** GET /api/filing-applications/officer/{applicationId}/preview — officer */
+  getOfficerApplicationPreview(applicationId: number): Observable<ApplicationPreviewResponse> {
+    return this.http
+      .get<unknown>(
+        `${this.apiBaseUrl}${RCCMS_API.filingApplications.officerPreview(applicationId)}`
+      )
+      .pipe(map((raw) => normalizeApplicationPreviewResponse(raw)));
+  }
+
+  /** Role-aware preview (advocate/party vs officer). */
+  getApplicationPreviewForRole(
+    applicationId: number,
+    asOfficer: boolean
+  ): Observable<ApplicationPreviewResponse> {
+    return asOfficer
+      ? this.getOfficerApplicationPreview(applicationId)
+      : this.getApplicationPreview(applicationId);
+  }
+
+  /** GET /api/filing-applications/{applicationId}/history — advocate/party */
   getApplicationHistory(applicationId: number): Observable<ApplicationHistoryResponse> {
     return this.http.get<ApplicationHistoryResponse>(
-      `${this.apiBaseUrl}/api/filing-applications/${applicationId}/history`
+      `${this.apiBaseUrl}${RCCMS_API.filingApplications.history(applicationId)}`
     );
+  }
+
+  /** GET /api/filing-applications/officer/{applicationId}/history — officer */
+  getOfficerApplicationHistory(applicationId: number): Observable<ApplicationHistoryResponse> {
+    return this.http.get<ApplicationHistoryResponse>(
+      `${this.apiBaseUrl}${RCCMS_API.filingApplications.officerHistory(applicationId)}`
+    );
+  }
+
+  getApplicationHistoryForRole(
+    applicationId: number,
+    asOfficer: boolean
+  ): Observable<ApplicationHistoryResponse> {
+    return asOfficer
+      ? this.getOfficerApplicationHistory(applicationId)
+      : this.getApplicationHistory(applicationId);
   }
 }

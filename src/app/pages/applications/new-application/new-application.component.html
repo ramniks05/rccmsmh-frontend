@@ -81,7 +81,9 @@
 
     <!-- Routed form components -->
     @if (selectedCaseCategory()!.id === 2) {
-      <app-category1-objection [caseCategoryId]="selectedCaseCategory()!.id" />
+      <app-category1-objection
+        [caseCategoryId]="selectedCaseCategory()!.id"
+        [resumeApplicationId]="resumeApplicationId()" />
     } @else if (selectedType() === 'ORIGINAL_FILE_MUTATION') {
       <app-original-file-mutation />
     } @else {

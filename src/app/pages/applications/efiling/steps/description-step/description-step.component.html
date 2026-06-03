@@ -1,4 +1,4 @@
-<section class="section filing-final-step">
+<section class="section filing-final-step" [formGroup]="filing.form">
   <div class="filing-blocks">
     <article class="filing-block mini-card">
       <header class="filing-block-head">
@@ -13,11 +13,11 @@
       </div>
     </article>
 
-    <article class="filing-block mini-card" [formGroup]="filing.form">
+    <article class="filing-block mini-card">
       <header class="filing-block-head">
         <span class="filing-step-num" aria-hidden="true">2</span>
         <div class="filing-block-titles">
-          <h4 class="filing-block-title">Affidavit</h4>
+          <h4 class="filing-block-title">Affidavit (शपथपत्र)</h4>
         </div>
         <div class="filing-block-toolbar">
           @if (filing.affidavitFormatUrl) {
@@ -26,24 +26,35 @@
           </a>
           }
           <button type="button" class="btn btn-secondary btn-compact" (click)="filing.loadAffidavitTemplate()">
-            Load sample
+            Reload template
+          </button>
+          <button type="button" class="btn btn-secondary btn-compact" (click)="filing.viewAffidavitDocument()"
+            [disabled]="!hasAffidavitPreview()">
+            View / Print
           </button>
         </div>
       </header>
       <div class="filing-block-body">
-        <label class="filing-textarea-label">
-          Affidavit <span class="req">*</span>
-          <textarea class="filing-textarea" formControlName="affidavitText" rows="7"
-            placeholder="Enter or paste affidavit text…"></textarea>
-        </label>
+        @if (hasAffidavitPreview()) {
+          <p class="filing-doc-ready muted">
+            Affidavit template is ready. Use <strong>View / Print</strong> here, or
+            <strong>Preview application</strong> below for the full formatted document.
+          </p>
+          <input type="hidden" formControlName="affidavitText" />
+        } @else {
+          <p class="filing-doc-loading">Loading affidavit template…</p>
+          <button type="button" class="btn btn-secondary btn-compact" (click)="filing.loadAffidavitTemplate()">
+            Load affidavit now
+          </button>
+        }
       </div>
     </article>
 
-    <article class="filing-block mini-card" [formGroup]="filing.form">
+    <article class="filing-block mini-card">
       <header class="filing-block-head">
         <span class="filing-step-num" aria-hidden="true">3</span>
         <div class="filing-block-titles">
-          <h4 class="filing-block-title">Prayer</h4>
+          <h4 class="filing-block-title">Prayer (सत्यापन नमुना)</h4>
         </div>
         <div class="filing-block-toolbar">
           @if (filing.prayerFormatUrl) {
@@ -52,16 +63,32 @@
           </a>
           }
           <button type="button" class="btn btn-secondary btn-compact" (click)="filing.loadPrayerTemplate()">
-            Load sample
+            Reload template
+          </button>
+          <button type="button" class="btn btn-secondary btn-compact" (click)="filing.viewPrayerDocument()"
+            [disabled]="!hasPrayerPreview()">
+            View / Print
           </button>
         </div>
       </header>
       <div class="filing-block-body">
-        <label class="filing-textarea-label">
-          Prayer <span class="req">*</span>
-          <textarea class="filing-textarea" formControlName="prayerText" rows="6"
-            placeholder="Enter or paste prayer text…"></textarea>
-        </label>
+        @if (hasPrayerPreview()) {
+          <p class="filing-doc-ready muted">
+            Prayer / verification template is ready. Use <strong>View / Print</strong> here, or
+            <strong>Preview application</strong> below for the full formatted document.
+          </p>
+          <input type="hidden" formControlName="prayerText" />
+        } @else if (filing.prayerTemplateLoadFailed()) {
+          <p class="filing-doc-error">Prayer template could not be generated. Click Reload template.</p>
+          <button type="button" class="btn btn-secondary btn-compact" (click)="filing.loadPrayerTemplate()">
+            Reload template
+          </button>
+        } @else {
+          <p class="filing-doc-loading">Loading prayer template…</p>
+          <button type="button" class="btn btn-secondary btn-compact" (click)="filing.loadPrayerTemplate()">
+            Load prayer now
+          </button>
+        }
       </div>
     </article>
 
@@ -85,8 +112,8 @@
       [disabled]="filing.saveInProgress()">
       Reset form
     </button>
-    <button type="button" class="btn btn-secondary" (click)="filing.previewApplication()" [disabled]="filing.saveInProgress()">
-      {{ filing.saveInProgress() ? 'Please wait…' : 'Preview application' }}
+    <button type="button" class="btn btn-secondary" (click)="filing.previewApplication()">
+      Preview application
     </button>
     <div class="filing-final-footer-primary">
       <button type="button" class="btn btn-secondary" (click)="filing.saveDraft()" [disabled]="filing.saveInProgress()">

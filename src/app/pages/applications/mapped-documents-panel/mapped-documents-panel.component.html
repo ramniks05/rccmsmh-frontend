@@ -26,8 +26,8 @@
               <th>Document</th>
               <th>Local name</th>
               <th>Required</th>
-              <th>Upload</th>
-              <th>Status</th>
+              <th class="col-upload">Upload</th>
+              <th class="col-file-status">Uploaded file</th>
             </tr>
           </thead>
           <tbody>
@@ -48,20 +48,79 @@
                     <input
                       type="file"
                       class="file-input"
+                      accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                       (change)="onApplicantFileSelected(doc, $event)"
                       [disabled]="uploadBusyId() === doc.id"
                     />
                     <span class="file-upload-text">
+                      <svg class="doc-action-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.65" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 3.5v9m0 0-3-3m3 3 3-3M4.5 14.5v1A1.5 1.5 0 0 0 6 17h8a1.5 1.5 0 0 0 1.5-1.5v-1"/>
+                      </svg>
                       {{ uploadBusyId() === doc.id ? 'Uploading…' : 'Choose file' }}
                     </span>
                   </label>
                 </td>
                 <td class="status-cell">
                   @if (applicantUpload(doc.id); as up) {
-                    <span class="uploaded-name" [title]="up.fileName">{{ up.fileName }}</span>
-                    <button type="button" class="btn-link danger" (click)="removeApplicantUpload(doc.id)">Remove</button>
+                    <div class="uploaded-file-block">
+                      <div class="uploaded-file-name" [title]="up.fileName">
+                        <svg class="file-type-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fill-rule="evenodd" d="M4 4a2 2 0 0 1 2-2h4.586A2 2 0 0 1 12 2.586L15.414 6A2 2 0 0 1 16 7.414V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4Zm2 0h4v4H6V4Zm6 6H6v6h8v-6Z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="uploaded-file-text">{{ up.fileName }}</span>
+                      </div>
+                      <div class="uploaded-file-actions">
+                        <button
+                          type="button"
+                          class="doc-action-btn"
+                          (click)="viewApplicantUpload(doc.id)"
+                          [disabled]="viewBusyId() === doc.id"
+                          [attr.aria-expanded]="isPreviewOpen(doc.id)"
+                          [title]="isPreviewOpen(doc.id) ? 'Hide preview' : 'View document'"
+                        >
+                          @if (viewBusyId() === doc.id) {
+                            <span class="doc-action-spinner" aria-hidden="true"></span>
+                            <span>Loading</span>
+                          } @else {
+                            <svg class="doc-action-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.65" aria-hidden="true">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M2.75 10s2.75-5.25 7.25-5.25S17.25 10 17.25 10 14.5 15.25 10 15.25 2.75 10 2.75 10Z"/>
+                              <circle cx="10" cy="10" r="2.25" stroke-width="1.65"/>
+                            </svg>
+                            <span>{{ isPreviewOpen(doc.id) ? 'Hide' : 'View' }}</span>
+                          }
+                        </button>
+                        <button
+                          type="button"
+                          class="doc-action-btn danger"
+                          (click)="removeApplicantUpload(doc.id)"
+                          title="Remove uploaded file"
+                        >
+                          <svg class="doc-action-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M8.75 2A2.75 2.75 0 0 0 6 4.75v.5H3.75a.75.75 0 0 0 0 1.5h.473l.64 9.14A2.25 2.25 0 0 0 7.1 17.5h5.8a2.25 2.25 0 0 0 2.237-2.11l.64-9.14h.473a.75.75 0 0 0 0-1.5H14v-.5A2.75 2.75 0 0 0 11.25 2h-2.5Zm-1.5 2.75v-.5c0-.69.56-1.25 1.25-1.25h2.5c.69 0 1.25.56 1.25 1.25v.5H7.25ZM8 8a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 8 8Zm4 0a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 12 8Z" clip-rule="evenodd"/>
+                          </svg>
+                          <span>Remove</span>
+                        </button>
+                      </div>
+                      @if (isPreviewOpen(doc.id)) {
+                        <div class="doc-inline-preview">
+                          @if (viewBusyId() === doc.id) {
+                            <p class="muted doc-preview-status">Loading preview…</p>
+                          } @else if (previewUrl(doc.id); as url) {
+                            @if (isImageMime(up.mimeType)) {
+                              <img class="doc-preview-media" [src]="url" [alt]="up.fileName" />
+                            } @else if (isPdfMime(up.mimeType, up.fileName)) {
+                              <iframe class="doc-preview-iframe" [src]="url" [title]="up.fileName"></iframe>
+                            } @else {
+                              <p class="muted doc-preview-status">
+                                <a [href]="url" target="_blank" rel="noopener noreferrer">Open file</a>
+                              </p>
+                            }
+                          }
+                        </div>
+                      }
+                    </div>
                   } @else if (doc.required) {
-                    <span class="muted">Not uploaded</span>
+                    <span class="status-pending muted">Not uploaded</span>
                   } @else {
                     <span class="muted">—</span>
                   }

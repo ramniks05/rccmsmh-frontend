@@ -1,4 +1,5 @@
 import { Component, effect, inject, input } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule } from '@angular/forms';
 import { DisputedOrderStepComponent } from '../steps/disputed-order-step/disputed-order-step.component';
@@ -30,11 +31,18 @@ import { Category1FilingService } from '../services/category1-filing.service';
 })
 export class Category1ObjectionComponent {
   caseCategoryId = input.required<number>();
+  resumeApplicationId = input<number | null>(null);
   protected readonly filing = inject(Category1FilingService);
+  private readonly route = inject(ActivatedRoute);
 
   constructor() {
     effect(() => {
-      this.filing.init(this.caseCategoryId());
+      const catId = this.caseCategoryId();
+      let resumeId = Number(this.resumeApplicationId() ?? 0);
+      if (resumeId < 1) {
+        resumeId = Number(this.route.snapshot.queryParamMap.get('applicationId') ?? 0);
+      }
+      this.filing.init(catId, resumeId > 0 ? resumeId : undefined);
     });
   }
 }

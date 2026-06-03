@@ -82,7 +82,11 @@
           aria-label="Close preview">&times;</button>
       </header>
       <div class="app-preview-modal-body">
-        <app-application-preview [applicationId]="previewId" [embedded]="true" />
+        <app-application-preview
+          [applicationId]="previewId"
+          [embedded]="true"
+          [applicationOnly]="true"
+          [localPreview]="filing.filingPreviewBundle()" />
       </div>
       <footer class="app-preview-modal-footer">
         <button type="button" class="btn btn-secondary" (click)="filing.closePreviewModal()">Close</button>

@@ -24,12 +24,30 @@ import {
 } from '../../disputed-land-panel/disputed-land-panel.component';
 import {
   FILING_AFFIDAVIT_FORMAT_URL,
-  FILING_AFFIDAVIT_SAMPLE_TEMPLATE,
-  FILING_PRAYER_FORMAT_URL,
-  FILING_PRAYER_SAMPLE_TEMPLATE
+  FILING_PRAYER_FORMAT_URL
 } from '../../../../shared/filing-text-templates';
+import {
+  buildAffidavitTemplateHtml,
+  buildFilingDescriptionTemplateContext,
+  buildPrayerTemplateHtml,
+  isFilingDocumentHtml,
+  openFilingDocumentHtml
+} from '../../../../shared/filing-affidavit-prayer.util';
+import { TokenStorageService } from '../../../../services/token-storage.service';
 import { ApplicantOption, VakaltnamaAssignment } from '../../vakaltnama-panel/vakaltnama-panel.component';
 import { formatRuralPinParts } from '../../../../shared/land-display.util';
+import {
+  expandDisputedLandPreviewRows,
+  mergeDisputedOrderPreview,
+  toRecord,
+  toRecordArray
+} from '../../../../shared/application-preview.util';
+import {
+  sanitizeMutationDetailsForFilingPersist,
+  sanitizeNotice9ResolvedForFilingPersist,
+  sanitizePropertyDetailForFilingPersist,
+  sanitizeUrlForFilingPersist
+} from '../../../../shared/filing-save-sanitize.util';
 import {
   LandRecordsService,
   NoticeNineViewResponse,
@@ -47,9 +65,11 @@ import {
 } from '../../../../services/land-records.service';
 import {
   FilingApplicationService,
+  ApplicationPreviewResponse,
   FilingApplicationSaveRequest,
   FilingSaveStatus
 } from '../../../../services/filing-application.service';
+import { CaseCategoryService } from '../../../../services/case-category.service';
 
 export type StepKey = 'DISPUTED_ORDER' | 'ACT_SECTION' | 'PARTIES' | 'VAKALTNAMA' | 'DISPUTED_LAND' | 'APPLICATION_DESCRIPTION';
 
@@ -150,10 +170,13 @@ export class Category1FilingService {
   private readonly lookups = inject(LookupsService);
   private readonly landRecords = inject(LandRecordsService);
   private readonly filingApplications = inject(FilingApplicationService);
+  private readonly caseCategories = inject(CaseCategoryService);
+  private readonly tokenStorage = inject(TokenStorageService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   public readonly caseCategoryId = signal<number>(0);
+  public readonly caseCategoryName = signal('');
   
   constructor() {
     effect(() => {
@@ -161,6 +184,14 @@ export class Category1FilingService {
       if (stepKey !== 'DISPUTED_ORDER' || this.hydrating) return;
       untracked(() => {
         queueMicrotask(() => this.ensureUrbanInwardChainLoaded());
+      });
+    });
+
+    effect(() => {
+      const stepKey = this.activeStep().key;
+      if (stepKey !== 'APPLICATION_DESCRIPTION') return;
+      untracked(() => {
+        queueMicrotask(() => this.ensureDescriptionTemplates());
       });
     });
   }
@@ -182,7 +213,7 @@ export class Category1FilingService {
     { key: 'ACT_SECTION', title: 'Case act and PO', hint: 'Select act and section' },
     { key: 'PARTIES', title: 'Applicant/Respondent details', hint: 'Add parties with mobile number and address' },
     { key: 'VAKALTNAMA', title: 'Vakaltnama', hint: 'Filing advocate and co-advocates (search by bar council number)' },
-    { key: 'APPLICATION_DESCRIPTION', title: 'Application description', hint: 'Review all details, add description, save draft or submit' }
+    { key: 'APPLICATION_DESCRIPTION', title: 'Application description', hint: 'Review all details, preview, then save draft or submit' }
   ];
 
   public readonly stepIndex = signal(0);
@@ -199,6 +230,11 @@ export class Category1FilingService {
   public readonly disputedLands = signal<DisputedLandRow[]>([]);
   public readonly mappedAttachments = signal<FilingMappedAttachment[]>([]);
   public readonly descriptionParagraphs = signal<string[]>(['']);
+  /** Rendered affidavit HTML (drives preview + saved in form). */
+  public readonly affidavitTemplateHtml = signal('');
+  /** Rendered prayer HTML (drives preview + saved in form). */
+  public readonly prayerTemplateHtml = signal('');
+  public readonly prayerTemplateLoadFailed = signal(false);
   public readonly affidavitFormatUrl = FILING_AFFIDAVIT_FORMAT_URL;
   public readonly prayerFormatUrl = FILING_PRAYER_FORMAT_URL;
 
@@ -301,6 +337,8 @@ export class Category1FilingService {
   public readonly saveInProgress = signal(false);
   public readonly previewModalOpen = signal(false);
   public readonly previewModalApplicationId = signal<number | null>(null);
+  /** Full draft snapshot for embedded application preview (complete local form). */
+  public readonly filingPreviewBundle = signal<ApplicationPreviewResponse | null>(null);
   public readonly occupations = signal<OccupationLookupResponse[]>([]);
   public readonly applicantPincodeLookup = signal<Record<string, PartyAddressLookupState>>({});
   public readonly respondentPincodeLookup = signal<Record<string, PartyAddressLookupState>>({});
@@ -459,9 +497,13 @@ export class Category1FilingService {
     return this.partyOptionsFromFormArray(this.respondents, 'Respondent');
   });
 
-  public init(caseCategoryId: number): void {
-    if (this.caseCategoryId() === caseCategoryId) return;
+  public init(caseCategoryId: number, resumeApplicationId?: number): void {
+    if (this.caseCategoryId() === caseCategoryId && !resumeApplicationId) return;
     this.caseCategoryId.set(caseCategoryId);
+    this.caseCategories.getCaseCategory(caseCategoryId).subscribe({
+      next: (cat) => this.caseCategoryName.set(cat.name?.trim() || cat.code || ''),
+      error: () => this.caseCategoryName.set(caseCategoryId > 0 ? `Category ${caseCategoryId}` : '')
+    });
 
     this.loadingSubjects.set(true);
     this.loadingDistricts.set(true);
@@ -476,6 +518,9 @@ export class Category1FilingService {
           this.subjects.set(subjects);
           this.districts.set(districts);
           this.tryRestoreSession();
+          if (resumeApplicationId && resumeApplicationId > 0) {
+            this.resumeSavedApplication(resumeApplicationId);
+          }
         },
         error: (err: unknown) => {
           this.apiError.set(this.formatError(err));
@@ -1342,7 +1387,7 @@ export class Category1FilingService {
   public readonly sectionsForSelectedAct = computed((): Array<{ id: number; name: string }> => {
     return this.sections().map((row) => ({
       id: row.id,
-      name: row.sectionCode ? `${row.sectionCode} - ${row.sectionName}` : row.sectionName
+      name: row.sectionName
     }));
   });
 
@@ -2065,10 +2110,16 @@ export class Category1FilingService {
   }
 
   private compactNotice9ForSession(n9: NoticeNineResolved): NoticeNineResolved {
-    if (n9.url && n9.url.length > 120_000) {
-      return { available: true, sourceKind: n9.sourceKind, url: null, previewKind: n9.previewKind };
+    const persisted = sanitizeNotice9ResolvedForFilingPersist(n9);
+    if (!persisted) {
+      return { available: false, sourceKind: null, url: null, previewKind: 'none' };
     }
-    return n9;
+    return {
+      available: !!persisted['available'],
+      sourceKind: (persisted['sourceKind'] as NoticeNineResolved['sourceKind']) ?? null,
+      url: sanitizeUrlForFilingPersist(persisted['url'] as string) ?? null,
+      previewKind: (persisted['previewKind'] as NoticeNineResolved['previewKind']) ?? 'none'
+    };
   }
 
   private fetchNoticeNineForInward(inwardNumber: string, openInModal = false): void {
@@ -2104,8 +2155,33 @@ export class Category1FilingService {
   private applyNoticeNineViewResult(response: NoticeNineViewResponse | string | Record<string, unknown>): void {
     const resolved = this.resolveNoticeNine(response);
     this.notice9Resolved.set(resolved);
+    const persistedUrl = sanitizeUrlForFilingPersist(resolved.url);
     const current = this.mutationDetails();
-    if (current) this.mutationDetails.set({ ...current, notice9Url: resolved.url });
+    if (current) {
+      this.mutationDetails.set({ ...current, notice9Url: persistedUrl });
+    }
+  }
+
+  /** Restore Notice 9 from saved disputed order (persistable URL only; base64 is refetched via API). */
+  private restoreNotice9FromPersistedOrder(order: Record<string, unknown> | null | undefined): void {
+    const persisted = sanitizeNotice9ResolvedForFilingPersist(toRecord(order?.['notice9Resolved']));
+    const mutation = sanitizeMutationDetailsForFilingPersist(toRecord(order?.['mutationDetails']));
+    const url =
+      sanitizeUrlForFilingPersist(persisted?.['url'] as string) ??
+      sanitizeUrlForFilingPersist(mutation?.['notice9Url'] as string);
+    if (!persisted && !url) {
+      this.notice9Resolved.set({ available: false, sourceKind: null, url: null, previewKind: 'none' });
+      return;
+    }
+    const previewKind =
+      (persisted?.['previewKind'] as NoticeNineResolved['previewKind']) ??
+      (url ? this.detectPreviewKindFromUrl(url) : 'none');
+    this.notice9Resolved.set({
+      available: !!(persisted?.['available'] ?? url),
+      sourceKind: (persisted?.['sourceKind'] as NoticeNineResolved['sourceKind']) ?? (url ? 'external' : null),
+      url: url ?? null,
+      previewKind
+    });
   }
 
   private normalizeNoticeNinePayload(
@@ -2206,17 +2282,13 @@ export class Category1FilingService {
   }
 
   public epicsUrbanOfficeReadonlySelectLabel(): string {
-    const code = this.form.controls.urbanOfficeCode.getRawValue().trim();
-    const snap = this.epicsUrbanOfficeSnapshot();
-    if (code && snap && snap.code === code) return `${snap.code} — ${snap.name}`;
-    const o = this.epicsUrbanOfficeFromStep1();
-    if (o) return `${o.office_code} — ${o.office_name}`;
-    if (code) return `${code} —`;
+    const name = this.filingOfficeNameForVakalatnama();
+    if (name) return name;
     return '— Select office in step 1 (District → Office) —';
   }
 
   public urbanOfficeOptionLabel(o: UrbanOffice): string {
-    return `${o.office_code} — ${o.office_name}`;
+    return (o.office_english_name || o.office_name || '').trim();
   }
 
   public urbanMutationInwardOptionLabel(m: UrbanMutationListRow): string {
@@ -2439,6 +2511,9 @@ export class Category1FilingService {
     if (this.steps[nextIndex]?.key === 'PARTIES') {
       this.ensureMutationSuggestionsForPartiesStep();
     }
+    if (this.steps[nextIndex]?.key === 'APPLICATION_DESCRIPTION') {
+      queueMicrotask(() => this.ensureDescriptionTemplates());
+    }
     this.schedulePersist();
   }
 
@@ -2466,6 +2541,9 @@ export class Category1FilingService {
     this.stepIndex.set(targetIndex);
     if (this.steps[targetIndex]?.key === 'PARTIES') {
       this.ensureMutationSuggestionsForPartiesStep();
+    }
+    if (this.steps[targetIndex]?.key === 'APPLICATION_DESCRIPTION') {
+      queueMicrotask(() => this.ensureDescriptionTemplates());
     }
     this.schedulePersist();
   }
@@ -2620,6 +2698,19 @@ export class Category1FilingService {
 
   private validateDisputedLandStep(): boolean {
     if (this.disputedLands().length < 1) { this.apiError.set('Add at least one disputed land record.'); return false; }
+    for (const row of this.disputedLands()) {
+      const rowRec = row as unknown as Record<string, unknown>;
+      const areaSources =
+        row.type === 'RURAL_7_12'
+          ? [row.landDetail?.[0], rowRec]
+          : [row.propertyDetail, rowRec];
+      const disputed =
+        this.pickDisputedAreaField(...areaSources) || this.pickLandAreaField(...areaSources);
+      if (!disputed) {
+        this.apiError.set('Enter disputed area for each disputed land record.');
+        return false;
+      }
+    }
     return true;
   }
 
@@ -2634,22 +2725,42 @@ export class Category1FilingService {
       this.apiError.set('Please enter application description (at least one paragraph, 10 characters total).');
       return false;
     }
-    const affidavit = this.form.controls.affidavitText.getRawValue().trim();
-    if (affidavit.length < 10) {
-      this.apiError.set('Please enter affidavit text (at least 10 characters).');
+    const affidavit = (
+      this.affidavitTemplateHtml().trim() ||
+      this.form.controls.affidavitText.getRawValue().trim()
+    );
+    if (!isFilingDocumentHtml(affidavit) && affidavit.length < 10) {
+      this.apiError.set('Please load or enter affidavit text (at least 10 characters).');
       return false;
     }
-    const prayer = this.form.controls.prayerText.getRawValue().trim();
-    if (prayer.length < 10) {
-      this.apiError.set('Please enter prayer text (at least 10 characters).');
+    const prayer = (
+      this.prayerTemplateHtml().trim() ||
+      this.form.controls.prayerText.getRawValue().trim()
+    );
+    if (!isFilingDocumentHtml(prayer) && prayer.length < 10) {
+      this.apiError.set('Please load or enter prayer text (at least 10 characters).');
       return false;
     }
     return true;
   }
 
   private buildDisputedLandsPayload(): Array<Record<string, unknown>> {
+    const searchNames = this.buildSearchDisplayNameFields();
     return this.disputedLands().map((row, index) => {
       if (row.type === 'RURAL_7_12') {
+        const firstDetail = row.landDetail?.[0] ?? {};
+        const rowRec = row as unknown as Record<string, unknown>;
+        const totalArea = this.pickLandAreaField(firstDetail, rowRec) || null;
+        const disputedArea =
+          this.pickDisputedAreaField(firstDetail, rowRec) || (totalArea ? String(totalArea) : null);
+        const landDetail = row.landDetail?.length
+          ? row.landDetail.map((d, i) => {
+              const clean = sanitizePropertyDetailForFilingPersist(d);
+              return i === 0 ? this.enrichLandDetailWithAreas(clean, disputedArea, totalArea) : clean;
+            })
+          : disputedArea || totalArea
+            ? [this.enrichLandDetailWithAreas({}, disputedArea, totalArea)]
+            : null;
         return {
           lineNo: index + 1, landType: row.type, externalSource: 'LAND_RECORDS_API',
           districtCode: row.districtCode, districtName: row.districtName,
@@ -2658,18 +2769,94 @@ export class Category1FilingService {
           surveyPin: row.pin, pin1: row.pinParts.pin1, pin2: row.pinParts.pin2,
           pin3: row.pinParts.pin3, pin4: row.pinParts.pin4, pin5: row.pinParts.pin5,
           pin6: row.pinParts.pin6, pin7: row.pinParts.pin7, pin8: row.pinParts.pin8,
-          landDetail: row.landDetail?.length ? row.landDetail : null
+          disputedArea,
+          disputed_area: disputedArea,
+          totalArea,
+          total_area: totalArea,
+          landDetail
         };
       }
+      const property = row.propertyDetail ?? {};
+      const rowRec = row as unknown as Record<string, unknown>;
+      const totalArea = this.pickLandAreaField(property, rowRec) || null;
+      const disputedArea =
+        this.pickDisputedAreaField(property, rowRec) || (totalArea ? String(totalArea) : null);
+      const propertyDetail = this.enrichLandDetailWithAreas(
+        sanitizePropertyDetailForFilingPersist(property),
+        disputedArea,
+        totalArea
+      );
+      const districtName = this.resolveDisputedLandDistrictName(row, searchNames);
+      const officeName = this.resolveDisputedLandOfficeName(row, searchNames);
+      const villageName = this.resolveDisputedLandVillageName(row, searchNames);
       return {
         lineNo: index + 1, landType: row.type, externalSource: 'LAND_RECORDS_API',
-        districtCode: row.districtCode, districtName: row.districtName,
-        officeCode: row.officeCode, officeName: row.officeName,
-        villageCode: row.villageCode, villageName: row.villageName,
+        districtCode: row.districtCode, districtName,
+        officeCode: row.officeCode, officeName,
+        villageCode: row.villageCode, villageName,
         parentCtsNo: row.parentCtsNo || row.ctsNo, subCtsNo: row.subCtsNo || null,
-        ctsNo: row.ctsNo, propertyDetail: row.propertyDetail ?? null
+        ctsNo: row.ctsNo,
+        disputedArea,
+        disputed_area: disputedArea,
+        totalArea,
+        total_area: totalArea,
+        propertyDetail
       };
     });
+  }
+
+  private pickDisputedAreaField(
+    ...records: Array<Record<string, unknown> | null | undefined>
+  ): string {
+    const keys = ['disputed_area', 'disputedArea', 'DISPUTED_AREA'];
+    for (const rec of records) {
+      if (!rec) continue;
+      for (const k of keys) {
+        const v = rec[k];
+        if (v != null && String(v).trim()) return String(v).trim();
+      }
+    }
+    return '';
+  }
+
+  private enrichLandDetailWithAreas(
+    detail: Record<string, unknown>,
+    disputedArea: string | null,
+    totalArea: string | null
+  ): Record<string, unknown> {
+    const out = { ...detail };
+    if (totalArea) {
+      out['total_area'] = totalArea;
+      out['totalArea'] = totalArea;
+    }
+    if (disputedArea) {
+      out['disputed_area'] = disputedArea;
+      out['disputedArea'] = disputedArea;
+    }
+    return out;
+  }
+
+  private pickLandAreaField(...records: Array<Record<string, unknown> | null | undefined>): string {
+    const keys = [
+      'total_area',
+      'totalArea',
+      'TOTAL_AREA',
+      'built_up_area',
+      'builtUpArea',
+      'carpet_area',
+      'carpetArea',
+      'open_area',
+      'openArea',
+      'area'
+    ];
+    for (const rec of records) {
+      if (!rec) continue;
+      for (const k of keys) {
+        const v = rec[k];
+        if (v != null && String(v).trim()) return String(v).trim();
+      }
+    }
+    return '';
   }
 
   public buildFormPayload(): Record<string, unknown> {
@@ -2715,38 +2902,164 @@ export class Category1FilingService {
       };
     });
     const descriptionParagraphs = this.normalizedDescriptionParagraphs();
+    const office =
+      this.selectedOffice() ??
+      this.offices().find((o) => o.id === Number(raw['officeId'] ?? 0)) ??
+      null;
+    const hearingOfficeName = this.filingOfficeNameForVakalatnama();
     return {
       ...rawForPayload,
+      caseCategoryId: this.caseCategoryId(),
+      caseCategoryName: this.caseCategoryName(),
+      officeName: hearingOfficeName || office?.name || office?.shortName || null,
+      hearingOfficeName: hearingOfficeName || null,
+      urbanOfficeName:
+        hearingOfficeName ||
+        this.epicsUrbanOfficeSnapshot()?.name ||
+        this.epicsUrbanOfficeFromStep1()?.office_name ||
+        null,
       sectionCustomText: (raw['customSectionName'] as string) || null,
       descriptionParagraphs,
       applicationDescription: descriptionParagraphs.join('\n\n'),
-      affidavitText: String(raw['affidavitText'] ?? '').trim(),
-      prayerText: String(raw['prayerText'] ?? '').trim(),
+      affidavitText: (
+        this.affidavitTemplateHtml().trim() ||
+        String(raw['affidavitText'] ?? '').trim()
+      ),
+      prayerText: (
+        this.prayerTemplateHtml().trim() ||
+        String(raw['prayerText'] ?? '').trim()
+      ),
       applicants,
       respondents,
       vakalatnamaAssignments: this.vakaltnamaAssignments()
     };
   }
 
+  /** Display names for preview / reports (codes remain in *Code fields for save). */
+  private buildSearchDisplayNameFields(): Record<string, unknown> {
+    const urbanDistCode = this.form.controls.urbanDistrictCode.getRawValue().trim();
+    const urbanOffCode = this.form.controls.urbanOfficeCode.getRawValue().trim();
+    const urbanVillCode = this.form.controls.urbanVillageCode.getRawValue().trim();
+    const mutTypeCode = this.form.controls.selectedUrbanMutationTypeCode.getRawValue().trim();
+    const ruralDistCode = this.form.controls.ruralDistrictCode.getRawValue().trim();
+    const ruralTalCode = this.form.controls.ruralTalukaCode.getRawValue().trim();
+    const ruralVillCode = this.form.controls.ruralVillageLgdCode.getRawValue().trim();
+    const districtId = Number(this.form.controls.districtId.getRawValue() || 0);
+    const talukaId = Number(this.form.controls.talukaId.getRawValue() || 0);
+    const subdistrictId = Number(this.form.controls.subdistrictId.getRawValue() || 0);
+
+    const urbanDist = this.urbanSearchDistricts().find((d) => d.district_code === urbanDistCode);
+    const urbanOff =
+      this.epicsUrbanOfficeFromStep1() ??
+      this.urbanSearchOffices().find((o) => o.office_code === urbanOffCode);
+    const urbanVill = this.urbanSearchVillages().find((v) => v.village_code === urbanVillCode);
+    const mutType = this.urbanMutationTypeOptions().find((t) => t.code === mutTypeCode);
+    const ruralDist = this.ruralSearchDistricts().find((d) => d.district_code === ruralDistCode);
+    const ruralTal = this.ruralSearchTalukas().find((t) => t.taluka_code === ruralTalCode);
+    const ruralVill = this.ruralSearchVillages().find((v) => v.lgd_village_code === ruralVillCode);
+
+    return {
+      urbanDistrictName: urbanDist?.district_name?.trim() ?? '',
+      urbanOfficeName:
+        this.filingOfficeNameForVakalatnama() ||
+        urbanOff?.office_name?.trim() ||
+        this.epicsUrbanOfficeSnapshot()?.name?.trim() ||
+        '',
+      urbanVillageName: (urbanVill?.village_english_name || urbanVill?.village_name || '').trim(),
+      selectedUrbanMutationTypeName: mutType?.name?.trim() ?? '',
+      ruralDistrictName: ruralDist?.district_name?.trim() ?? '',
+      ruralTalukaName: ruralTal?.taluka_name?.trim() ?? '',
+      ruralVillageName: ruralVill?.village_name?.trim() ?? '',
+      districtName: this.districts().find((d) => d.id === districtId)?.name?.trim() ?? '',
+      talukaName: this.talukas().find((t) => t.id === talukaId)?.name?.trim() ?? '',
+      subdistrictName: this.subdistricts().find((s) => s.id === subdistrictId)?.name?.trim() ?? ''
+    };
+  }
+
+  private resolveDisputedLandDistrictName(
+    row: Extract<DisputedLandRow, { type: 'URBAN_PROPERTY_CARD' }>,
+    searchNames: Record<string, unknown>
+  ): string {
+    const code = row.districtCode?.trim() ?? '';
+    const name = row.districtName?.trim() ?? '';
+    if (name && (!code || name !== code)) return name;
+    return String(searchNames['urbanDistrictName'] ?? name ?? code).trim() || code;
+  }
+
+  private resolveDisputedLandOfficeName(
+    row: Extract<DisputedLandRow, { type: 'URBAN_PROPERTY_CARD' }>,
+    searchNames: Record<string, unknown>
+  ): string {
+    const code = row.officeCode?.trim() ?? '';
+    const name = row.officeName?.trim() ?? '';
+    if (name && (!code || name !== code)) return name;
+    return String(searchNames['urbanOfficeName'] ?? name ?? code).trim() || code;
+  }
+
+  private resolveDisputedLandVillageName(
+    row: Extract<DisputedLandRow, { type: 'URBAN_PROPERTY_CARD' }>,
+    searchNames: Record<string, unknown>
+  ): string {
+    const code = row.villageCode?.trim() ?? '';
+    const name = row.villageName?.trim() ?? '';
+    if (name && (!code || name !== code)) return name;
+    return String(searchNames['urbanVillageName'] ?? name ?? code).trim() || code;
+  }
+
   public buildDisputedOrderPayload(): Record<string, unknown> {
     const n9 = this.notice9Resolved();
+    const office = this.selectedOffice() ?? this.offices().find((o) => o.id === this.form.controls.officeId.getRawValue()) ?? null;
+    const hearingOfficeName = this.filingOfficeNameForVakalatnama();
+    const notice9Persisted = sanitizeNotice9ResolvedForFilingPersist({
+      available: n9.available,
+      sourceKind: n9.sourceKind ? n9.sourceKind.toUpperCase() : null,
+      url: n9.url,
+      previewKind: n9.previewKind
+    });
     return {
       searchMode: this.form.controls.searchMode.getRawValue(),
       searchValue: this.form.controls.searchValue.getRawValue().trim(),
       mutationFound: this.mutationFound(),
       mutationSearched: this.searchedMutation(),
-      mutationDetails: this.mutationDetails(),
+      mutationDetails: sanitizeMutationDetailsForFilingPersist(this.mutationDetails()),
       manualInwardNumber: this.form.controls.manualInwardNumber.getRawValue() || null,
       manualInwardDate: this.form.controls.manualInwardDate.getRawValue() || null,
       manualMutationType: this.form.controls.manualMutationType.getRawValue() || null,
       manualApplicantName: this.form.controls.manualApplicantName.getRawValue() || null,
       manualVillage: this.form.controls.manualVillage.getRawValue() || null,
       manualStatus: this.form.controls.manualStatus.getRawValue() || null,
-      notice9Resolved: {
+      landRecordType: this.isRural712Subject() ? 'RURAL_7_12' : 'URBAN_PROPERTY_CARD',
+      districtId: this.form.controls.districtId.getRawValue() || null,
+      subdistrictId: this.form.controls.subdistrictId.getRawValue() || null,
+      talukaId: this.form.controls.talukaId.getRawValue() || null,
+      officeId: this.form.controls.officeId.getRawValue() || null,
+      officeName: hearingOfficeName || office?.name || office?.shortName || null,
+      hearingOfficeName: hearingOfficeName || null,
+      ruralDistrictCode: this.form.controls.ruralDistrictCode.getRawValue() || null,
+      ruralTalukaCode: this.form.controls.ruralTalukaCode.getRawValue() || null,
+      ruralVillageLgdCode: this.form.controls.ruralVillageLgdCode.getRawValue() || null,
+      ruralSurveyPin: this.form.controls.ruralSurveyPin.getRawValue() || null,
+      urbanDistrictCode: this.form.controls.urbanDistrictCode.getRawValue() || null,
+      urbanOfficeCode: this.form.controls.urbanOfficeCode.getRawValue() || null,
+      urbanOfficeName:
+        hearingOfficeName ||
+        this.epicsUrbanOfficeSnapshot()?.name ||
+        this.epicsUrbanOfficeFromStep1()?.office_name ||
+        null,
+      urbanVillageCode: this.form.controls.urbanVillageCode.getRawValue() || null,
+      ctsNoInput: this.form.controls.ctsNoInput.getRawValue() || null,
+      selectedSubCtsNo: this.form.controls.selectedSubCtsNo.getRawValue() || null,
+      selectedInwardNumber: this.form.controls.selectedInwardNumber.getRawValue() || null,
+      mutationNumberInput: this.form.controls.mutationNumberInput.getRawValue() || null,
+      mutationYear: this.form.controls.mutationYear.getRawValue() || null,
+      mutationTypeFilter: this.form.controls.mutationTypeFilter.getRawValue() || null,
+      selectedUrbanMutationTypeCode: this.form.controls.selectedUrbanMutationTypeCode.getRawValue() || null,
+      notice9Resolved: notice9Persisted ?? {
         available: n9.available,
         sourceKind: n9.sourceKind ? n9.sourceKind.toUpperCase() : null,
-        url: n9.url, previewKind: n9.previewKind
-      }
+        previewKind: n9.previewKind
+      },
+      ...this.buildSearchDisplayNameFields()
     };
   }
 
@@ -2755,14 +3068,122 @@ export class Category1FilingService {
     this.schedulePersist();
   }
 
-  public loadAffidavitTemplate(): void {
-    this.form.controls.affidavitText.setValue(FILING_AFFIDAVIT_SAMPLE_TEMPLATE);
-    this.schedulePersist();
+  /** Load affidavit + prayer templates when entering description step (or on demand). */
+  public ensureDescriptionTemplates(): void {
+    const affRaw = this.form.controls.affidavitText.getRawValue().trim();
+    const prayRaw = this.form.controls.prayerText.getRawValue().trim();
+
+    if (!isFilingDocumentHtml(affRaw) && !this.affidavitTemplateHtml().trim()) {
+      this.loadAffidavitTemplate(false);
+    } else if (isFilingDocumentHtml(affRaw)) {
+      this.affidavitTemplateHtml.set(affRaw);
+    }
+
+    if (!isFilingDocumentHtml(prayRaw) && !this.prayerTemplateHtml().trim()) {
+      this.loadPrayerTemplate(false);
+    } else if (isFilingDocumentHtml(prayRaw)) {
+      this.prayerTemplateHtml.set(prayRaw);
+      this.prayerTemplateLoadFailed.set(false);
+    }
   }
 
-  public loadPrayerTemplate(): void {
-    this.form.controls.prayerText.setValue(FILING_PRAYER_SAMPLE_TEMPLATE);
-    this.schedulePersist();
+  public loadAffidavitTemplate(showMessage = true): void {
+    try {
+      const html = buildAffidavitTemplateHtml(this.buildDescriptionTemplateContext());
+      this.applyAffidavitHtml(html);
+      this.apiError.set(null);
+      if (showMessage) {
+        this.apiMessage.set('Affidavit (शपथपत्र) template loaded.');
+      }
+      this.schedulePersist();
+    } catch (err) {
+      console.error('Affidavit template load failed', err);
+      this.apiError.set('Could not load affidavit template. Please try again.');
+    }
+  }
+
+  public loadPrayerTemplate(showMessage = true): void {
+    try {
+      const html = buildPrayerTemplateHtml(this.buildDescriptionTemplateContext());
+      if (!html?.trim()) {
+        throw new Error('Prayer template builder returned empty HTML');
+      }
+      this.applyPrayerHtml(html);
+      this.prayerTemplateLoadFailed.set(false);
+      this.apiError.set(null);
+      if (showMessage) {
+        this.apiMessage.set('Prayer (सत्यापन नमुना) template loaded.');
+      }
+      this.schedulePersist();
+    } catch (err) {
+      console.error('Prayer template load failed', err);
+      this.prayerTemplateLoadFailed.set(true);
+      this.apiError.set('Could not load prayer template. Click Reload template to try again.');
+    }
+  }
+
+  private applyAffidavitHtml(html: string): void {
+    this.affidavitTemplateHtml.set(html);
+    this.form.controls.affidavitText.setValue(html, { emitEvent: true });
+    this.form.controls.affidavitText.markAsDirty();
+  }
+
+  private applyPrayerHtml(html: string): void {
+    const trimmed = html.trim();
+    this.prayerTemplateHtml.set(trimmed);
+    this.form.controls.prayerText.setValue(trimmed, { emitEvent: true });
+    this.form.controls.prayerText.markAsDirty();
+    this.prayerTemplateLoadFailed.set(false);
+  }
+
+  private syncTemplateHtmlSignalsFromForm(): void {
+    const aff = this.form.controls.affidavitText.getRawValue().trim();
+    const pray = this.form.controls.prayerText.getRawValue().trim();
+    if (isFilingDocumentHtml(aff)) {
+      this.affidavitTemplateHtml.set(aff);
+    }
+    if (isFilingDocumentHtml(pray)) {
+      this.prayerTemplateHtml.set(pray);
+    }
+  }
+
+  public viewAffidavitDocument(): void {
+    const raw =
+      this.affidavitTemplateHtml().trim() ||
+      this.form.controls.affidavitText.getRawValue().trim();
+    const html = raw || buildAffidavitTemplateHtml(this.buildDescriptionTemplateContext());
+    if (!openFilingDocumentHtml(html)) {
+      this.apiError.set('Pop-up blocked. Allow pop-ups to view the affidavit.');
+    }
+  }
+
+  public viewPrayerDocument(): void {
+    const raw =
+      this.prayerTemplateHtml().trim() ||
+      this.form.controls.prayerText.getRawValue().trim();
+    const html = raw || buildPrayerTemplateHtml(this.buildDescriptionTemplateContext());
+    if (!openFilingDocumentHtml(html)) {
+      this.apiError.set('Pop-up blocked. Allow pop-ups to view the prayer.');
+    }
+  }
+
+  private buildDescriptionTemplateContext() {
+    const first = this.applicants.length > 0 ? this.applicants.at(0) : null;
+    const row = (first?.getRawValue() ?? {}) as Record<string, unknown>;
+    const assignment = this.vakaltnamaAssignments()[0];
+    const advocate = assignment?.advocate;
+    const districtName = this.districts().find(
+      (d) => d.id === this.form.controls.districtId.getRawValue()
+    )?.name;
+
+    return buildFilingDescriptionTemplateContext({
+      applicantRow: row,
+      advocateFullName:
+        advocate?.fullName?.trim() || this.tokenStorage.getDisplayName()?.trim() || '',
+      advocateRegistrationNo: advocate?.barCouncilNumber?.trim() || '',
+      descriptionParagraphCount: this.normalizedDescriptionParagraphs().length,
+      hearingDistrictName: districtName
+    });
   }
 
   public normalizedDescriptionParagraphs(): string[] {
@@ -2772,6 +3193,7 @@ export class Category1FilingService {
   }
 
   public openPreviewModal(applicationId: number): void {
+    this.filingPreviewBundle.set(this.buildLocalPreviewBundle(applicationId));
     this.previewModalApplicationId.set(applicationId);
     this.previewModalOpen.set(true);
   }
@@ -2779,6 +3201,72 @@ export class Category1FilingService {
   public closePreviewModal(): void {
     this.previewModalOpen.set(false);
     this.previewModalApplicationId.set(null);
+    this.filingPreviewBundle.set(null);
+  }
+
+  /** Build read-only preview from current form state (used before/after draft save). */
+  public buildLocalPreviewBundle(applicationId: number): ApplicationPreviewResponse {
+    const form = this.buildFormPayload();
+    const subject = this.selectedSubject();
+    const office = this.selectedOffice() ?? this.offices().find((o) => o.id === this.form.controls.officeId.getRawValue()) ?? null;
+    const hearingOfficeName = this.filingOfficeNameForVakalatnama();
+    const actId = Number(form['actId'] ?? 0);
+    const sectionId = Number(form['sectionId'] ?? 0);
+    const act = this.acts().find((a) => a.id === actId);
+    const section = this.sections().find((s) => s.id === sectionId);
+    const customSection = String(form['sectionCustomText'] ?? form['customSectionName'] ?? '').trim();
+
+    const enrichedForm: Record<string, unknown> = {
+      ...form,
+      caseCategoryId: this.caseCategoryId(),
+      caseCategoryName: this.caseCategoryName(),
+      actCode: act?.actCode ?? '',
+      actName: act?.actName ?? '',
+      sectionCode: section?.sectionCode ?? '',
+      sectionName: section?.sectionName ?? '',
+      sectionCustomText: customSection || null,
+      hearingOfficeName: hearingOfficeName || null,
+      urbanOfficeName:
+        hearingOfficeName ||
+        this.epicsUrbanOfficeSnapshot()?.name ||
+        this.epicsUrbanOfficeFromStep1()?.office_name ||
+        null,
+      ...this.buildSearchDisplayNameFields()
+    };
+
+    return {
+      application: {
+        applicationId,
+        applicationNo: this.filingClientRef() || `DRAFT-${applicationId}`,
+        clientApplicationRef: this.filingClientRef(),
+        caseCategoryId: this.caseCategoryId(),
+        caseCategoryName: this.caseCategoryName(),
+        status: applicationId > 0 ? 'DRAFT' : 'PREVIEW',
+        subjectId: subject?.id,
+        subjectName: subject?.subjectName?.trim() ?? '',
+        officeId: office?.id,
+        officeName: hearingOfficeName || office?.name || office?.shortName || '',
+        applicationDescription: String(form['applicationDescription'] ?? ''),
+        filedByName: this.tokenStorage.getDisplayName() ?? '',
+        filedByRole: this.tokenStorage.getRole() ?? '',
+        form: enrichedForm,
+        disputedOrder: this.buildDisputedOrderPayload(),
+        applicants: toRecordArray(form['applicants']),
+        respondents: toRecordArray(form['respondents']),
+        disputedLands: expandDisputedLandPreviewRows(this.buildDisputedLandsPayload()),
+        attachments: this.buildAttachmentsPayload() as unknown as Record<string, unknown>[],
+        description: {
+          paragraphs: this.normalizedDescriptionParagraphs(),
+          affidavitText: String(form['affidavitText'] ?? ''),
+          prayerText: String(form['prayerText'] ?? '')
+        }
+      },
+      notices: [],
+      hearings: [],
+      orderSheetHistory: [],
+      judgmentWorkflowStatus: null,
+      judgmentSummary: null
+    };
   }
 
   public onPreviewModalBackdropClick(event: MouseEvent): void {
@@ -2787,48 +3275,21 @@ export class Category1FilingService {
     }
   }
 
+  /** Read-only preview from current form — does not save draft or enter workflow. */
   public previewApplication(): void {
-    if (!this.validateApplicationDescriptionStep(true)) return;
     this.apiMessage.set(null);
     this.apiError.set(null);
 
-    const existingId = this.serverApplicationId();
-    const body: FilingApplicationSaveRequest = {
-      status: 'DRAFT',
-      caseCategoryId: this.caseCategoryId(),
-      clientApplicationRef: this.filingClientRef(),
-      ...(existingId != null && existingId > 0 ? { applicationId: existingId } : {}),
-      form: this.buildFormPayload(),
-      disputedOrder: this.buildDisputedOrderPayload(),
-      disputedLands: this.buildDisputedLandsPayload(),
-      attachments: [...this.mappedAttachments()]
-    };
+    for (let i = 0; i < this.steps.length; i++) {
+      const key = this.steps[i].key;
+      if (!this.validateStepByKey(key, true)) {
+        this.stepIndex.set(i);
+        return;
+      }
+    }
 
-    this.saveInProgress.set(true);
-    this.filingApplications
-      .save(body)
-      .pipe(finalize(() => this.saveInProgress.set(false)))
-      .subscribe({
-        next: (resp) => {
-          const id =
-            resp?.applicationId != null && resp.applicationId > 0
-              ? resp.applicationId
-              : existingId;
-          if (id == null || id < 1) {
-            this.apiError.set('Draft saved but application ID was not returned — cannot open preview.');
-            return;
-          }
-          this.serverApplicationId.set(id);
-          if (resp?.applicantIdByClientRowKey && typeof resp.applicantIdByClientRowKey === 'object') {
-            this.applicantIdByClientRowKeySig.set(resp.applicantIdByClientRowKey as Record<string, number>);
-          }
-          this.writeSession();
-          this.schedulePersist();
-          this.openPreviewModal(id);
-          this.apiMessage.set('Draft saved. Review the preview below, then close to continue editing.');
-        },
-        error: (err: unknown) => this.apiError.set(this.formatError(err))
-      });
+    const id = this.serverApplicationId() ?? 0;
+    this.openPreviewModal(id > 0 ? id : 0);
   }
 
   public validateAllStepsForSubmit(mappedDocsPanel: any): boolean {
@@ -2844,6 +3305,29 @@ export class Category1FilingService {
       return false;
     }
     return true;
+  }
+
+  private attachmentsFromPreview(records: unknown): FilingMappedAttachment[] {
+    return toRecordArray(records)
+      .map((r) => ({
+        documentTypeId: Number(r['documentTypeId'] ?? 0),
+        storageKey: String(r['storageKey'] ?? r['storage_key'] ?? '').trim(),
+        fileName: String(r['fileName'] ?? r['file_name'] ?? 'document').trim(),
+        mimeType: String(r['mimeType'] ?? r['mime_type'] ?? 'application/octet-stream').trim()
+      }))
+      .filter((a) => !!a.storageKey);
+  }
+
+  /** Full attachments array for every save (draft + submit); omitting clears server-side attachments. */
+  public buildAttachmentsPayload(): FilingMappedAttachment[] {
+    return this.mappedAttachments()
+      .filter((a) => a.storageKey?.trim())
+      .map((a) => ({
+        documentTypeId: Number(a.documentTypeId) || 0,
+        storageKey: a.storageKey.trim(),
+        fileName: (a.fileName || 'document').trim(),
+        mimeType: (a.mimeType || 'application/octet-stream').trim()
+      }));
   }
 
   public onMappedAttachmentsChange(attachments: FilingMappedAttachment[]): void {
@@ -2883,7 +3367,7 @@ export class Category1FilingService {
       form: this.buildFormPayload(),
       disputedOrder: this.buildDisputedOrderPayload(),
       disputedLands: this.buildDisputedLandsPayload(),
-      attachments: [...this.mappedAttachments()]
+      attachments: this.buildAttachmentsPayload()
     };
     this.saveInProgress.set(true);
     this.filingApplications
@@ -2902,10 +3386,161 @@ export class Category1FilingService {
           if (resp?.applicantIdByClientRowKey && typeof resp.applicantIdByClientRowKey === 'object') {
             this.applicantIdByClientRowKeySig.set(resp.applicantIdByClientRowKey as Record<string, number>);
           }
+          this.writeFilingReturnPointer();
           this.schedulePersist();
+          this.refreshFilingPreviewBundleIfOpen();
         },
         error: (err: unknown) => this.apiError.set(this.formatError(err))
       });
+  }
+
+  /** Keep embedded preview status in sync after draft save (e.g. status → DRAFT). */
+  private refreshFilingPreviewBundleIfOpen(): void {
+    if (!this.previewModalOpen()) return;
+    const id = this.serverApplicationId();
+    if (id != null && id > 0) {
+      this.filingPreviewBundle.set(this.buildLocalPreviewBundle(id));
+    }
+  }
+
+  /** Remember draft for Continue filing from application preview. */
+  public writeFilingReturnPointer(): void {
+    if (typeof sessionStorage === 'undefined') return;
+    const appId = this.serverApplicationId();
+    try {
+      sessionStorage.setItem(
+        CATEGORY1_FILING_RETURN_SESSION_KEY,
+        JSON.stringify({
+          caseCategoryId: this.caseCategoryId(),
+          applicationId: appId != null && appId > 0 ? appId : null
+        })
+      );
+    } catch { /**/ }
+  }
+
+  /** Load a server-saved DRAFT into the filing form (continue editing). */
+  public resumeSavedApplication(applicationId: number): void {
+    this.filingApplications.getApplicationPreview(applicationId).subscribe({
+      next: (bundle) => {
+        const app = bundle.application;
+        if ((app.status ?? '').toUpperCase() !== 'DRAFT') {
+          this.apiError.set('Only draft applications can be resumed for editing.');
+          return;
+        }
+        this.hydrating = true;
+        this.serverApplicationId.set(applicationId);
+        this.filingClientRef.set(app.clientApplicationRef || app.applicationNo || this.filingClientRef());
+        const form = (app.form ?? {}) as Record<string, unknown>;
+        const apps = toRecordArray(form['applicants']);
+        const resps = toRecordArray(form['respondents']);
+        const { applicants: _a, respondents: _r, descriptionParagraphs: _dp, ...scalarFields } = form;
+        const paragraphs = Array.isArray(form['descriptionParagraphs'])
+          ? (form['descriptionParagraphs'] as unknown[]).map((p) => String(p ?? ''))
+          : app.description?.paragraphs?.length
+            ? app.description.paragraphs!.map((p) => String(p ?? ''))
+            : [''];
+        this.descriptionParagraphs.set(paragraphs.length ? paragraphs : ['']);
+        this.rebuildApplicantsAndRespondents(apps, resps);
+        this.form.patchValue(scalarFields as object, { emitEvent: false });
+        this.disputedLands.set(this.disputedLandRowsFromPreview(app.disputedLands ?? []));
+        this.mappedAttachments.set(this.attachmentsFromPreview(app.attachments ?? []));
+        this.vakaltnamaAssignments.set(
+          (toRecordArray(form['vakalatnamaAssignments']) as unknown as VakaltnamaAssignment[]) ?? []
+        );
+        const order = mergeDisputedOrderPreview(app.disputedOrder, form);
+        const mutationRaw = sanitizeMutationDetailsForFilingPersist(toRecord(order?.['mutationDetails']));
+        if (mutationRaw) {
+          this.mutationDetails.set(mutationRaw as unknown as MutationDetailsView);
+        }
+        this.restoreNotice9FromPersistedOrder(order);
+        this.mutationFound.set(!!order?.['mutationFound']);
+        this.searchedMutation.set(!!order?.['mutationSearched']);
+        const catId = Number(app.caseCategoryId ?? form['caseCategoryId'] ?? this.caseCategoryId());
+        if (catId > 0) {
+          this.caseCategoryId.set(catId);
+          this.caseCategories.getCaseCategory(catId).subscribe({
+            next: (cat) => this.caseCategoryName.set(cat.name?.trim() || cat.code || ''),
+            error: () => this.caseCategoryName.set(`Category ${catId}`)
+          });
+        }
+        const subjectId = Number(form['subjectId'] ?? app.subjectId ?? 0);
+        this.selectedSubject.set(this.subjects().find((s) => s.id === subjectId) ?? null);
+        const officeId = Number(form['officeId'] ?? app.officeId ?? 0);
+        const officeName = String(form['officeName'] ?? app.officeName ?? '').trim();
+        const officeRow =
+          this.offices().find((o) => o.id === officeId) ??
+          (officeName ? ({ id: officeId, name: officeName, shortName: officeName } as OfficeResponse) : null);
+        this.selectedOffice.set(officeRow);
+        this.restoreLocationOfficeAndActChain(scalarFields, officeRow);
+        this.syncTemplateHtmlSignalsFromForm();
+        this.hydrating = false;
+        this.writeFilingReturnPointer();
+        this.schedulePersist();
+        this.apiMessage.set('Draft loaded — continue filling your application.');
+      },
+      error: () => this.apiError.set('Could not load draft application for editing.')
+    });
+  }
+
+  private disputedLandRowsFromPreview(records: Array<Record<string, unknown>>): DisputedLandRow[] {
+    const out: DisputedLandRow[] = [];
+    for (const r of records) {
+      const landType = String(r['landType'] ?? '');
+      if (landType === 'RURAL_7_12') {
+        const landDetail = toRecordArray(r['landDetail']);
+        const totalArea = this.pickLandAreaField(r, landDetail[0]);
+        const disputedArea = this.pickDisputedAreaField(r, landDetail[0]) || totalArea;
+        const enrichedDetail =
+          landDetail.length > 0
+            ? landDetail.map((d, i) =>
+                i === 0 ? this.enrichLandDetailWithAreas(d, disputedArea || null, totalArea || null) : d
+              )
+            : disputedArea || totalArea
+              ? [this.enrichLandDetailWithAreas({}, disputedArea || null, totalArea || null)]
+              : [];
+        out.push({
+          type: 'RURAL_7_12',
+          districtCode: String(r['districtCode'] ?? ''),
+          districtName: String(r['districtName'] ?? ''),
+          talukaCode: String(r['talukaCode'] ?? ''),
+          talukaName: String(r['talukaName'] ?? ''),
+          villageLgdCode: String(r['villageLgdCode'] ?? ''),
+          villageName: String(r['villageName'] ?? ''),
+          pin: String(r['surveyPin'] ?? ''),
+          pinParts: {
+            pin1: String(r['pin1'] ?? ''),
+            pin2: String(r['pin2'] ?? ''),
+            pin3: String(r['pin3'] ?? ''),
+            pin4: String(r['pin4'] ?? ''),
+            pin5: String(r['pin5'] ?? ''),
+            pin6: String(r['pin6'] ?? ''),
+            pin7: String(r['pin7'] ?? ''),
+            pin8: String(r['pin8'] ?? '')
+          },
+          landDetail: enrichedDetail.length ? enrichedDetail : undefined
+        });
+        continue;
+      }
+      if (landType === 'URBAN_PROPERTY_CARD') {
+        const property = toRecord(r['propertyDetail']) ?? {};
+        const totalArea = this.pickLandAreaField(r, property);
+        const disputedArea = this.pickDisputedAreaField(r, property) || totalArea;
+        out.push({
+          type: 'URBAN_PROPERTY_CARD',
+          districtCode: String(r['districtCode'] ?? ''),
+          districtName: String(r['districtName'] ?? ''),
+          officeCode: String(r['officeCode'] ?? ''),
+          officeName: String(r['officeName'] ?? ''),
+          villageCode: String(r['villageCode'] ?? ''),
+          villageName: String(r['villageName'] ?? ''),
+          parentCtsNo: String(r['parentCtsNo'] ?? r['ctsNo'] ?? ''),
+          ctsNo: String(r['ctsNo'] ?? ''),
+          subCtsNo: String(r['subCtsNo'] ?? '') || undefined,
+          propertyDetail: this.enrichLandDetailWithAreas(property, disputedArea || null, totalArea || null)
+        });
+      }
+    }
+    return out;
   }
 
   public addCustomSection(): void {
@@ -3177,7 +3812,9 @@ export class Category1FilingService {
         selectedSubject: this.selectedSubject(),
         selectedOffice: this.selectedOffice(),
         epicsUrbanOfficeSnapshot: this.epicsUrbanOfficeSnapshot(),
-        mutationDetails: this.mutationDetails(),
+        mutationDetails: sanitizeMutationDetailsForFilingPersist(
+          this.mutationDetails()
+        ) as MutationDetailsView | null,
         mutationFound: this.mutationFound(),
         searchedMutation: this.searchedMutation(),
         notice9Resolved: this.compactNotice9ForSession(this.notice9Resolved()),
@@ -3261,7 +3898,19 @@ export class Category1FilingService {
     delete scalarFields['descriptionParagraphs'];
     this.descriptionParagraphs.set(paragraphs);
     this.rebuildApplicantsAndRespondents(apps, resps);
+
+    const preAffidavit = this.form.controls.affidavitText.getRawValue();
+    const prePrayer = this.form.controls.prayerText.getRawValue();
     this.form.patchValue(scalarFields as object, { emitEvent: false });
+    const snapAffidavit = String(scalarFields['affidavitText'] ?? '').trim();
+    const snapPrayer = String(scalarFields['prayerText'] ?? '').trim();
+    if (!snapAffidavit && preAffidavit.trim()) {
+      this.form.controls.affidavitText.setValue(preAffidavit, { emitEvent: false });
+    }
+    if (!snapPrayer && prePrayer.trim()) {
+      this.form.controls.prayerText.setValue(prePrayer, { emitEvent: false });
+    }
+    this.syncTemplateHtmlSignalsFromForm();
     
     if (snap.urbanSearchSubCtsRowsSnapshot?.length) {
       this.urbanSearchSubCtsRows.set(snap.urbanSearchSubCtsRowsSnapshot);
@@ -3291,10 +3940,18 @@ export class Category1FilingService {
     const subjMatch = snap.selectedSubject ?? this.subjects().find((s) => s.id === (scalarFields['subjectId'] as number));
     this.selectedSubject.set(subjMatch ?? null);
     this.selectedOffice.set(snap.selectedOffice ?? null);
-    this.mutationDetails.set(snap.mutationDetails);
+    const mutationRestored = sanitizeMutationDetailsForFilingPersist(snap.mutationDetails);
+    if (mutationRestored) {
+      this.mutationDetails.set(mutationRestored as unknown as MutationDetailsView);
+    } else if (snap.mutationDetails) {
+      this.mutationDetails.set(snap.mutationDetails);
+    }
     this.mutationFound.set(!!snap.mutationFound);
     this.searchedMutation.set(!!snap.searchedMutation);
-    this.notice9Resolved.set(snap.notice9Resolved ?? { available: false, sourceKind: null, url: null, previewKind: 'none' });
+    this.restoreNotice9FromPersistedOrder({
+      notice9Resolved: snap.notice9Resolved ?? null,
+      mutationDetails: snap.mutationDetails ?? null
+    });
     this.manualAttachFileName.set(snap.manualAttachFileName ?? null);
     this.manualNotice9FileName.set(snap.manualNotice9FileName ?? null);
     this.epicsUrbanOfficeSnapshot.set(snap.epicsUrbanOfficeSnapshot ?? null);
@@ -3450,6 +4107,10 @@ export class Category1FilingService {
     }
 
     this.applyAutoActSelection();
+    this.syncTemplateHtmlSignalsFromForm();
+    if (this.activeStep().key === 'APPLICATION_DESCRIPTION') {
+      queueMicrotask(() => this.ensureDescriptionTemplates());
+    }
   }
 
   public onVakaltnamaAssignmentsChange(rows: VakaltnamaAssignment[]): void {

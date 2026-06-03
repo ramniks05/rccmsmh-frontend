@@ -60,6 +60,13 @@
                 </td>
                 <td>{{ app.submittedAt ? (app.submittedAt | slice:0:10) : '-' }}</td>
                 <td>
+                  @if ((app.status || '').toUpperCase() === 'DRAFT') {
+                    <a
+                      [routerLink]="['/applications/new']"
+                      [queryParams]="{ caseCategoryId: app.caseCategoryId, applicationId: app.applicationId }"
+                      class="btn btn-primary btn-xs"
+                    >Continue</a>
+                  }
                   <a [routerLink]="['/applications', app.applicationId]" class="btn btn-secondary btn-xs">View</a>
                 </td>
               </tr>

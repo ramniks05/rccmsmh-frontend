@@ -22,6 +22,7 @@ export class NewApplicationComponent {
 
   protected readonly selectedType = signal<ApplicationType | ''>('');
   protected readonly selectedCaseCategory = signal<CaseCategoryRecord | null>(null);
+  protected readonly resumeApplicationId = signal<number | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
 
@@ -33,9 +34,11 @@ export class NewApplicationComponent {
   constructor() {
     this.route.queryParamMap.subscribe((params) => {
       let id = Number(params.get('caseCategoryId') || 0);
+      const appId = Number(params.get('applicationId') || 0);
       if (id < 1) {
         id = this.readFilingReturnCaseCategoryId();
       }
+      this.resumeApplicationId.set(appId > 0 ? appId : null);
       if (!id || id < 1) {
         this.selectedCaseCategory.set(null);
         this.selectedType.set('');

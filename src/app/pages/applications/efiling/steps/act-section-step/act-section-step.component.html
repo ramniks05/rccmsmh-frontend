@@ -23,7 +23,7 @@
         <select formControlName="actId">
           <option [ngValue]="0">Select act</option>
           @for (a of filing.acts(); track a.id) {
-          <option [ngValue]="a.id">{{ a.actCode }} - {{ a.actName }}</option>
+          <option [ngValue]="a.id">{{ a.actName }}</option>
           }
         </select>
       </label>

@@ -1,9 +1,15 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 
+import { RCCMS_API } from '../core/rccms-api.paths';
 import { environment } from '../../environments/environment';
-import { ApplicationHistoryResponse } from './filing-application.service';
+import { normalizeApplicationPreviewResponse } from '../shared/application-preview.util';
+import {
+  ApplicationHistoryResponse,
+  ApplicationPreviewResponse
+} from './filing-application.service';
 import { DocumentChecklist } from './mapped-documents.service';
 
 export interface OfficerInboxItem {
@@ -67,19 +73,31 @@ export class OfficerFilingService {
   private readonly apiBaseUrl = environment.apiBaseUrl;
 
   getInbox(): Observable<OfficerInboxItem[]> {
-    return this.http.get<OfficerInboxItem[]>(`${this.apiBaseUrl}/api/filing-applications/officer/inbox`);
+    return this.http.get<OfficerInboxItem[]>(
+      `${this.apiBaseUrl}${RCCMS_API.filingApplications.officerInbox}`
+    );
   }
 
+  /** GET /api/filing-applications/officer/{applicationId} — officer workspace detail */
   getApplicationDetail(applicationId: number): Observable<OfficerApplicationDetail> {
     return this.http.get<OfficerApplicationDetail>(
-      `${this.apiBaseUrl}/api/filing-applications/officer/${applicationId}`
+      `${this.apiBaseUrl}${RCCMS_API.filingApplications.officerDetail(applicationId)}`
     );
+  }
+
+  /** GET /api/filing-applications/officer/{applicationId}/preview */
+  getApplicationPreview(applicationId: number): Observable<ApplicationPreviewResponse> {
+    return this.http
+      .get<unknown>(
+        `${this.apiBaseUrl}${RCCMS_API.filingApplications.officerPreview(applicationId)}`
+      )
+      .pipe(map((raw) => normalizeApplicationPreviewResponse(raw)));
   }
 
   /** GET /api/filing-applications/officer/{applicationId}/history */
   getApplicationHistory(applicationId: number): Observable<ApplicationHistoryResponse> {
     return this.http.get<ApplicationHistoryResponse>(
-      `${this.apiBaseUrl}/api/filing-applications/officer/${applicationId}/history`
+      `${this.apiBaseUrl}${RCCMS_API.filingApplications.officerHistory(applicationId)}`
     );
   }
 }

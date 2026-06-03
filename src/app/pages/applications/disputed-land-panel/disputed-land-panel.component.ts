@@ -944,7 +944,8 @@ export class DisputedLandPanelComponent {
         subCtsNo: resolvedSubCts,
         propertyDetail: {
           ...(Object.keys(row).length ? row : {}),
-          ...(disputedArea ? { disputed_area: disputedArea } : {}),
+          disputed_area: disputedArea,
+          disputedArea,
           [PROPERTY_ROW_ID_KEY]: this.urbanPropertyRowIdentity(row, index)
         } as Record<string, unknown>
       }

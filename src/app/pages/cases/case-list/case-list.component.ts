@@ -3943,7 +3943,7 @@ export class CaseListComponent implements OnInit {
     const appId = this.selectedApplicationId();
     if (!appId) return;
     this.roznamaPreviewLoading.set(true);
-    this.filingApplications.getApplicationPreview(appId).subscribe({
+    this.filingApplications.getApplicationPreviewForRole(appId, true).subscribe({
       next: (data) => {
         this.roznamaPreviewBundle.set(data);
         this.roznamaPreviewLoading.set(false);

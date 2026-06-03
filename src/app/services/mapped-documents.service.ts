@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
+import { RCCMS_API } from '../core/rccms-api.paths';
 import { environment } from '../../environments/environment';
 
 export interface MappedDocumentType {
@@ -74,14 +75,14 @@ export class MappedDocumentsService {
 
   getRequiredDocuments(caseCategoryId: number, subjectId: number): Observable<MappedDocumentType[]> {
     return this.http.get<MappedDocumentType[]>(
-      `${this.apiBaseUrl}/api/document-types/by-case-category-subject`,
+      `${this.apiBaseUrl}${RCCMS_API.documentTypes.byCaseCategorySubject}`,
       { params: { caseCategoryId: String(caseCategoryId), subjectId: String(subjectId) } }
     );
   }
 
   getDocumentChecklist(applicationId: number): Observable<DocumentChecklist> {
     return this.http.get<DocumentChecklist>(
-      `${this.apiBaseUrl}/api/filing-applications/officer/${applicationId}/document-checklist`
+      `${this.apiBaseUrl}${RCCMS_API.filingApplications.officerDocumentChecklist(applicationId)}`
     );
   }
 
@@ -90,7 +91,7 @@ export class MappedDocumentsService {
     entries: DocumentChecklistSaveEntry[]
   ): Observable<DocumentChecklist> {
     return this.http.put<DocumentChecklist>(
-      `${this.apiBaseUrl}/api/filing-applications/officer/${applicationId}/document-checklist`,
+      `${this.apiBaseUrl}${RCCMS_API.filingApplications.officerDocumentChecklist(applicationId)}`,
       { entries }
     );
   }

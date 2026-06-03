@@ -2,9 +2,9 @@
 
   @if (!embedded()) {
   <div class="back-row">
-    @if (previewFromFiling) {
+    @if (canContinueDraftFiling()) {
       <button type="button" class="back-link back-link-btn" (click)="continueFiling()">← Continue filing</button>
-      <span class="muted preview-from-filing-hint">Draft is saved. Return here to keep editing your application.</span>
+      <span class="muted preview-from-filing-hint">Draft saved — continue from step 1 to complete and submit.</span>
     } @else {
       <a [routerLink]="backLink" class="back-link">← Back</a>
     }
@@ -23,7 +23,7 @@
         @if (caseNoDisplay()) {
           <p class="case-no">Case: {{ caseNoDisplay() }}</p>
         }
-        @if (processingStageLabel()) {
+        @if (processingStageLabel() && !applicationOnly()) {
           <p class="case-no stage-line">{{ processingStageLabel() }}</p>
         }
         @if (app()?.caseCategoryName || app()?.subjectName) {
@@ -35,10 +35,35 @@
           </p>
         }
       </div>
-      <span class="status-badge">{{ app()?.status }}</span>
+      <div class="preview-header-actions">
+        <button
+          type="button"
+          class="btn btn-preview-action"
+          (click)="printApplicationPreview()"
+          [disabled]="!canExportPreview()"
+          title="Print application preview"
+        >
+          Print
+        </button>
+        <button
+          type="button"
+          class="btn btn-preview-action"
+          (click)="downloadApplicationPreview()"
+          [disabled]="!canExportPreview()"
+          title="Download application preview as HTML"
+        >
+          Download
+        </button>
+        <span
+          class="status-badge"
+          [class.status-preview]="isUnsavedPreviewStatus()"
+          [class.status-draft]="isDraftStatus()"
+        >{{ previewStatusLabel() }}</span>
+      </div>
     </div>
 
     <nav class="preview-tabs">
+      @if (!applicationOnly()) {
       <button type="button" [class.active]="activeTab()==='application'" (click)="setTab('application')">Application</button>
       <button type="button" [class.active]="activeTab()==='history'" (click)="setTab('history')">
         History
@@ -58,6 +83,9 @@
       @if (showJudgmentTab()) {
         <button type="button" [class.active]="activeTab()==='judgment'" (click)="setTab('judgment')">Judgment</button>
       }
+      } @else {
+      <div class="preview-tabs-single">Application preview — review all details before submit</div>
+      }
     </nav>
 
     @if (activeTab() === 'application') {
@@ -67,35 +95,27 @@
           <h4>Application summary</h4>
           <div class="info-grid">
             <div class="info-item"><span class="info-label">Application no.</span><span>{{ str(app()?.applicationNo) }}</span></div>
-            <div class="info-item"><span class="info-label">Status</span><span>{{ str(app()?.status) }}</span></div>
-            <div class="info-item"><span class="info-label">Category</span><span>{{ str(app()?.caseCategoryName) }}</span></div>
+            <div class="info-item"><span class="info-label">Status</span><span>{{ previewStatusLabel() }}</span></div>
+            <div class="info-item"><span class="info-label">Category</span><span>{{ categoryLabel() }}</span></div>
             <div class="info-item"><span class="info-label">Subject</span><span>{{ str(app()?.subjectName) }}</span></div>
-            <div class="info-item"><span class="info-label">Office</span><span>{{ str(app()?.officeName) }}</span></div>
+            <div class="info-item"><span class="info-label">Office</span><span>{{ officeLabel() }}</span></div>
             <div class="info-item"><span class="info-label">Act / section</span><span>{{ actSectionLabel() }}</span></div>
             <div class="info-item"><span class="info-label">Filed by</span><span>{{ str(app()?.filedByName) }} ({{ str(app()?.filedByRole) }})</span></div>
             <div class="info-item"><span class="info-label">Submitted</span><span>{{ formatDate(app()?.submittedAt) }}</span></div>
           </div>
         </section>
 
-        @if (disputedOrder(); as order) {
+        @if (searchCriteriaItems().length > 0) {
           <section class="preview-section">
-            <h4>Disputed order / mutation search</h4>
+            <h4>Search criteria (as entered)</h4>
             <div class="info-grid">
-              <div class="info-item"><span class="info-label">Search type</span><span>{{ searchModeLabel(order['searchMode']) }}</span></div>
-              <div class="info-item"><span class="info-label">Search value</span><span>{{ str(order['searchValue'] ?? order['searchDisplayText']) }}</span></div>
-              <div class="info-item"><span class="info-label">Resolved inward</span><span>{{ str(order['resolvedInwardNumber']) }}</span></div>
-              <div class="info-item"><span class="info-label">Mutation found</span><span>{{ order['mutationFound'] ? 'Yes' : 'No' }}</span></div>
+              @for (row of searchCriteriaItems(); track row.label) {
+                <div class="info-item" [class.span-2]="row.label.includes('Manual') || row.label.includes('applicant')">
+                  <span class="info-label">{{ row.label }}</span>
+                  <span>{{ row.value }}</span>
+                </div>
+              }
             </div>
-            @if (mutationDetails(); as m) {
-              <div class="info-grid sub-grid">
-                <div class="info-item"><span class="info-label">Inward no.</span><span>{{ str(m['inwardNumber']) }}</span></div>
-                <div class="info-item"><span class="info-label">Inward date</span><span>{{ str(m['inwardDate']) }}</span></div>
-                <div class="info-item"><span class="info-label">Mutation type</span><span>{{ str(m['mutationType']) }}</span></div>
-                <div class="info-item"><span class="info-label">Applicant (order)</span><span>{{ str(m['applicantName']) }}</span></div>
-                <div class="info-item"><span class="info-label">Village</span><span>{{ str(m['village']) }}</span></div>
-                <div class="info-item span-2"><span class="info-label">Status</span><span>{{ str(m['status']) }}</span></div>
-              </div>
-            }
           </section>
         }
 
@@ -162,6 +182,7 @@
                     <th>Office / taluka</th>
                     <th>Village</th>
                     <th>CTS / survey</th>
+                    <th>Plot / flat</th>
                     <th>Total area</th>
                     <th>Disputed area</th>
                   </tr>
@@ -170,11 +191,12 @@
                   @for (land of disputedLands(); track $index) {
                     <tr>
                       <td>{{ land['lineNo'] || $index + 1 }}</td>
-                      <td>{{ str(land['landType']) }}</td>
-                      <td>{{ str(land['districtName'] ?? land['districtCode']) }}</td>
-                      <td>{{ str(land['officeName'] ?? land['talukaName'] ?? land['officeCode']) }}</td>
-                      <td>{{ str(land['villageName'] ?? land['villageCode']) }}</td>
+                      <td>{{ landTypeLabel(land) }}</td>
+                      <td>{{ landDistrictLabel(land) }}</td>
+                      <td>{{ landOfficeTalukaLabel(land) }}</td>
+                      <td>{{ landVillageLabel(land) }}</td>
                       <td>{{ landCts(land) }}</td>
+                      <td>{{ str(land['flatNo'] ?? land['plotNo'] ?? land['gat']) }}</td>
                       <td>{{ str(land['totalArea']) }}</td>
                       <td>{{ str(land['disputedArea']) }}</td>
                     </tr>
@@ -185,28 +207,69 @@
           </section>
         }
 
-        @if (descriptionParagraphs().length > 0 || affidavitText() || prayerText()) {
+        @if (vakaltnamaAssignments().length > 0) {
           <section class="preview-section">
-            <h4>Application description</h4>
-            @if (descriptionParagraphs().length > 0) {
-              <div class="description-block">
-                @for (para of descriptionParagraphs(); track $index) {
-                  <p class="description-para">{{ para }}</p>
-                }
-              </div>
+            <h4>Vakaltnama</h4>
+            @for (g of vakaltnamaAssignments(); track g['id'] ?? $index; let gi = $index) {
+              <article class="party-card">
+                <p class="party-card-title">
+                  <strong>Group {{ gi + 1 }}</strong> — Advocate: {{ vakaltnamaAdvocateName(g) || '—' }}
+                </p>
+                <div class="party-card-grid">
+                  <span class="span-2">
+                    <span class="info-label">Bar council</span>
+                    {{ vakaltnamaBarCouncil(g) || '—' }}
+                  </span>
+                  <span class="span-2">
+                    <span class="info-label">Applicants covered</span>
+                    @for (aid of toStringArray(g['applicantIds']); track aid) {
+                      <span class="chip">{{ applicantNameByTempId(aid) }}</span>
+                    }
+                  </span>
+                </div>
+              </article>
             }
-            @if (affidavitText()) {
-              <div class="text-block">
-                <h5>Affidavit</h5>
-                <p class="description-para pre-wrap">{{ affidavitText() }}</p>
-              </div>
+          </section>
+        }
+
+        @if (descriptionParagraphs().length > 0) {
+          <section class="preview-section">
+            <h4>Application description (ज्ञापन)</h4>
+            <div class="description-block">
+              @for (para of descriptionParagraphs(); track $index) {
+                <p class="description-para">{{ para }}</p>
+              }
+            </div>
+          </section>
+        }
+
+        @if (affidavitText()) {
+          <section class="preview-section preview-doc-section">
+            <div class="preview-doc-head">
+              <h4>Affidavit (शपथपत्र)</h4>
+              <button type="button" class="btn btn-secondary btn-xs" (click)="openAffidavitPrint()">View / Print</button>
+            </div>
+            @if (affidavitSrcdoc(); as srcdoc) {
+              <iframe class="preview-doc-iframe" title="Affidavit preview" [srcdoc]="srcdoc"></iframe>
             }
-            @if (prayerText()) {
-              <div class="text-block">
-                <h5>Prayer</h5>
-                <p class="description-para pre-wrap">{{ prayerText() }}</p>
-              </div>
+          </section>
+        }
+
+        @if (prayerText()) {
+          <section class="preview-section preview-doc-section">
+            <div class="preview-doc-head">
+              <h4>Prayer / Verification (सत्यापन नमुना)</h4>
+              <button type="button" class="btn btn-secondary btn-xs" (click)="openPrayerPrint()">View / Print</button>
+            </div>
+            @if (prayerSrcdoc(); as srcdoc) {
+              <iframe class="preview-doc-iframe" title="Prayer preview" [srcdoc]="srcdoc"></iframe>
             }
+          </section>
+        }
+
+        @if (descriptionParagraphs().length === 0 && !affidavitText() && !prayerText()) {
+          <section class="preview-section">
+            <p class="muted empty-state">No application description or documents on file yet.</p>
           </section>
         }
 
@@ -214,16 +277,65 @@
           <section class="preview-section">
             <h4>Attachments</h4>
             @for (att of attachments(); track att['storageKey'] ?? $index) {
-              <div class="attachment-row">
-                <div class="attachment-meta">
-                  <strong>{{ str(att['kind'] ?? att['documentTypeId'] ?? 'Document') }}</strong>
-                  <span class="muted">{{ str(att['fileName']) }} · {{ str(att['mimeType']) }}</span>
-                  @if (att['uploadedAt']) {
-                    <span class="muted">{{ formatDate(str(att['uploadedAt'])) }}</span>
+              <div class="attachment-block">
+                <div class="attachment-row">
+                  <div class="attachment-meta">
+                    <strong>{{ str(att['kind'] ?? att['documentTypeId'] ?? 'Document') }}</strong>
+                    <span class="muted">{{ str(att['fileName']) }} · {{ str(att['mimeType']) }}</span>
+                    @if (att['uploadedAt']) {
+                      <span class="muted">{{ formatDate(str(att['uploadedAt'])) }}</span>
+                    }
+                  </div>
+                  @if (storageKeyForAttachment(att)) {
+                    <div class="attachment-row-actions">
+                      <button
+                        type="button"
+                        class="doc-action-btn"
+                        (click)="viewAttachment(att)"
+                        [disabled]="isAttachmentPreviewLoading(att)"
+                        [attr.aria-expanded]="isAttachmentPreviewOpen(att)"
+                      >
+                        @if (isAttachmentPreviewLoading(att)) {
+                          <span class="doc-action-spinner" aria-hidden="true"></span>
+                          <span>Loading</span>
+                        } @else {
+                          <svg class="doc-action-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.65" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.75 10s2.75-5.25 7.25-5.25S17.25 10 17.25 10 14.5 15.25 10 15.25 2.75 10 2.75 10Z"/>
+                            <circle cx="10" cy="10" r="2.25"/>
+                          </svg>
+                          <span>{{ isAttachmentPreviewOpen(att) ? 'Hide' : 'View' }}</span>
+                        }
+                      </button>
+                    </div>
                   }
                 </div>
-                @if (attachmentUrl(att); as url) {
-                  <a [href]="url" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-xs">View file</a>
+                @if (isAttachmentPreviewOpen(att)) {
+                  <div class="attachment-preview-panel">
+                    @if (isAttachmentPreviewLoading(att)) {
+                      <p class="muted attachment-preview-status">Loading document…</p>
+                    } @else if (attachmentPreviewError(); as err) {
+                      <p class="attachment-preview-error">{{ err }}</p>
+                    } @else if (attachmentUrl(att); as previewUrl) {
+                      @if (isImageAttachment(att)) {
+                        <img
+                          class="attachment-preview-media"
+                          [src]="previewUrl"
+                          [alt]="str(att['fileName']) || 'Uploaded document'"
+                        />
+                      } @else if (isPdfAttachment(att)) {
+                        <iframe
+                          class="attachment-preview-iframe"
+                          [src]="previewUrl"
+                          [title]="str(att['fileName']) || 'Document preview'"
+                        ></iframe>
+                      } @else {
+                        <p class="muted attachment-preview-status">
+                          Preview not available for this file type.
+                          <a [href]="previewUrl" target="_blank" rel="noopener noreferrer">Open file</a>
+                        </p>
+                      }
+                    }
+                  </div>
                 }
               </div>
             }

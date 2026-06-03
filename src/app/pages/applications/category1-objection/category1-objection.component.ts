@@ -31,10 +31,15 @@ import {
 } from '../disputed-land-panel/disputed-land-panel.component';
 import {
   FILING_AFFIDAVIT_FORMAT_URL,
-  FILING_AFFIDAVIT_SAMPLE_TEMPLATE,
-  FILING_PRAYER_FORMAT_URL,
-  FILING_PRAYER_SAMPLE_TEMPLATE
+  FILING_PRAYER_FORMAT_URL
 } from '../../../shared/filing-text-templates';
+import {
+  buildAffidavitTemplateHtml,
+  buildFilingDescriptionTemplateContext,
+  buildPrayerTemplateHtml,
+  openFilingDocumentHtml
+} from '../../../shared/filing-affidavit-prayer.util';
+import { TokenStorageService } from '../../../services/token-storage.service';
 import { ApplicantOption, VakaltnamaAssignment } from '../vakaltnama-panel/vakaltnama-panel.component';
 import { formatRuralPinParts } from '../../../shared/land-display.util';
 import {
@@ -167,6 +172,7 @@ export class Category1ObjectionComponent {
   private readonly lookups = inject(LookupsService);
   private readonly landRecords = inject(LandRecordsService);
   private readonly filingApplications = inject(FilingApplicationService);
+  private readonly tokenStorage = inject(TokenStorageService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -2682,12 +2688,8 @@ private tryAutoTranslate(
   }
 
   protected epicsUrbanOfficeReadonlySelectLabel(): string {
-    const code = this.form.controls.urbanOfficeCode.getRawValue().trim();
-    const snap = this.epicsUrbanOfficeSnapshot();
-    if (code && snap && snap.code === code) return `${snap.code} — ${snap.name}`;
-    const o = this.epicsUrbanOfficeFromStep1();
-    if (o) return `${o.office_code} — ${o.office_name}`;
-    if (code) return `${code} —`;
+    const name = this.filingOfficeNameForVakalatnama();
+    if (name) return name;
     return '— Select office in step 1 (District → Office) —';
   }
 
@@ -3209,13 +3211,66 @@ private tryAutoTranslate(
   }
 
   protected loadAffidavitTemplate(): void {
-    this.form.controls.affidavitText.setValue(FILING_AFFIDAVIT_SAMPLE_TEMPLATE);
-    this.schedulePersist();
+    try {
+      const html = buildAffidavitTemplateHtml(this.buildDescriptionTemplateContext());
+      this.form.controls.affidavitText.setValue(html, { emitEvent: true });
+      this.form.controls.affidavitText.markAsDirty();
+      this.apiError.set(null);
+      this.apiMessage.set('Affidavit (शपथपत्र) template loaded. Use View for full document.');
+      this.schedulePersist();
+    } catch (err) {
+      console.error('Affidavit template load failed', err);
+      this.apiError.set('Could not load affidavit template. Please try again.');
+    }
   }
 
   protected loadPrayerTemplate(): void {
-    this.form.controls.prayerText.setValue(FILING_PRAYER_SAMPLE_TEMPLATE);
-    this.schedulePersist();
+    try {
+      const html = buildPrayerTemplateHtml(this.buildDescriptionTemplateContext());
+      this.form.controls.prayerText.setValue(html, { emitEvent: true });
+      this.form.controls.prayerText.markAsDirty();
+      this.apiError.set(null);
+      this.apiMessage.set('Prayer (सत्यापन नमुना) template loaded. Use View for full document.');
+      this.schedulePersist();
+    } catch (err) {
+      console.error('Prayer template load failed', err);
+      this.apiError.set('Could not load prayer template. Please try again.');
+    }
+  }
+
+  protected viewAffidavitDocument(): void {
+    const raw = this.form.controls.affidavitText.getRawValue().trim();
+    const html = raw || buildAffidavitTemplateHtml(this.buildDescriptionTemplateContext());
+    if (!openFilingDocumentHtml(html)) {
+      this.apiError.set('Pop-up blocked. Allow pop-ups to view the affidavit.');
+    }
+  }
+
+  protected viewPrayerDocument(): void {
+    const raw = this.form.controls.prayerText.getRawValue().trim();
+    const html = raw || buildPrayerTemplateHtml(this.buildDescriptionTemplateContext());
+    if (!openFilingDocumentHtml(html)) {
+      this.apiError.set('Pop-up blocked. Allow pop-ups to view the prayer.');
+    }
+  }
+
+  private buildDescriptionTemplateContext() {
+    const first = this.applicants.length > 0 ? this.applicants.at(0) : null;
+    const row = (first?.getRawValue() ?? {}) as Record<string, unknown>;
+    const assignment = this.vakaltnamaAssignments()[0];
+    const advocate = assignment?.advocate;
+    const districtName = this.districts().find(
+      (d) => d.id === this.form.controls.districtId.getRawValue()
+    )?.name;
+
+    return buildFilingDescriptionTemplateContext({
+      applicantRow: row,
+      advocateFullName:
+        advocate?.fullName?.trim() || this.tokenStorage.getDisplayName()?.trim() || '',
+      advocateRegistrationNo: advocate?.barCouncilNumber?.trim() || '',
+      descriptionParagraphCount: this.normalizedDescriptionParagraphs().length,
+      hearingDistrictName: districtName
+    });
   }
 
   private normalizedDescriptionParagraphs(): string[] {
