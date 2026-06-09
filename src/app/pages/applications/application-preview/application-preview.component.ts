@@ -1,7 +1,7 @@
 import { Component, DestroyRef, effect, inject, input, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-browser';
 import { finalize } from 'rxjs';
 
 import {
@@ -543,10 +543,20 @@ export class ApplicationPreviewComponent implements OnInit {
     return attachmentStorageKey(att);
   }
 
-  protected attachmentUrl(att: Record<string, unknown>): string | null {
+  protected attachmentUrl(att: Record<string, unknown>): string | SafeResourceUrl | null {
     const key = attachmentStorageKey(att);
     if (!key) return null;
-    return this.attachmentBlobUrls()[key] ?? null;
+
+    const url = this.attachmentBlobUrls()[key];
+    if (!url) return null;
+
+    // sanitize PDF blob URL for iframe
+    if (this.isPdfAttachment(att)) {
+      return this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    }
+
+    // images can use plain string
+    return url;
   }
 
   protected isImageAttachment(att: Record<string, unknown>): boolean {
@@ -605,7 +615,19 @@ export class ApplicationPreviewComponent implements OnInit {
       )
       .subscribe({
         next: (blob) => {
-          this.setAttachmentBlobUrl(key, URL.createObjectURL(blob));
+          let previewBlob = blob;
+
+          // Fix PDF preview when backend sends octet-stream
+          if (
+            this.isPdfAttachment(att) &&
+            blob.type !== 'application/pdf'
+          ) {
+            previewBlob = new Blob([blob], {
+              type: 'application/pdf'
+            });
+          }
+
+          this.setAttachmentBlobUrl(key, URL.createObjectURL(previewBlob));
         },
         error: () => {
           this.attachmentPreviewError.set('Could not load this file.');
