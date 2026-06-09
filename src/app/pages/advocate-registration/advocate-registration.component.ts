@@ -168,12 +168,13 @@ export class AdvocateRegistrationComponent implements OnInit {
   }
 
   protected submit(): void {
-    if (!this.selectedCertFile) {
-      this.certUploadError.set('Please choose your bar enrollment certificate (PDF).');
-      return;
-    }
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      this.scrollToFirstInvalidControl();
+      return;
+    }
+    if (!this.selectedCertFile) {
+      this.certUploadError.set('Please choose your bar enrollment certificate (PDF).');
       return;
     }
 
@@ -399,5 +400,21 @@ export class AdvocateRegistrationComponent implements OnInit {
     const levels: ('weak' | 'fair' | 'good' | 'strong')[] = ['weak', 'weak', 'fair', 'good', 'strong'];
     const percentages = [0, 25, 50, 75, 100];
     return { level: levels[Math.min(strength, 4)], percentage: percentages[Math.min(strength, 4)] };
+  }
+
+  private scrollToFirstInvalidControl(): void {
+    const firstInvalidControl = Object.keys(this.form.controls).find(
+      (key) => {
+        const control = this.form.get(key);
+        return control && control.invalid;
+      }
+    );
+    if (firstInvalidControl) {
+      const element = document.getElementById(firstInvalidControl);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.focus();
+      }
+    }
   }
 }

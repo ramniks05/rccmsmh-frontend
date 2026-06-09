@@ -191,6 +191,21 @@
                   }
                 </select>
               </label>
+              <!-- CTS & Sub CTS Number Row -->
+              <label>
+                CTS number *
+                <input type="text" formControlName="ctsNoInput" placeholder="e.g. 80" />
+              </label>
+              <label>
+                Sub CTS number *
+                <select formControlName="selectedSubCtsNo"
+                  [disabled]="filing.urbanSearchSubCtsRows().length === 0 || filing.loadingUrbanSearchChain()">
+                  <option [ngValue]="''">Select sub CTS</option>
+                  @for (r of filing.urbanSearchSubCtsRows(); track filing.ctsRowLabel(r)) {
+                  <option [ngValue]="filing.ctsRowLabel(r)">{{ filing.ctsRowLabel(r) }}</option>
+                  }
+                </select>
+              </label>
             </div>
 
             <!-- Mutation Type -->

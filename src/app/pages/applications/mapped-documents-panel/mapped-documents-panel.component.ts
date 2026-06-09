@@ -12,6 +12,10 @@ import {
 } from '../../../services/mapped-documents.service';
 import { FILE_UPLOAD_MAX_BYTES, FILING_ATTACHMENT_UPLOAD_CATEGORY } from '../../../core/rccms-api.paths';
 import { FileUploadService } from '../../../services/file-upload.service';
+import {
+  DomSanitizer,
+  SafeResourceUrl
+} from '@angular/platform-browser';
 
 const ALLOWED_FILING_MIME = new Set([
   'application/pdf',
@@ -89,6 +93,8 @@ export class MappedDocumentsPanelComponent {
   protected readonly allRequiredClerkVerified = computed(
     () => this.checklist()?.allRequiredClerkVerified ?? false
   );
+
+  private readonly sanitizer = inject(DomSanitizer);
 
   constructor() {
     effect(() => {
@@ -182,9 +188,26 @@ export class MappedDocumentsPanelComponent {
       this.error.set(validationError);
       return;
     }
+    this.error.set(null);
+
+    // Revoke old preview if exists
+    const prevUrl = this.previewBlobUrls()[doc.id];
+    if (prevUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(prevUrl);
+    }
+
+    // Create preview instantly (works for image + pdf)
+    const previewUrl = URL.createObjectURL(file);
+
+    this.previewBlobUrls.update((m) => ({
+      ...m,
+      [doc.id]: previewUrl
+    }));
+
+    // Open preview automatically
+    this.previewDocId.set(doc.id);
 
     this.uploadBusyId.set(doc.id);
-    this.error.set(null);
     this.fileUpload
       .upload(file, FILING_ATTACHMENT_UPLOAD_CATEGORY)
       .pipe(finalize(() => this.uploadBusyId.set(null)))
@@ -193,16 +216,6 @@ export class MappedDocumentsPanelComponent {
           if (!resp.storageKey) {
             this.error.set('Upload did not return a storage key.');
             return;
-          }
-          const prevUrl = this.previewBlobUrls()[doc.id];
-          if (prevUrl?.startsWith('blob:')) URL.revokeObjectURL(prevUrl);
-          this.previewBlobUrls.update((m) => {
-            const next = { ...m };
-            delete next[doc.id];
-            return next;
-          });
-          if (this.previewDocId() === doc.id) {
-            this.previewDocId.set(null);
           }
           this.applicantUploads.update((prev) => ({
             ...prev,
@@ -215,7 +228,22 @@ export class MappedDocumentsPanelComponent {
           this.emitApplicantAttachments();
           this.message.set(`${doc.name} uploaded.`);
         },
-        error: (err: unknown) => this.error.set(this.formatError(err))
+        error: (err: unknown) => {
+          // cleanup preview if upload fails
+          const failedPreview = this.previewBlobUrls()[doc.id];
+          if (failedPreview?.startsWith('blob:')) {
+            URL.revokeObjectURL(failedPreview);
+          }
+
+          this.previewBlobUrls.update((m) => {
+            const next = { ...m };
+            delete next[doc.id];
+            return next;
+          });
+
+          this.previewDocId.set(null);
+          this.error.set(this.formatError(err));
+        }
       });
   }
 
@@ -255,8 +283,22 @@ export class MappedDocumentsPanelComponent {
     return fileName.toLowerCase().endsWith('.pdf');
   }
 
-  protected previewUrl(documentTypeId: number): string | null {
-    return this.previewBlobUrls()[documentTypeId] ?? null;
+  protected previewUrl(
+    documentTypeId: number
+  ): string | SafeResourceUrl | null {
+    const url = this.previewBlobUrls()[documentTypeId];
+
+    if (!url) return null;
+
+    const up = this.applicantUploads()[documentTypeId];
+
+    // sanitize for PDF iframe
+    if (up && this.isPdfMime(up.mimeType, up.fileName)) {
+      return this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    }
+
+    // normal string for images
+    return url;
   }
 
   protected viewApplicantUpload(documentTypeId: number): void {

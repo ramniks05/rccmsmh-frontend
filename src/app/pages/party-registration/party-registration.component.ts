@@ -170,6 +170,7 @@ export class PartyRegistrationComponent {
 
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      this.scrollToFirstInvalidControl();
       return;
     }
 
@@ -375,5 +376,22 @@ export class PartyRegistrationComponent {
       return error.message || 'Registration failed.';
     }
     return 'Unexpected error occurred.';
+  }
+
+  private scrollToFirstInvalidControl(): void {
+    const firstInvalidControl = Object.keys(this.form.controls).find(
+      (key) => {
+        const control = this.form.get(key);
+        return control && control.invalid;
+      }
+    );
+
+    if (firstInvalidControl) {
+      const element = document.getElementById(firstInvalidControl);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.focus();
+      }
+    }
   }
 }

@@ -57,6 +57,7 @@ export class LoginComponent {
   protected loginUser(): void {
     if (this.loginForm.invalid) {
       this.loginForm.markAllAsTouched();
+      this.scrollToFirstInvalidControl();
       return;
     }
 
@@ -159,5 +160,22 @@ export class LoginComponent {
   protected isFieldInvalid(fieldName: string): boolean {
     const control = this.loginForm.get(fieldName);
     return !!(control && control.invalid && control.touched);
+  }
+
+  private scrollToFirstInvalidControl(): void {
+    const firstInvalidControl = Object.keys(this.loginForm.controls).find(
+      (key) => {
+        const control = this.loginForm.get(key);
+        return control && control.invalid;
+      }
+    );
+
+    if (firstInvalidControl) {
+      const element = document.getElementById(firstInvalidControl);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.focus();
+      }
+    }
   }
 }
