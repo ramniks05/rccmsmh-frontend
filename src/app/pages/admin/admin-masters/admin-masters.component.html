@@ -4,649 +4,675 @@
       <h2>Master Management</h2>
       <p class="sub">Admin-only creation of master records</p>
     </div>
-    <a routerLink="/portal-home" class="btn btn-secondary">Back</a>
+    <a routerLink="/portal-home" class="btn btn-secondary"> ← Back </a>
   </header>
 
-  <nav class="tabs" aria-label="Master types">
-    <button type="button" class="tab" [class.active]="selected() === 'STATE'" (click)="select('STATE')">
-      State
-    </button>
-    <button
-      type="button"
-      class="tab"
-      [class.active]="selected() === 'DIVISION'"
-      (click)="select('DIVISION')"
-    >
-      Division
-    </button>
-    <button
-      type="button"
-      class="tab"
-      [class.active]="selected() === 'DISTRICT'"
-      (click)="select('DISTRICT')"
-    >
-      District
-    </button>
-    <button
-      type="button"
-      class="tab"
-      [class.active]="selected() === 'SUBDISTRICT'"
-      (click)="select('SUBDISTRICT')"
-    >
-      Subdistrict
-    </button>
-    <button type="button" class="tab" [class.active]="selected() === 'TALUKA'" (click)="select('TALUKA')">
-      Taluka
-    </button>
-    <button type="button" class="tab" [class.active]="selected() === 'VILLAGE'" (click)="select('VILLAGE')">
-      Village
-    </button>
-    <button
-      type="button"
-      class="tab"
-      [class.active]="selected() === 'DEPARTMENT'"
-      (click)="select('DEPARTMENT')"
-    >
-      Department
-    </button>
-    <button type="button" class="tab" [class.active]="selected() === 'ACT'" (click)="select('ACT')">Act</button>
-    <button type="button" class="tab" [class.active]="selected() === 'SECTION'" (click)="select('SECTION')">Section</button>
-    <button type="button" class="tab" [class.active]="selected() === 'SUBJECT'" (click)="select('SUBJECT')">
-      Subject
-    </button>
-    <button
-      type="button"
-      class="tab"
-      [class.active]="selected() === 'OFFICE_TYPE'"
-      (click)="select('OFFICE_TYPE')"
-    >
-      Office Type
-    </button>
-    <button type="button" class="tab" [class.active]="selected() === 'OFFICE'" (click)="select('OFFICE')">
-      Office
-    </button>
-    <button
-      type="button"
-      class="tab"
-      [class.active]="selected() === 'DESIGNATION'"
-      (click)="select('DESIGNATION')"
-    >
-      Designation
-    </button>
-    <button type="button" class="tab" [class.active]="selected() === 'OCCUPATION'" (click)="select('OCCUPATION')">
-      Occupation
-    </button>
-    <button type="button" class="tab" [class.active]="selected() === 'EMPLOYEE'" (click)="select('EMPLOYEE')">
-      Employee
-    </button>
-    <button type="button" class="tab" [class.active]="selected() === 'DOCUMENT_TYPE'" (click)="select('DOCUMENT_TYPE')">
-      Document Types
-    </button>
-    <button
-      type="button"
-      class="tab"
-      [class.active]="selected() === 'DOCUMENT_TYPE_MAPPING'"
-      (click)="select('DOCUMENT_TYPE_MAPPING')"
-    >
-      Doc Mapping
-    </button>
-  </nav>
+  <!-- Tab bar -->
+  <div class="tabs-card">
+    <span class="tabs-card-label">Select master type</span>
+    <nav class="tabs" aria-label="Master types">
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'STATE'"
+        (click)="select('STATE')"
+      >
+        State
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'DIVISION'"
+        (click)="select('DIVISION')"
+      >
+        Division
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'DISTRICT'"
+        (click)="select('DISTRICT')"
+      >
+        District
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'SUBDISTRICT'"
+        (click)="select('SUBDISTRICT')"
+      >
+        Subdistrict
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'TALUKA'"
+        (click)="select('TALUKA')"
+      >
+        Taluka
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'VILLAGE'"
+        (click)="select('VILLAGE')"
+      >
+        Village
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'DEPARTMENT'"
+        (click)="select('DEPARTMENT')"
+      >
+        Department
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'ACT'"
+        (click)="select('ACT')"
+      >
+        Act
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'SECTION'"
+        (click)="select('SECTION')"
+      >
+        Section
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'SUBJECT'"
+        (click)="select('SUBJECT')"
+      >
+        Subject
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'OFFICE_TYPE'"
+        (click)="select('OFFICE_TYPE')"
+      >
+        Office Type
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'OFFICE'"
+        (click)="select('OFFICE')"
+      >
+        Office
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'DESIGNATION'"
+        (click)="select('DESIGNATION')"
+      >
+        Designation
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'OCCUPATION'"
+        (click)="select('OCCUPATION')"
+      >
+        Occupation
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'EMPLOYEE'"
+        (click)="select('EMPLOYEE')"
+      >
+        Employee
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'DOCUMENT_TYPE'"
+        (click)="select('DOCUMENT_TYPE')"
+      >
+        Document Types
+      </button>
+      <button
+        type="button"
+        class="tab"
+        [class.active]="selected() === 'DOCUMENT_TYPE_MAPPING'"
+        (click)="select('DOCUMENT_TYPE_MAPPING')"
+      >
+        Doc Mapping
+      </button>
+    </nav>
+  </div>
 
-  <article class="form-card">
-    <h3>{{ title() }}</h3>
-
-    @if (apiMessage()) {
-      <p class="api-message success">{{ apiMessage() }}</p>
-    }
-    @if (apiError()) {
-      <p class="api-message error">{{ apiError() }}</p>
-    }
-
-    @switch (selected()) {
-      @case ('STATE') {
-        <form class="form-grid" [formGroup]="stateForm" (ngSubmit)="submit()">
-          <label>
-            Name *
-            <input type="text" formControlName="name" placeholder="Maharashtra" />
-          </label>
-          <label>
-            Local name
-            <input type="text" formControlName="localName" placeholder="महाराष्ट्र" />
-          </label>
-          <label>
-            LGD code
-            <input type="text" formControlName="lgdCode" placeholder="27" />
-          </label>
-
-          <button type="submit" class="btn btn-primary" [disabled]="busy()">
-            {{ busy() ? 'Saving...' : 'Create State' }}
-          </button>
-        </form>
-      }
-
-      @case ('DIVISION') {
-        <form class="form-grid" [formGroup]="divisionForm" (ngSubmit)="submit()">
-          @if (hasFixedState) {
-            <label>
-              State
-              <input type="text" [value]="defaultState.name" readonly />
-            </label>
-          } @else {
-            <label>
-              State ID *
-              <input type="number" formControlName="stateId" placeholder="1" />
-            </label>
+  <!-- Two-column layout: form left, table right -->
+  <div class="masters-layout">
+    <!-- ── FORM CARD ─────────────────────────────────────── -->
+    <article class="form-card">
+      <div class="form-card-head">
+        <div class="form-card-head-icon" aria-hidden="true">
+          @switch (selected()) {
+            @case ('STATE') {
+              🗺
+            }
+            @case ('DIVISION') {
+              🏘
+            }
+            @case ('DISTRICT') {
+              📍
+            }
+            @case ('SUBDISTRICT') {
+              🗾
+            }
+            @case ('TALUKA') {
+              📌
+            }
+            @case ('VILLAGE') {
+              🏡
+            }
+            @case ('DEPARTMENT') {
+              🏛
+            }
+            @case ('ACT') {
+              📖
+            }
+            @case ('SECTION') {
+              §
+            }
+            @case ('SUBJECT') {
+              🏷
+            }
+            @case ('OFFICE_TYPE') {
+              🏢
+            }
+            @case ('OFFICE') {
+              🏦
+            }
+            @case ('DESIGNATION') {
+              🪪
+            }
+            @case ('OCCUPATION') {
+              💼
+            }
+            @case ('EMPLOYEE') {
+              👤
+            }
+            @case ('DOCUMENT_TYPE') {
+              📄
+            }
+            @case ('DOCUMENT_TYPE_MAPPING') {
+              ⇄
+            }
           }
-          <label>
-            Name *
-            <input type="text" formControlName="name" placeholder="Pune Division" />
-          </label>
-          <label>
-            Local name
-            <input type="text" formControlName="localName" placeholder="पुणे विभाग" />
-          </label>
-          <label>
-            LGD code
-            <input type="text" formControlName="lgdCode" placeholder="###" />
-          </label>
+        </div>
+        <div class="form-card-head-text">
+          <strong>{{ title() }}</strong>
+          <span>Fill in the details below</span>
+        </div>
+      </div>
 
-          <button type="submit" class="btn btn-primary" [disabled]="busy()">
-            {{ busy() ? 'Saving...' : 'Create Division' }}
-          </button>
-        </form>
+      @if (apiMessage()) {
+        <p class="api-message success">{{ apiMessage() }}</p>
+      }
+      @if (apiError()) {
+        <p class="api-message error">{{ apiError() }}</p>
       }
 
-      @case ('DISTRICT') {
-        <form class="form-grid" [formGroup]="districtForm" (ngSubmit)="submit()">
-          <label>
-            State
-            <input type="text" [value]="defaultState.name" readonly />
-          </label>
-          <label>
-            Division *
-            <select formControlName="divisionId">
-              <option [ngValue]="0">Select division</option>
-              @for (d of divisions(); track d.id) {
-                <option [ngValue]="d.id">{{ d.name }}</option>
-              }
-            </select>
-          </label>
-          <label>
-            Name *
-            <input type="text" formControlName="name" placeholder="Pune" />
-          </label>
-          <label>
-            Local name
-            <input type="text" formControlName="localName" placeholder="पुणे" />
-          </label>
-          <label>
-            LGD code
-            <input type="text" formControlName="lgdCode" placeholder="###" />
-          </label>
-
-          <button type="submit" class="btn btn-primary" [disabled]="busy()">
-            {{ busy() ? 'Saving...' : 'Create District' }}
-          </button>
-        </form>
-      }
-
-      @case ('SUBDISTRICT') {
-        <form class="form-grid" [formGroup]="subdistrictForm" (ngSubmit)="submit()">
-          <label>
-            District *
-            <select formControlName="districtId">
-              <option [ngValue]="0">Select district</option>
-              @for (d of districts(); track d.id) {
-                <option [ngValue]="d.id">{{ d.name }}</option>
-              }
-            </select>
-          </label>
-          <label>
-            Name *
-            <input type="text" formControlName="name" placeholder="Example Subdistrict" />
-          </label>
-          <label>
-            Local name
-            <input type="text" formControlName="localName" placeholder="उपजिल्हा" />
-          </label>
-          <label>
-            LGD code
-            <input type="text" formControlName="lgdCode" placeholder="###" />
-          </label>
-
-          <button type="submit" class="btn btn-primary" [disabled]="busy()">
-            {{ busy() ? 'Saving...' : 'Create Subdistrict' }}
-          </button>
-        </form>
-      }
-
-      @case ('TALUKA') {
-        <form class="form-grid" [formGroup]="talukaForm" (ngSubmit)="submit()">
-          <label>
-            District *
-            <select formControlName="districtId">
-              <option [ngValue]="0">Select district</option>
-              @for (d of districts(); track d.id) {
-                <option [ngValue]="d.id">{{ d.name }}</option>
-              }
-            </select>
-          </label>
-          <label>
-            Subdistrict *
-            <select formControlName="subdistrictId">
-              <option [ngValue]="0">Select subdistrict</option>
-              @for (s of subdistricts(); track s.id) {
-                <option [ngValue]="s.id">{{ s.name }}</option>
-              }
-            </select>
-          </label>
-          <label>
-            Name *
-            <input type="text" formControlName="name" placeholder="Haveli" />
-          </label>
-          <label>
-            Local name
-            <input type="text" formControlName="localName" placeholder="हवेली" />
-          </label>
-          <label>
-            LGD code
-            <input type="text" formControlName="lgdCode" placeholder="###" />
-          </label>
-
-          <button type="submit" class="btn btn-primary" [disabled]="busy()">
-            {{ busy() ? 'Saving...' : 'Create Taluka' }}
-          </button>
-        </form>
-      }
-
-      @case ('VILLAGE') {
-        <form class="form-grid" [formGroup]="villageForm" (ngSubmit)="submit()">
-          <label>
-            Taluka *
-            <select formControlName="talukaId">
-              <option [ngValue]="0">Select taluka</option>
-              @for (t of talukas(); track t.id) {
-                <option [ngValue]="t.id">{{ t.name }}</option>
-              }
-            </select>
-          </label>
-          <label>
-            Name *
-            <input type="text" formControlName="name" placeholder="Wagholi" />
-          </label>
-          <label>
-            Local name
-            <input type="text" formControlName="localName" placeholder="वाघोली" />
-          </label>
-          <label>
-            LGD code
-            <input type="text" formControlName="lgdCode" placeholder="###" />
-          </label>
-
-          <button type="submit" class="btn btn-primary" [disabled]="busy()">
-            {{ busy() ? 'Saving...' : 'Create Village' }}
-          </button>
-        </form>
-      }
-
-      @case ('DEPARTMENT') {
-        <form class="form-grid" [formGroup]="departmentForm" (ngSubmit)="submit()">
-          <label>
-            State
-            <input type="text" [value]="defaultState.name" readonly />
-          </label>
-          <label>
-            Name *
-            <input type="text" formControlName="name" placeholder="Department of Land Records" />
-          </label>
-          <label>
-            Local name
-            <input type="text" formControlName="localName" placeholder="भूमि अभिलेख विभाग" />
-          </label>
-          <label>
-            LGD / Code
-            <input type="text" formControlName="lgdCode" placeholder="Dept. of Land Records" />
-          </label>
-
-          <div class="row-actions">
-            <button type="submit" class="btn btn-primary" [disabled]="busy()">
-              @if (editingDepartmentId()) {
-                {{ busy() ? 'Saving...' : 'Update Department' }}
-              } @else {
-                {{ busy() ? 'Saving...' : 'Create Department' }}
-              }
-            </button>
-            @if (editingDepartmentId()) {
-              <button type="button" class="btn btn-secondary" (click)="cancelEditDepartment()" [disabled]="busy()">
-                Cancel
+      @switch (selected()) {
+        <!-- STATE -->
+        @case ('STATE') {
+          <form class="form-grid" [formGroup]="stateForm" (ngSubmit)="submit()">
+            <label class="form-label-row"
+              ><span>Name <span class="req">*</span
+              ></span><input type="text" formControlName="name" placeholder="Maharashtra"
+            /></label>
+            <label
+              >Local name<input type="text" formControlName="localName" placeholder="महाराष्ट्र"
+            /></label>
+            <label>LGD code<input type="text" formControlName="lgdCode" placeholder="27" /></label>
+            <div class="row-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{ busy() ? 'Saving…' : 'Create State' }}
               </button>
+            </div>
+          </form>
+        }
+
+        <!-- DIVISION -->
+        @case ('DIVISION') {
+          <form class="form-grid" [formGroup]="divisionForm" (ngSubmit)="submit()">
+            @if (hasFixedState) {
+              <label>State<input type="text" [value]="defaultState.name" readonly /></label>
+            } @else {
+              <label class="form-label-row"
+                ><span>State ID <span class="req">*</span
+                ></span><input type="number" formControlName="stateId" placeholder="1"
+              /></label>
             }
-          </div>
-        </form>
-      }
-
-      @case ('ACT') {
-        <form class="form-grid" [formGroup]="actForm" (ngSubmit)="submit()">
-          <label>
-            Act code *
-            <input type="text" formControlName="actCode" placeholder="ACT-001" />
-          </label>
-          <label>
-            Act name *
-            <input type="text" formControlName="actName" placeholder="Department of Land Records Act" />
-          </label>
-          <label>
-            Act name (local)
-            <input type="text" formControlName="actNameLocal" placeholder="भूमि अभिलेख अधिनियम" />
-          </label>
-
-          <div class="row-actions">
-            <button type="submit" class="btn btn-primary" [disabled]="busy()">
-              @if (editingActId()) {
-                {{ busy() ? 'Saving...' : 'Update Act' }}
-              } @else {
-                {{ busy() ? 'Saving...' : 'Create Act' }}
-              }
-            </button>
-            @if (editingActId()) {
-              <button type="button" class="btn btn-secondary" (click)="cancelEditAct()" [disabled]="busy()">
-                Cancel
+            <label class="form-label-row"
+              ><span>Name <span class="req">*</span
+              ></span><input type="text" formControlName="name" placeholder="Pune Division"
+            /></label>
+            <label
+              >Local name<input type="text" formControlName="localName" placeholder="पुणे विभाग"
+            /></label>
+            <label>LGD code<input type="text" formControlName="lgdCode" placeholder="###" /></label>
+            <div class="row-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{ busy() ? 'Saving…' : 'Create Division' }}
               </button>
-            }
-          </div>
-        </form>
-      }
+            </div>
+          </form>
+        }
 
-      @case ('SECTION') {
-        <form class="form-grid" [formGroup]="sectionForm" (ngSubmit)="submit()">
-          <label>
-            Act *
-            <select formControlName="actId">
-              <option [ngValue]="0">Select act</option>
-              @for (a of acts(); track a.id) {
-                <option [ngValue]="a.id">{{ a.actCode }} - {{ a.actName }}</option>
-              }
-            </select>
-          </label>
-          <label>
-            Section code *
-            <input type="text" formControlName="sectionCode" placeholder="S-01" />
-          </label>
-          <label>
-            Section name *
-            <input type="text" formControlName="sectionName" placeholder="Short title" />
-          </label>
-          <label>
-            Section name (local)
-            <input type="text" formControlName="sectionNameLocal" placeholder="संक्षिप्त शीर्षक" />
-          </label>
-
-          <div class="row-actions">
-            <button type="submit" class="btn btn-primary" [disabled]="busy()">
-              @if (editingSectionId()) {
-                {{ busy() ? 'Saving...' : 'Update Section' }}
-              } @else {
-                {{ busy() ? 'Saving...' : 'Create Section' }}
-              }
-            </button>
-            @if (editingSectionId()) {
-              <button type="button" class="btn btn-secondary" (click)="cancelEditSection()" [disabled]="busy()">
-                Cancel
-              </button>
-            }
-          </div>
-        </form>
-      }
-
-      @case ('SUBJECT') {
-        <form class="form-grid" [formGroup]="subjectForm" (ngSubmit)="submit()">
-          <label>
-            Department *
-            <select formControlName="departmentId">
-              <option [ngValue]="0">All departments (list filter)</option>
-              @for (d of departments(); track d.id) {
-                <option [ngValue]="d.id">{{ d.name }}</option>
-              }
-            </select>
-          </label>
-          <p class="field-hint">
-            Pick a department to create or update a subject (required). Use “All departments” only to browse the full list.
-          </p>
-          <label>
-            Subject code *
-            <input type="text" formControlName="subjectCode" placeholder="001" />
-          </label>
-          <label>
-            Subject name *
-            <input type="text" formControlName="subjectName" placeholder="eMojani" />
-          </label>
-          <label>
-            Subject name (local)
-            <input type="text" formControlName="subjectNameLocal" placeholder="ई-मोजणी" />
-          </label>
-
-          <div class="row-actions">
-            <button type="submit" class="btn btn-primary" [disabled]="busy()">
-              @if (editingSubjectId()) {
-                {{ busy() ? 'Saving...' : 'Update Subject' }}
-              } @else {
-                {{ busy() ? 'Saving...' : 'Create Subject' }}
-              }
-            </button>
-            @if (editingSubjectId()) {
-              <button type="button" class="btn btn-secondary" (click)="cancelEditSubject()" [disabled]="busy()">
-                Cancel
-              </button>
-            }
-          </div>
-        </form>
-      }
-
-      @case ('OFFICE_TYPE') {
-        <form class="form-grid" [formGroup]="officeTypeForm" (ngSubmit)="submit()">
-          <label>
-            Department *
-            <select formControlName="departmentId">
-              <option [ngValue]="0">Select department</option>
-              @for (d of departments(); track d.id) {
-                <option [ngValue]="d.id">{{ d.name }}</option>
-              }
-            </select>
-          </label>
-          <label>
-            Name *
-            <input type="text" formControlName="name" placeholder="Tehsil Office" />
-          </label>
-          <label>
-            Local name
-            <input type="text" formControlName="localName" placeholder="तहसील कार्यालय" />
-          </label>
-          <label>
-            Short name
-            <input type="text" formControlName="shortName" placeholder="Tehsil" />
-          </label>
-          <label>
-            Short name (local)
-            <input type="text" formControlName="shortNameLocal" placeholder="तहसील" />
-          </label>
-
-          <div class="row-actions">
-            <button type="submit" class="btn btn-primary" [disabled]="busy()">
-              @if (editingOfficeTypeId()) {
-                {{ busy() ? 'Saving...' : 'Update Office Type' }}
-              } @else {
-                {{ busy() ? 'Saving...' : 'Create Office Type' }}
-              }
-            </button>
-            @if (editingOfficeTypeId()) {
-              <button type="button" class="btn btn-secondary" (click)="cancelEditOfficeType()" [disabled]="busy()">
-                Cancel
-              </button>
-            }
-          </div>
-        </form>
-      }
-
-      @case ('OFFICE') {
-        <form class="form-grid" [formGroup]="officeForm" (ngSubmit)="submit()">
-          <label>
-            Department *
-            <select formControlName="departmentId">
-              <option [ngValue]="0">Select department</option>
-              @for (d of departments(); track d.id) {
-                <option [ngValue]="d.id">{{ d.name }}</option>
-              }
-            </select>
-          </label>
-          <label>
-            Office type *
-            <select formControlName="officeTypeId">
-              <option [ngValue]="0">Select office type</option>
-              @for (t of officeTypeOptions(); track t.id) {
-                <option [ngValue]="t.id">{{ t.name }}</option>
-              }
-            </select>
-          </label>
-          <label>
-            Level *
-            <select formControlName="level">
-              <option [ngValue]="'STATE'">STATE</option>
-              <option [ngValue]="'DIVISION'">DIVISION</option>
-              <option [ngValue]="'DISTRICT'">DISTRICT</option>
-              <option [ngValue]="'SUBDISTRICT'">SUBDISTRICT</option>
-              <option [ngValue]="'TALUKA'">TALUKA</option>
-              <option [ngValue]="'VILLAGE'">VILLAGE</option>
-            </select>
-          </label>
-
-          @if (officeForm.controls.level.value === 'STATE') {
-            <label>
-              State
-              <input type="text" [value]="defaultState.name" readonly />
-            </label>
-          } @else {
-            <label>
-              Division *
+        <!-- DISTRICT -->
+        @case ('DISTRICT') {
+          <form class="form-grid" [formGroup]="districtForm" (ngSubmit)="submit()">
+            <label>State<input type="text" [value]="defaultState.name" readonly /></label>
+            <label class="form-label-row"
+              ><span>Division <span class="req">*</span></span>
               <select formControlName="divisionId">
                 <option [ngValue]="0">Select division</option>
-                @for (d of officeDivisions(); track d.id) {
+                @for (d of divisions(); track d.id) {
                   <option [ngValue]="d.id">{{ d.name }}</option>
                 }
               </select>
             </label>
-          }
+            <label class="form-label-row"
+              ><span>Name <span class="req">*</span></span>
+              <input type="text" formControlName="name" placeholder="Pune"
+            /></label>
+            <label
+              >Local name<input type="text" formControlName="localName" placeholder="पुणे"
+            /></label>
+            <label>LGD code<input type="text" formControlName="lgdCode" placeholder="###" /></label>
+            <div class="row-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{ busy() ? 'Saving…' : 'Create District' }}
+              </button>
+            </div>
+          </form>
+        }
 
-          @if (officeForm.controls.level.value === 'DISTRICT' || officeForm.controls.level.value === 'SUBDISTRICT' || officeForm.controls.level.value === 'TALUKA' || officeForm.controls.level.value === 'VILLAGE') {
-            <label>
-              District *
+        <!-- SUBDISTRICT -->
+        @case ('SUBDISTRICT') {
+          <form class="form-grid" [formGroup]="subdistrictForm" (ngSubmit)="submit()">
+            <label class="form-label-row"
+              ><span>District <span class="req">*</span></span>
               <select formControlName="districtId">
                 <option [ngValue]="0">Select district</option>
-                @for (d of officeDistricts(); track d.id) {
+                @for (d of districts(); track d.id) {
                   <option [ngValue]="d.id">{{ d.name }}</option>
                 }
               </select>
             </label>
-          }
+            <label class="form-label-row"
+              ><span>Name <span class="req">*</span></span>
+              <input type="text" formControlName="name" placeholder="Example Subdistrict"
+            /></label>
+            <label
+              >Local name<input type="text" formControlName="localName" placeholder="उपजिल्हा"
+            /></label>
+            <label>LGD code<input type="text" formControlName="lgdCode" placeholder="###" /></label>
+            <div class="row-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{ busy() ? 'Saving…' : 'Create Subdistrict' }}
+              </button>
+            </div>
+          </form>
+        }
 
-          @if (officeForm.controls.level.value === 'SUBDISTRICT' || officeForm.controls.level.value === 'TALUKA' || officeForm.controls.level.value === 'VILLAGE') {
-            <label>
-              Subdistrict *
+        <!-- TALUKA -->
+        @case ('TALUKA') {
+          <form class="form-grid" [formGroup]="talukaForm" (ngSubmit)="submit()">
+            <label class="form-label-row"
+              ><span>District <span class="req">*</span></span>
+              <select formControlName="districtId">
+                <option [ngValue]="0">Select district</option>
+                @for (d of districts(); track d.id) {
+                  <option [ngValue]="d.id">{{ d.name }}</option>
+                }
+              </select>
+            </label>
+            <label class="form-label-row"
+              ><span>Subdistrict <span class="req">*</span></span>
               <select formControlName="subdistrictId">
                 <option [ngValue]="0">Select subdistrict</option>
-                @for (s of officeSubdistricts(); track s.id) {
+                @for (s of subdistricts(); track s.id) {
                   <option [ngValue]="s.id">{{ s.name }}</option>
                 }
               </select>
             </label>
-          }
+            <label class="form-label-row"
+              ><span>Name <span class="req">*</span></span>
+              <input type="text" formControlName="name" placeholder="Haveli"
+            /></label>
+            <label
+              >Local name<input type="text" formControlName="localName" placeholder="हवेली"
+            /></label>
+            <label>LGD code<input type="text" formControlName="lgdCode" placeholder="###" /></label>
+            <div class="row-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{ busy() ? 'Saving…' : 'Create Taluka' }}
+              </button>
+            </div>
+          </form>
+        }
 
-          @if (officeForm.controls.level.value === 'TALUKA' || officeForm.controls.level.value === 'VILLAGE') {
-            <label>
-              Taluka *
+        <!-- VILLAGE -->
+        @case ('VILLAGE') {
+          <form class="form-grid" [formGroup]="villageForm" (ngSubmit)="submit()">
+            <label class="form-label-row"
+              ><span>Taluka <span class="req">*</span></span>
               <select formControlName="talukaId">
                 <option [ngValue]="0">Select taluka</option>
-                @for (t of officeTalukas(); track t.id) {
+                @for (t of talukas(); track t.id) {
                   <option [ngValue]="t.id">{{ t.name }}</option>
                 }
               </select>
             </label>
-          }
+            <label class="form-label-row"
+              ><span>Name <span class="req">*</span></span>
+              <input type="text" formControlName="name" placeholder="Wagholi"
+            /></label>
+            <label
+              >Local name<input type="text" formControlName="localName" placeholder="वाघोली"
+            /></label>
+            <label>LGD code<input type="text" formControlName="lgdCode" placeholder="###" /></label>
+            <div class="row-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{ busy() ? 'Saving…' : 'Create Village' }}
+              </button>
+            </div>
+          </form>
+        }
 
-          @if (officeForm.controls.level.value === 'VILLAGE') {
-            <label>
-              Village *
-              <select formControlName="villageId">
-                <option [ngValue]="0">Select village</option>
-                @for (v of officeVillages(); track v.id) {
-                  <option [ngValue]="v.id">{{ v.name }}</option>
+        <!-- DEPARTMENT -->
+        @case ('DEPARTMENT') {
+          <form class="form-grid" [formGroup]="departmentForm" (ngSubmit)="submit()">
+            <label>State<input type="text" [value]="defaultState.name" readonly /></label>
+            <label class="form-label-row"
+              ><span>Name <span class="req">*</span></span>
+              <input type="text" formControlName="name" placeholder="Department of Land Records"
+            /></label>
+            <label
+              >Local name<input
+                type="text"
+                formControlName="localName"
+                placeholder="भूमि अभिलेख विभाग"
+            /></label>
+            <label
+              >LGD / Code<input
+                type="text"
+                formControlName="lgdCode"
+                placeholder="Dept. of Land Records"
+            /></label>
+            <div class="row-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{
+                  editingDepartmentId()
+                    ? busy()
+                      ? 'Saving…'
+                      : 'Update Department'
+                    : busy()
+                      ? 'Saving…'
+                      : 'Create Department'
+                }}
+              </button>
+              @if (editingDepartmentId()) {
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  (click)="cancelEditDepartment()"
+                  [disabled]="busy()"
+                >
+                  Cancel
+                </button>
+              }
+            </div>
+          </form>
+        }
+
+        <!-- ACT -->
+        @case ('ACT') {
+          <form class="form-grid" [formGroup]="actForm" (ngSubmit)="submit()">
+            <label class="form-label-row"
+              ><span>Act code <span class="req">*</span></span>
+              <input type="text" formControlName="actCode" placeholder="ACT-001"
+            /></label>
+            <label class="form-label-row"
+              ><span>Act name <span class="req">*</span></span>
+              <input
+                type="text"
+                formControlName="actName"
+                placeholder="Department of Land Records Act"
+            /></label>
+            <label
+              >Act name (local)<input
+                type="text"
+                formControlName="actNameLocal"
+                placeholder="भूमि अभिलेख अधिनियम"
+            /></label>
+            <div class="row-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{
+                  editingActId()
+                    ? busy()
+                      ? 'Saving…'
+                      : 'Update Act'
+                    : busy()
+                      ? 'Saving…'
+                      : 'Create Act'
+                }}
+              </button>
+              @if (editingActId()) {
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  (click)="cancelEditAct()"
+                  [disabled]="busy()"
+                >
+                  Cancel
+                </button>
+              }
+            </div>
+          </form>
+        }
+
+        <!-- SECTION -->
+        @case ('SECTION') {
+          <form class="form-grid" [formGroup]="sectionForm" (ngSubmit)="submit()">
+            <label class="form-label-row"
+              ><span>Act <span class="req">*</span></span>
+              <select formControlName="actId">
+                <option [ngValue]="0">Select act</option>
+                @for (a of acts(); track a.id) {
+                  <option [ngValue]="a.id">{{ a.actCode }} — {{ a.actName }}</option>
                 }
               </select>
             </label>
-          }
-
-          <label>
-            Location ID
-            <input type="number" formControlName="locationId" readonly />
-          </label>
-
-          <label>
-            Name *
-            <input type="text" formControlName="name" placeholder="Haveli Taluka Office" />
-          </label>
-          <label>
-            Local name
-            <input type="text" formControlName="localName" placeholder="हवेली तालुका कार्यालय" />
-          </label>
-          <label>
-            Short name
-            <input type="text" formControlName="shortName" placeholder="Haveli TO" />
-          </label>
-          <label>
-            Short name (local)
-            <input type="text" formControlName="shortNameLocal" placeholder="हवेली" />
-          </label>
-
-          <div class="row-actions">
-            <button type="submit" class="btn btn-primary" [disabled]="busy()">
-              @if (editingOfficeId()) {
-                {{ busy() ? 'Saving...' : 'Update Office' }}
-              } @else {
-                {{ busy() ? 'Saving...' : 'Create Office' }}
-              }
-            </button>
-            @if (editingOfficeId()) {
-              <button type="button" class="btn btn-secondary" (click)="cancelEditOffice()" [disabled]="busy()">
-                Cancel
+            <label class="form-label-row"
+              ><span>Section code <span class="req">*</span></span>
+              <input type="text" formControlName="sectionCode" placeholder="S-01"
+            /></label>
+            <label class="form-label-row"
+              ><span>Section name <span class="req">*</span></span>
+              <input type="text" formControlName="sectionName" placeholder="Short title"
+            /></label>
+            <label
+              >Section name (local)<input
+                type="text"
+                formControlName="sectionNameLocal"
+                placeholder="संक्षिप्त शीर्षक"
+            /></label>
+            <div class="row-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{
+                  editingSectionId()
+                    ? busy()
+                      ? 'Saving…'
+                      : 'Update Section'
+                    : busy()
+                      ? 'Saving…'
+                      : 'Create Section'
+                }}
               </button>
-            }
-          </div>
-        </form>
+              @if (editingSectionId()) {
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  (click)="cancelEditSection()"
+                  [disabled]="busy()"
+                >
+                  Cancel
+                </button>
+              }
+            </div>
+          </form>
+        }
 
-        <section class="filter-card" aria-label="Office filters">
-          <h4>List filters</h4>
-          <form class="filter-grid" [formGroup]="officeFilterForm" (ngSubmit)="$event.preventDefault(); applyOfficeFilters()">
-            <label>
-              Department
+        <!-- SUBJECT -->
+        @case ('SUBJECT') {
+          <form class="form-grid" [formGroup]="subjectForm" (ngSubmit)="submit()">
+            <label class="form-label-row"
+              ><span>Department <span class="req">*</span></span>
               <select formControlName="departmentId">
-                <option [ngValue]="0">All</option>
+                <option [ngValue]="0">All departments (list filter)</option>
                 @for (d of departments(); track d.id) {
                   <option [ngValue]="d.id">{{ d.name }}</option>
                 }
               </select>
             </label>
-            <label>
-              Office type
+            <p class="field-hint">
+              Pick a department to create or update a subject. Use "All departments" only to browse
+              the full list.
+            </p>
+            <label class="form-label-row"
+              ><span
+              >Subject code <span class="req">*</span
+              ></span><input type="text" formControlName="subjectCode" placeholder="001"
+            /></label>
+            <label class="form-label-row"
+              ><span>Subject name <span class="req">*</span></span>
+              <input type="text" formControlName="subjectName" placeholder="eMojani"
+            /></label>
+            <label
+              >Subject name (local)<input
+                type="text"
+                formControlName="subjectNameLocal"
+                placeholder="ई-मोजणी"
+            /></label>
+            <div class="row-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{
+                  editingSubjectId()
+                    ? busy()
+                      ? 'Saving…'
+                      : 'Update Subject'
+                    : busy()
+                      ? 'Saving…'
+                      : 'Create Subject'
+                }}
+              </button>
+              @if (editingSubjectId()) {
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  (click)="cancelEditSubject()"
+                  [disabled]="busy()"
+                >
+                  Cancel
+                </button>
+              }
+            </div>
+          </form>
+        }
+
+        <!-- OFFICE TYPE -->
+        @case ('OFFICE_TYPE') {
+          <form class="form-grid" [formGroup]="officeTypeForm" (ngSubmit)="submit()">
+            <label class="form-label-row"
+              ><span>Department <span class="req">*</span></span>
+              <select formControlName="departmentId">
+                <option [ngValue]="0">Select department</option>
+                @for (d of departments(); track d.id) {
+                  <option [ngValue]="d.id">{{ d.name }}</option>
+                }
+              </select>
+            </label>
+            <label class="form-label-row"
+              ><span>Name <span class="req">*</span></span><input type="text" formControlName="name" placeholder="Tehsil Office"
+            /></label>
+            <label
+              >Local name<input
+                type="text"
+                formControlName="localName"
+                placeholder="तहसील कार्यालय"
+            /></label>
+            <label
+              >Short name<input type="text" formControlName="shortName" placeholder="Tehsil"
+            /></label>
+            <label
+              >Short name (local)<input
+                type="text"
+                formControlName="shortNameLocal"
+                placeholder="तहसील"
+            /></label>
+            <div class="row-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{
+                  editingOfficeTypeId()
+                    ? busy()
+                      ? 'Saving…'
+                      : 'Update Office Type'
+                    : busy()
+                      ? 'Saving…'
+                      : 'Create Office Type'
+                }}
+              </button>
+              @if (editingOfficeTypeId()) {
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  (click)="cancelEditOfficeType()"
+                  [disabled]="busy()"
+                >
+                  Cancel
+                </button>
+              }
+            </div>
+          </form>
+        }
+
+        <!-- OFFICE -->
+        @case ('OFFICE') {
+          <form class="form-grid" [formGroup]="officeForm" (ngSubmit)="submit()">
+            <label class="form-label-row"
+              ><span>Department <span class="req">*</span></span>
+              <select formControlName="departmentId">
+                <option [ngValue]="0">Select department</option>
+                @for (d of departments(); track d.id) {
+                  <option [ngValue]="d.id">{{ d.name }}</option>
+                }
+              </select>
+            </label>
+            <label class="form-label-row"
+              ><span>Office type <span class="req">*</span></span>
               <select formControlName="officeTypeId">
-                <option [ngValue]="0">All</option>
-                @for (t of officeTypes(); track t.id) {
+                <option [ngValue]="0">Select office type</option>
+                @for (t of officeTypeOptions(); track t.id) {
                   <option [ngValue]="t.id">{{ t.name }}</option>
                 }
               </select>
             </label>
-            <label>
-              Level
+            <label class="form-label-row"
+              ><span>Level <span class="req">*</span></span>
               <select formControlName="level">
-                <option [ngValue]="''">All</option>
                 <option [ngValue]="'STATE'">STATE</option>
                 <option [ngValue]="'DIVISION'">DIVISION</option>
                 <option [ngValue]="'DISTRICT'">DISTRICT</option>
@@ -655,1179 +681,1562 @@
                 <option [ngValue]="'VILLAGE'">VILLAGE</option>
               </select>
             </label>
-
-            @if (officeFilterForm.controls.level.value && officeFilterForm.controls.level.value !== 'STATE') {
-              <label>
-                Division
+            @if (officeForm.controls.level.value === 'STATE') {
+              <label>State<input type="text" [value]="defaultState.name" readonly /></label>
+            } @else {
+              <label class="form-label-row"
+                ><span>Division <span class="req">*</span></span>
                 <select formControlName="divisionId">
-                  <option [ngValue]="0">All</option>
+                  <option [ngValue]="0">Select division</option>
                   @for (d of officeDivisions(); track d.id) {
                     <option [ngValue]="d.id">{{ d.name }}</option>
                   }
                 </select>
               </label>
             }
-
-            @if (officeFilterForm.controls.level.value === 'DISTRICT' || officeFilterForm.controls.level.value === 'SUBDISTRICT' || officeFilterForm.controls.level.value === 'TALUKA' || officeFilterForm.controls.level.value === 'VILLAGE') {
-              <label>
-                District
+            @if (
+              ['DISTRICT', 'SUBDISTRICT', 'TALUKA', 'VILLAGE'].includes(
+                officeForm.controls.level.value
+              )
+            ) {
+              <label class="form-label-row"
+                ><span>District <span class="req">*</span></span>
                 <select formControlName="districtId">
-                  <option [ngValue]="0">All</option>
+                  <option [ngValue]="0">Select district</option>
                   @for (d of officeDistricts(); track d.id) {
                     <option [ngValue]="d.id">{{ d.name }}</option>
                   }
                 </select>
               </label>
             }
-
-            @if (officeFilterForm.controls.level.value === 'SUBDISTRICT' || officeFilterForm.controls.level.value === 'TALUKA' || officeFilterForm.controls.level.value === 'VILLAGE') {
-              <label>
-                Subdistrict
+            @if (['SUBDISTRICT', 'TALUKA', 'VILLAGE'].includes(officeForm.controls.level.value)) {
+              <label class="form-label-row"
+                ><span>Subdistrict <span class="req">*</span></span>
                 <select formControlName="subdistrictId">
-                  <option [ngValue]="0">All</option>
+                  <option [ngValue]="0">Select subdistrict</option>
                   @for (s of officeSubdistricts(); track s.id) {
                     <option [ngValue]="s.id">{{ s.name }}</option>
                   }
                 </select>
               </label>
             }
-
-            @if (officeFilterForm.controls.level.value === 'TALUKA' || officeFilterForm.controls.level.value === 'VILLAGE') {
-              <label>
-                Taluka
+            @if (['TALUKA', 'VILLAGE'].includes(officeForm.controls.level.value)) {
+              <label class="form-label-row"
+                ><span>Taluka <span class="req">*</span></span>
                 <select formControlName="talukaId">
-                  <option [ngValue]="0">All</option>
+                  <option [ngValue]="0">Select taluka</option>
                   @for (t of officeTalukas(); track t.id) {
                     <option [ngValue]="t.id">{{ t.name }}</option>
                   }
                 </select>
               </label>
             }
-
-            @if (officeFilterForm.controls.level.value === 'VILLAGE') {
-              <label>
-                Village
+            @if (officeForm.controls.level.value === 'VILLAGE') {
+              <label class="form-label-row"
+                ><span>Village <span class="req">*</span></span>
                 <select formControlName="villageId">
-                  <option [ngValue]="0">All</option>
+                  <option [ngValue]="0">Select village</option>
                   @for (v of officeVillages(); track v.id) {
                     <option [ngValue]="v.id">{{ v.name }}</option>
                   }
                 </select>
               </label>
             }
-
-            <label>
-              Location ID
-              <input type="number" formControlName="locationId" readonly />
-            </label>
+            <label>Location ID<input type="number" formControlName="locationId" readonly /></label>
+            <label class="form-label-row"
+              ><span>Name <span class="req">*</span></span>
+              <input type="text" formControlName="name" placeholder="Haveli Taluka Office"
+            /></label>
+            <label
+              >Local name<input
+                type="text"
+                formControlName="localName"
+                placeholder="हवेली तालुका कार्यालय"
+            /></label>
+            <label
+              >Short name<input type="text" formControlName="shortName" placeholder="Haveli TO"
+            /></label>
+            <label
+              >Short name (local)<input
+                type="text"
+                formControlName="shortNameLocal"
+                placeholder="हवेली"
+            /></label>
             <div class="row-actions">
-              <button type="button" class="btn btn-primary" (click)="applyOfficeFilters()" [disabled]="busy()">
-                Apply
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{
+                  editingOfficeId()
+                    ? busy()
+                      ? 'Saving…'
+                      : 'Update Office'
+                    : busy()
+                      ? 'Saving…'
+                      : 'Create Office'
+                }}
               </button>
-              <button type="button" class="btn btn-secondary" (click)="clearOfficeFilters()" [disabled]="busy()">
-                Clear
-              </button>
+              @if (editingOfficeId()) {
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  (click)="cancelEditOffice()"
+                  [disabled]="busy()"
+                >
+                  Cancel
+                </button>
+              }
             </div>
           </form>
-        </section>
-      }
 
-      @case ('DESIGNATION') {
-        <form class="form-grid" [formGroup]="designationForm" (ngSubmit)="submit()">
-          <label>
-            Department *
-            <select formControlName="departmentId">
-              <option [ngValue]="0">Select department</option>
-              @for (d of departments(); track d.id) {
-                <option [ngValue]="d.id">{{ d.name }}</option>
-              }
-            </select>
-          </label>
-          <label>
-            Name *
-            <input type="text" formControlName="name" placeholder="Clerk" />
-          </label>
-          <label>
-            Local name
-            <input type="text" formControlName="localName" placeholder="लिपिक" />
-          </label>
-          <label>
-            Short name
-            <input type="text" formControlName="shortName" placeholder="CLK" />
-          </label>
-          <label>
-            Short name (local)
-            <input type="text" formControlName="shortNameLocal" placeholder="लि" />
-          </label>
-
-          <div class="row-actions">
-            <button type="submit" class="btn btn-primary" [disabled]="busy()">
-              @if (editingDesignationId()) {
-                {{ busy() ? 'Saving...' : 'Update Designation' }}
-              } @else {
-                {{ busy() ? 'Saving...' : 'Create Designation' }}
-              }
-            </button>
-            @if (editingDesignationId()) {
-              <button type="button" class="btn btn-secondary" (click)="cancelEditDesignation()" [disabled]="busy()">
-                Cancel
-              </button>
-            }
-          </div>
-        </form>
-
-        <section class="filter-card" aria-label="Designation filters">
-          <h4>List filters</h4>
-          <form
-            class="filter-grid"
-            [formGroup]="designationFilterForm"
-            (ngSubmit)="$event.preventDefault(); applyDesignationFilter()"
-          >
-            <label>
-              Department
-              <select formControlName="departmentId">
-                <option [ngValue]="0">All</option>
-                @for (d of departments(); track d.id) {
-                  <option [ngValue]="d.id">{{ d.name }}</option>
-                }
-              </select>
-            </label>
-            <div class="row-actions">
-              <button type="button" class="btn btn-primary" (click)="applyDesignationFilter()" [disabled]="busy()">
-                Apply
-              </button>
-              <button type="button" class="btn btn-secondary" (click)="clearDesignationFilter()" [disabled]="busy()">
-                Clear
-              </button>
+          <div class="filter-card">
+            <div class="filter-card-head">
+              <span class="filter-icon">⚙</span>
+              <h4>List filters</h4>
             </div>
-          </form>
-        </section>
-      }
-
-      @case ('EMPLOYEE') {
-        <form class="form-grid" [formGroup]="employeeForm" (ngSubmit)="submit()">
-          <label>
-            Employee code *
-            <input type="text" formControlName="employeeCode" placeholder="EMP001" />
-          </label>
-          <label>
-            Full name *
-            <input type="text" formControlName="fullName" placeholder="Rahul Patil" />
-          </label>
-          <label>
-            Full name (local)
-            <input type="text" formControlName="fullNameLocal" placeholder="राहुल पाटील" />
-          </label>
-          <label>
-            Mobile *
-            <input type="text" formControlName="mobile" placeholder="9999999999" />
-          </label>
-          <label>
-            Email *
-            <input type="email" formControlName="email" placeholder="rahul@example.com" />
-          </label>
-          <label>
-            Active
-            <select formControlName="isActive">
-              <option [ngValue]="true">Active</option>
-              <option [ngValue]="false">Inactive</option>
-            </select>
-          </label>
-
-          <div class="row-actions">
-            <button type="submit" class="btn btn-primary" [disabled]="busy()">
-              @if (editingEmployeeId()) {
-                {{ busy() ? 'Saving...' : 'Update Employee' }}
-              } @else {
-                {{ busy() ? 'Saving...' : 'Create Employee' }}
-              }
-            </button>
-            @if (editingEmployeeId()) {
-              <button type="button" class="btn btn-secondary" (click)="cancelEditEmployee()" [disabled]="busy()">
-                Cancel
-              </button>
-            }
-          </div>
-        </form>
-
-        <section class="filter-card" aria-label="Employee filters">
-          <h4>List filters</h4>
-          <form class="filter-grid" [formGroup]="employeeFilterForm" (ngSubmit)="$event.preventDefault(); applyEmployeeFilter()">
-            <label>
-              Active
-              <select formControlName="active">
-                <option [ngValue]="''">All</option>
-                <option [ngValue]="'true'">Active</option>
-                <option [ngValue]="'false'">Inactive</option>
-              </select>
-            </label>
-            <div class="row-actions">
-              <button type="button" class="btn btn-primary" (click)="applyEmployeeFilter()" [disabled]="busy()">
-                Apply
-              </button>
-              <button type="button" class="btn btn-secondary" (click)="clearEmployeeFilter()" [disabled]="busy()">
-                Clear
-              </button>
-            </div>
-          </form>
-        </section>
-
-        @if (selectedEmployeeForPostingsId()) {
-          <section class="filter-card" aria-label="Posting management">
-            <h4>Posting history</h4>
-            <form class="filter-grid" [formGroup]="postingForm" (ngSubmit)="$event.preventDefault(); addPosting()">
-              <label>
-                Office *
-                <select formControlName="officeId">
-                  <option [ngValue]="0">Select office</option>
-                  @for (o of offices(); track o.id) {
-                    <option [ngValue]="o.id">{{ o.name }}</option>
-                  }
-                </select>
-              </label>
-              <label>
-                Office Branch (optional)
-                <select formControlName="officeBranchId">
-                  <option [ngValue]="0">No branch</option>
-                  @for (b of officeBranches(); track b.id) {
-                    <option [ngValue]="b.id">{{ b.name }}</option>
-                  }
-                </select>
-              </label>
-              <label>
-                Designation *
-                <select formControlName="designationId">
-                  <option [ngValue]="0">Select designation</option>
-                  @for (d of designations(); track d.id) {
+            <form
+              class="filter-grid"
+              [formGroup]="officeFilterForm"
+              (ngSubmit)="$event.preventDefault(); applyOfficeFilters()"
+            >
+              <label
+                >Department
+                <select formControlName="departmentId">
+                  <option [ngValue]="0">All</option>
+                  @for (d of departments(); track d.id) {
                     <option [ngValue]="d.id">{{ d.name }}</option>
                   }
                 </select>
               </label>
-              <label>
-                From date *
-                <input type="date" formControlName="fromDate" />
+              <label
+                >Office type
+                <select formControlName="officeTypeId">
+                  <option [ngValue]="0">All</option>
+                  @for (t of officeTypes(); track t.id) {
+                    <option [ngValue]="t.id">{{ t.name }}</option>
+                  }
+                </select>
               </label>
+              <label
+                >Level
+                <select formControlName="level">
+                  <option [ngValue]="''">All</option>
+                  <option [ngValue]="'STATE'">STATE</option>
+                  <option [ngValue]="'DIVISION'">DIVISION</option>
+                  <option [ngValue]="'DISTRICT'">DISTRICT</option>
+                  <option [ngValue]="'SUBDISTRICT'">SUBDISTRICT</option>
+                  <option [ngValue]="'TALUKA'">TALUKA</option>
+                  <option [ngValue]="'VILLAGE'">VILLAGE</option>
+                </select>
+              </label>
+              @if (
+                officeFilterForm.controls.level.value &&
+                officeFilterForm.controls.level.value !== 'STATE'
+              ) {
+                <label
+                  >Division
+                  <select formControlName="divisionId">
+                    <option [ngValue]="0">All</option>
+                    @for (d of officeDivisions(); track d.id) {
+                      <option [ngValue]="d.id">{{ d.name }}</option>
+                    }
+                  </select>
+                </label>
+              }
+              @if (
+                ['DISTRICT', 'SUBDISTRICT', 'TALUKA', 'VILLAGE'].includes(
+                  officeFilterForm.controls.level.value
+                )
+              ) {
+                <label
+                  >District
+                  <select formControlName="districtId">
+                    <option [ngValue]="0">All</option>
+                    @for (d of officeDistricts(); track d.id) {
+                      <option [ngValue]="d.id">{{ d.name }}</option>
+                    }
+                  </select>
+                </label>
+              }
+              @if (
+                ['SUBDISTRICT', 'TALUKA', 'VILLAGE'].includes(officeFilterForm.controls.level.value)
+              ) {
+                <label
+                  >Subdistrict
+                  <select formControlName="subdistrictId">
+                    <option [ngValue]="0">All</option>
+                    @for (s of officeSubdistricts(); track s.id) {
+                      <option [ngValue]="s.id">{{ s.name }}</option>
+                    }
+                  </select>
+                </label>
+              }
+              @if (['TALUKA', 'VILLAGE'].includes(officeFilterForm.controls.level.value)) {
+                <label
+                  >Taluka
+                  <select formControlName="talukaId">
+                    <option [ngValue]="0">All</option>
+                    @for (t of officeTalukas(); track t.id) {
+                      <option [ngValue]="t.id">{{ t.name }}</option>
+                    }
+                  </select>
+                </label>
+              }
+              @if (officeFilterForm.controls.level.value === 'VILLAGE') {
+                <label
+                  >Village
+                  <select formControlName="villageId">
+                    <option [ngValue]="0">All</option>
+                    @for (v of officeVillages(); track v.id) {
+                      <option [ngValue]="v.id">{{ v.name }}</option>
+                    }
+                  </select>
+                </label>
+              }
+              <label
+                >Location ID<input type="number" formControlName="locationId" readonly
+              /></label>
               <div class="row-actions">
-                <button type="button" class="btn btn-primary" (click)="addPosting()" [disabled]="busy()">
-                  Add posting
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  (click)="applyOfficeFilters()"
+                  [disabled]="busy()"
+                >
+                  Apply
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  (click)="clearOfficeFilters()"
+                  [disabled]="busy()"
+                >
+                  Clear
                 </button>
               </div>
             </form>
-
-            <div class="table-wrap">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Office</th>
-                    <th>Branch</th>
-                    <th>Designation</th>
-                    <th>From</th>
-                    <th>To</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @if (employeePostings().length === 0) {
-                    <tr>
-                      <td colspan="7" class="empty">No postings</td>
-                    </tr>
-                  } @else {
-                    @for (p of employeePostings(); track p.id) {
-                      <tr>
-                        <td>{{ p.id }}</td>
-                        <td>{{ p.officeName || p.officeId }}</td>
-                        <td>{{ p.officeBranchName || (p.officeBranchId || '-') }}</td>
-                        <td>{{ p.designationName || p.designationId }}</td>
-                        <td>{{ p.fromDate }}</td>
-                        <td>{{ p.toDate || '-' }}</td>
-                        <td class="cell-actions">
-                          @if (!p.toDate) {
-                            <button type="button" class="btn btn-secondary" (click)="closePosting(p.id)" [disabled]="busy()">
-                              Close
-                            </button>
-                          }
-                        </td>
-                      </tr>
-                    }
-                  }
-                </tbody>
-              </table>
-            </div>
-          </section>
+          </div>
         }
-      }
 
-      @case ('OCCUPATION') {
-        <form class="form-grid" [formGroup]="occupationForm" (ngSubmit)="submit()">
-          <label>
-            Name *
-            <input type="text" formControlName="name" placeholder="Farmer" />
-          </label>
-          <label>
-            Local name
-            <input type="text" formControlName="localName" placeholder="शेतकरी" />
-          </label>
-          <label>
-            Short name
-            <input type="text" formControlName="shortName" placeholder="FARM" />
-          </label>
-          <label>
-            Short name (local)
-            <input type="text" formControlName="shortNameLocal" placeholder="शेत" />
-          </label>
-
-          <div class="row-actions">
-            <button type="submit" class="btn btn-primary" [disabled]="busy()">
-              @if (editingOccupationId()) {
-                {{ busy() ? 'Saving...' : 'Update Occupation' }}
-              } @else {
-                {{ busy() ? 'Saving...' : 'Create Occupation' }}
-              }
-            </button>
-            @if (editingOccupationId()) {
-              <button type="button" class="btn btn-secondary" (click)="cancelEditOccupation()" [disabled]="busy()">
-                Cancel
-              </button>
-            }
-          </div>
-        </form>
-      }
-
-      @case ('DOCUMENT_TYPE') {
-        <form class="form-grid" [formGroup]="documentTypeForm" (ngSubmit)="submit()">
-          <label>
-            Code *
-            <input type="text" formControlName="code" placeholder="AADHAAR" />
-          </label>
-          <label>
-            Name *
-            <input type="text" formControlName="name" placeholder="Aadhaar Card" />
-          </label>
-          <label>
-            Local name
-            <input type="text" formControlName="localName" placeholder="आधार कार्ड" />
-          </label>
-          <label>
-            Source URL
-            <input type="url" formControlName="sourceUrl" placeholder="https://uidai.gov.in" />
-          </label>
-          <label class="inline-check">
-            <input type="checkbox" formControlName="validForPhotoId" />
-            Valid for photo ID
-          </label>
-          <label class="inline-check">
-            <input type="checkbox" formControlName="validForAddress" />
-            Valid for address proof
-          </label>
-
-          <div class="row-actions">
-            <button type="submit" class="btn btn-primary" [disabled]="busy()">
-              @if (editingDocumentTypeId()) {
-                {{ busy() ? 'Saving...' : 'Update Document Type' }}
-              } @else {
-                {{ busy() ? 'Saving...' : 'Create Document Type' }}
-              }
-            </button>
-            @if (editingDocumentTypeId()) {
-              <button type="button" class="btn btn-secondary" (click)="cancelEditDocumentType()" [disabled]="busy()">
-                Cancel
-              </button>
-            }
-          </div>
-        </form>
-      }
-
-      @case ('DOCUMENT_TYPE_MAPPING') {
-        <p class="field-hint" style="margin-top:0">
-          Flow: <strong>Department → Subject → Case category</strong>, then select multiple documents from the master list and save.
-        </p>
-
-        <section class="filter-card" aria-label="Document mapping selectors">
-          <h4>1. Department, subject &amp; case category</h4>
-          <form class="filter-grid mapping-step-form" [formGroup]="documentTypeMappingForm">
-            <label>
-              Department *
-              <select formControlName="mappingDepartmentId" [compareWith]="selectIdCompare">
+        <!-- DESIGNATION -->
+        @case ('DESIGNATION') {
+          <form class="form-grid" [formGroup]="designationForm" (ngSubmit)="submit()">
+            <label class="form-label-row"
+              ><span>Department <span class="req">*</span></span>
+              <select formControlName="departmentId">
                 <option [ngValue]="0">Select department</option>
                 @for (d of departments(); track d.id) {
                   <option [ngValue]="d.id">{{ d.name }}</option>
                 }
               </select>
             </label>
-            <label>
-              Subject *
-              <select
-                formControlName="subjectId"
-                [compareWith]="selectIdCompare"
-                [disabled]="documentTypeMappingForm.controls.mappingDepartmentId.getRawValue() < 1 || mappingSubjectsLoading()"
-              >
-                <option [ngValue]="0">
-                  @if (documentTypeMappingForm.controls.mappingDepartmentId.getRawValue() < 1) {
-                    Select department first
-                  } @else if (mappingSubjectsLoading()) {
-                    Loading subjects…
-                  } @else if (mappingSubjects().length === 0) {
-                    No subjects for this department
-                  } @else {
-                    Select subject
-                  }
-                </option>
-                @for (s of mappingSubjects(); track s.id) {
-                  <option [ngValue]="s.id">{{ s.subjectCode }} — {{ s.subjectName }}</option>
-                }
-              </select>
-            </label>
-            <label>
-              Case category *
-              <select
-                formControlName="caseCategoryId"
-                [compareWith]="selectIdCompare"
-                [disabled]="documentTypeMappingForm.controls.subjectId.getRawValue() < 1"
-              >
-                <option [ngValue]="0">Select case category</option>
-                @for (c of caseCategories(); track c.id) {
-                  <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
-                }
-              </select>
-            </label>
+            <label class="form-label-row"
+              ><span>Name <span class="req">*</span></span>
+              <input type="text" formControlName="name" placeholder="Clerk"
+            /></label>
+            <label
+              >Local name<input type="text" formControlName="localName" placeholder="लिपिक"
+            /></label>
+            <label
+              >Short name<input type="text" formControlName="shortName" placeholder="CLK"
+            /></label>
+            <label
+              >Short name (local)<input
+                type="text"
+                formControlName="shortNameLocal"
+                placeholder="लि"
+            /></label>
             <div class="row-actions">
-              <button
-                type="button"
-                class="btn btn-secondary"
-                (click)="loadDocumentTypeMappings()"
-                [disabled]="busy() || !mappingWorkspaceReady()"
-              >
-                Reload mapping
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{
+                  editingDesignationId()
+                    ? busy()
+                      ? 'Saving…'
+                      : 'Update Designation'
+                    : busy()
+                      ? 'Saving…'
+                      : 'Create Designation'
+                }}
               </button>
+              @if (editingDesignationId()) {
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  (click)="cancelEditDesignation()"
+                  [disabled]="busy()"
+                >
+                  Cancel
+                </button>
+              }
             </div>
           </form>
 
-          @if (mappingContextLabel()) {
-            <p class="field-hint"><strong>Editing:</strong> {{ mappingContextLabel() }}</p>
-          }
-
-          @if (hasCurrentMappingLoaded()) {
-            <div class="current-mapping-table-block">
-              <h5>Saved documents for this subject &amp; case category</h5>
-              <div class="table-wrap">
-                <table class="data-table doc-mapping-table">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Code</th>
-                      <th>Document name</th>
-                      <th>Local name</th>
-                      <th>Required</th>
-                      <th>Display order</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (item of documentTypeMappings(); track item.documentTypeId; let i = $index) {
-                      <tr>
-                        <td>{{ i + 1 }}</td>
-                        <td>{{ mappingDocumentCode(item) }}</td>
-                        <td>{{ mappingDocumentName(item) }}</td>
-                        <td>{{ mappingDocumentLocalName(item) }}</td>
-                        <td>{{ item.required ? 'Yes' : 'No' }}</td>
-                        <td>{{ item.displayOrder }}</td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
+          <div class="filter-card">
+            <div class="filter-card-head">
+              <span class="filter-icon">⚙</span>
+              <h4>List filters</h4>
             </div>
-          }
+            <form
+              class="filter-grid"
+              [formGroup]="designationFilterForm"
+              (ngSubmit)="$event.preventDefault(); applyDesignationFilter()"
+            >
+              <label
+                >Department
+                <select formControlName="departmentId">
+                  <option [ngValue]="0">All</option>
+                  @for (d of departments(); track d.id) {
+                    <option [ngValue]="d.id">{{ d.name }}</option>
+                  }
+                </select>
+              </label>
+              <div class="row-actions">
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  (click)="applyDesignationFilter()"
+                  [disabled]="busy()"
+                >
+                  Apply
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  (click)="clearDesignationFilter()"
+                  [disabled]="busy()"
+                >
+                  Clear
+                </button>
+              </div>
+            </form>
+          </div>
+        }
 
-          @if (mappingCategorySelected() && configuredSubjectsForCategoryTable().length > 0) {
-            <div class="configured-subjects-table-block">
-              <h5>Subjects with saved mappings (this case category)</h5>
+        <!-- OCCUPATION -->
+        @case ('OCCUPATION') {
+          <form class="form-grid" [formGroup]="occupationForm" (ngSubmit)="submit()">
+            <label class="form-label-row"
+              ><span>Name <span class="req">*</span></span>
+              <input type="text" formControlName="name" placeholder="Farmer"
+            /></label>
+            <label
+              >Local name<input type="text" formControlName="localName" placeholder="शेतकरी"
+            /></label>
+            <label
+              >Short name<input type="text" formControlName="shortName" placeholder="FARM"
+            /></label>
+            <label
+              >Short name (local)<input
+                type="text"
+                formControlName="shortNameLocal"
+                placeholder="शेत"
+            /></label>
+            <div class="row-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{
+                  editingOccupationId()
+                    ? busy()
+                      ? 'Saving…'
+                      : 'Update Occupation'
+                    : busy()
+                      ? 'Saving…'
+                      : 'Create Occupation'
+                }}
+              </button>
+              @if (editingOccupationId()) {
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  (click)="cancelEditOccupation()"
+                  [disabled]="busy()"
+                >
+                  Cancel
+                </button>
+              }
+            </div>
+          </form>
+        }
+
+        <!-- EMPLOYEE -->
+        @case ('EMPLOYEE') {
+          <form class="form-grid" [formGroup]="employeeForm" (ngSubmit)="submit()">
+            <label class="form-label-row"
+              ><span>Employee code <span class="req">*</span></span>
+              <input type="text" formControlName="employeeCode" placeholder="EMP001"
+            /></label>
+            <label class="form-label-row"
+              ><span>Full name <span class="req">*</span></span>
+              <input type="text" formControlName="fullName" placeholder="Rahul Patil"
+            /></label>
+            <label
+              >Full name (local)<input
+                type="text"
+                formControlName="fullNameLocal"
+                placeholder="राहुल पाटील"
+            /></label>
+            <label class="form-label-row"
+              ><span>Mobile <span class="req">*</span></span>
+              <input type="text" formControlName="mobile" placeholder="9999999999"
+            /></label>
+            <label class="form-label-row"
+              ><span>Email <span class="req">*</span></span>
+              <input type="email" formControlName="email" placeholder="rahul@example.com"
+            /></label>
+            <label
+              >Status
+              <select formControlName="isActive">
+                <option [ngValue]="true">Active</option>
+                <option [ngValue]="false">Inactive</option>
+              </select>
+            </label>
+            <div class="row-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{
+                  editingEmployeeId()
+                    ? busy()
+                      ? 'Saving…'
+                      : 'Update Employee'
+                    : busy()
+                      ? 'Saving…'
+                      : 'Create Employee'
+                }}
+              </button>
+              @if (editingEmployeeId()) {
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  (click)="cancelEditEmployee()"
+                  [disabled]="busy()"
+                >
+                  Cancel
+                </button>
+              }
+            </div>
+          </form>
+
+          <div class="filter-card">
+            <div class="filter-card-head">
+              <span class="filter-icon">⚙</span>
+              <h4>List filters</h4>
+            </div>
+            <form
+              class="filter-grid"
+              [formGroup]="employeeFilterForm"
+              (ngSubmit)="$event.preventDefault(); applyEmployeeFilter()"
+            >
+              <label
+                >Status
+                <select formControlName="active">
+                  <option [ngValue]="''">All</option>
+                  <option [ngValue]="'true'">Active</option>
+                  <option [ngValue]="'false'">Inactive</option>
+                </select>
+              </label>
+              <div class="row-actions">
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  (click)="applyEmployeeFilter()"
+                  [disabled]="busy()"
+                >
+                  Apply
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  (click)="clearEmployeeFilter()"
+                  [disabled]="busy()"
+                >
+                  Clear
+                </button>
+              </div>
+            </form>
+          </div>
+
+          @if (selectedEmployeeForPostingsId()) {
+            <div class="posting-section">
+              <div class="posting-section-head">
+                <h4>Posting history</h4>
+              </div>
+              <form
+                class="filter-grid"
+                style="padding: 14px 16px"
+                [formGroup]="postingForm"
+                (ngSubmit)="$event.preventDefault(); addPosting()"
+              >
+                <label class="form-label-row"
+                  ><span>Office <span class="req">*</span></span>
+                  <select formControlName="officeId">
+                    <option [ngValue]="0">Select office</option>
+                    @for (o of offices(); track o.id) {
+                      <option [ngValue]="o.id">{{ o.name }}</option>
+                    }
+                  </select>
+                </label>
+                <label
+                  >Office branch
+                  <select formControlName="officeBranchId">
+                    <option [ngValue]="0">No branch</option>
+                    @for (b of officeBranches(); track b.id) {
+                      <option [ngValue]="b.id">{{ b.name }}</option>
+                    }
+                  </select>
+                </label>
+                <label class="form-label-row"
+                  ><span>Designation <span class="req">*</span></span>
+                  <select formControlName="designationId">
+                    <option [ngValue]="0">Select designation</option>
+                    @for (d of designations(); track d.id) {
+                      <option [ngValue]="d.id">{{ d.name }}</option>
+                    }
+                  </select>
+                </label>
+                <label class="form-label-row"
+                  ><span>From date <span class="req">*</span></span>
+                  <input type="date" formControlName="fromDate"
+                /></label>
+                <div class="row-actions">
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    (click)="addPosting()"
+                    [disabled]="busy()"
+                  >
+                    Add posting
+                  </button>
+                </div>
+              </form>
               <div class="table-wrap">
                 <table class="data-table">
                   <thead>
                     <tr>
-                      <th>Subject code</th>
-                      <th>Subject name</th>
-                      <th>Mapped document names</th>
-                      <th>Count</th>
-                      <th>Required</th>
-                      <th></th>
+                      <th>ID</th>
+                      <th>Office</th>
+                      <th>Branch</th>
+                      <th>Designation</th>
+                      <th>From</th>
+                      <th>To</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    @for (s of configuredSubjectsForCategoryTable(); track s.subjectId) {
-                      <tr [class.current-subject-row]="s.isCurrent">
-                        <td>{{ s.subjectCode }}</td>
-                        <td>{{ s.subjectName }}</td>
-                        <td class="mapped-doc-names-cell">{{ configuredSubjectDocumentNames(s.subjectId) }}</td>
-                        <td>{{ s.mappedDocumentCount }}</td>
-                        <td>{{ s.requiredDocumentCount }}</td>
-                        <td class="cell-actions">
-                          @if (s.isCurrent) {
-                            <span class="badge">Current</span>
-                          } @else {
-                            <button
-                              type="button"
-                              class="btn btn-secondary btn-xs"
-                              (click)="selectConfiguredSubject(s)"
-                              [disabled]="busy()"
-                            >
-                              Open
-                            </button>
-                          }
-                        </td>
+                    @if (employeePostings().length === 0) {
+                      <tr>
+                        <td colspan="7" class="empty">No postings recorded</td>
                       </tr>
+                    } @else {
+                      @for (p of employeePostings(); track p.id) {
+                        <tr>
+                          <td class="id-cell">{{ p.id }}</td>
+                          <td>{{ p.officeName || p.officeId }}</td>
+                          <td>{{ p.officeBranchName || p.officeBranchId || '—' }}</td>
+                          <td>{{ p.designationName || p.designationId }}</td>
+                          <td>{{ p.fromDate }}</td>
+                          <td>{{ p.toDate || '—' }}</td>
+                          <td class="cell-actions">
+                            @if (!p.toDate) {
+                              <button
+                                type="button"
+                                class="btn btn-secondary btn-xs"
+                                (click)="closePosting(p.id)"
+                                [disabled]="busy()"
+                              >
+                                Close
+                              </button>
+                            }
+                          </td>
+                        </tr>
+                      }
                     }
                   </tbody>
                 </table>
               </div>
             </div>
           }
-        </section>
+        }
 
-        @if (mappingWorkspaceReady()) {
-          <section class="filter-card doc-mapping-workspace" aria-label="Map documents">
-            <h4>2. Add or edit documents</h4>
-            @if (documentTypes().length === 0) {
-              <p class="field-hint">No document types in master. Create them under <strong>Document Types</strong> first.</p>
-            } @else {
-              <div class="doc-mapping-panels">
-                <div class="doc-mapping-panel">
-                  <div class="doc-mapping-panel-head">
-                    <h5>Available documents</h5>
-                    <div class="row-actions">
-                      <label class="inline-check">
-                        <input
-                          type="checkbox"
-                          [checked]="allUnmappedDocumentsSelected()"
-                          (change)="toggleSelectAllUnmapped($any($event.target).checked)"
-                          [disabled]="busy() || unmappedDocumentTypes().length === 0"
-                        />
-                        Select all
-                      </label>
-                      <button
-                        type="button"
-                        class="btn btn-primary btn-xs"
-                        (click)="addPendingDocumentsToMapping()"
-                        [disabled]="busy() || pendingDocumentSelectionCount() === 0"
-                      >
-                        Add selected ({{ pendingDocumentSelectionCount() }})
-                      </button>
-                    </div>
-                  </div>
-                  <div class="table-wrap">
-                    <table class="data-table doc-mapping-table">
-                      <thead>
-                        <tr>
-                          <th></th>
-                          <th>Code</th>
-                          <th>Name</th>
-                          <th>Local name</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @if (unmappedDocumentTypes().length === 0) {
-                          <tr>
-                            <td colspan="4" class="empty">All master documents are already mapped</td>
-                          </tr>
-                        } @else {
-                          @for (doc of unmappedDocumentTypes(); track doc.id) {
-                            <tr [class.pending-row]="isDocumentPending(doc.id)">
-                              <td>
-                                <input
-                                  type="checkbox"
-                                  [checked]="isDocumentPending(doc.id)"
-                                  (change)="togglePendingDocument(doc.id, $any($event.target).checked)"
-                                  [disabled]="busy()"
-                                />
-                              </td>
-                              <td>{{ doc.code }}</td>
-                              <td>{{ doc.name }}</td>
-                              <td>{{ doc.localName || '—' }}</td>
-                            </tr>
-                          }
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div class="doc-mapping-panel">
-                  <div class="doc-mapping-panel-head">
-                    <h5>Mapped documents ({{ documentTypeMappings().length }})</h5>
-                  </div>
-                  <div class="table-wrap">
-                    <table class="data-table doc-mapping-table">
-                      <thead>
-                        <tr>
-                          <th>Code</th>
-                          <th>Name</th>
-                          <th>Required</th>
-                          <th>Order</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @if (documentTypeMappings().length === 0) {
-                          <tr>
-                            <td colspan="5" class="empty">No documents mapped yet — select from the left and click Add selected</td>
-                          </tr>
-                        } @else {
-                          @for (item of documentTypeMappings(); track item.documentTypeId) {
-                            <tr class="mapped-row">
-                              <td>{{ mappingDocumentCode(item) }}</td>
-                              <td>{{ mappingDocumentName(item) }}</td>
-                              <td>
-                                <label class="inline-check">
-                                  <input
-                                    type="checkbox"
-                                    [checked]="item.required"
-                                    (change)="setMappingRequired(item.documentTypeId, $any($event.target).checked)"
-                                    [disabled]="busy()"
-                                  />
-                                  Required
-                                </label>
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  class="order-input"
-                                  min="1"
-                                  [value]="item.displayOrder"
-                                  (change)="setMappingDisplayOrder(item.documentTypeId, +$any($event.target).value)"
-                                  [disabled]="busy()"
-                                />
-                              </td>
-                              <td>
-                                <button
-                                  type="button"
-                                  class="btn btn-secondary danger btn-xs"
-                                  (click)="removeDocumentTypeMappingItem(item.documentTypeId)"
-                                  [disabled]="busy()"
-                                >
-                                  Remove
-                                </button>
-                              </td>
-                            </tr>
-                          }
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-
-              <div class="row-actions" style="margin-top:12px">
-                <button type="button" class="btn btn-primary" (click)="saveDocumentTypeMappings()" [disabled]="busy()">
-                  {{ busy() ? 'Saving…' : 'Save mapping' }}
-                </button>
+        <!-- DOCUMENT TYPE -->
+        @case ('DOCUMENT_TYPE') {
+          <form class="form-grid" [formGroup]="documentTypeForm" (ngSubmit)="submit()">
+            <label class="form-label-row"
+              ><span>Code <span class="req">*</span></span>
+              <input type="text" formControlName="code" placeholder="AADHAAR"
+            /></label>
+            <label class="form-label-row"
+              ><span>Name <span class="req">*</span></span>
+              <input type="text" formControlName="name" placeholder="Aadhaar Card"
+            /></label>
+            <label
+              >Local name<input type="text" formControlName="localName" placeholder="आधार कार्ड"
+            /></label>
+            <label
+              >Source URL<input
+                type="url"
+                formControlName="sourceUrl"
+                placeholder="https://uidai.gov.in"
+            /></label>
+            <label class="inline-check">
+              <input type="checkbox" formControlName="validForPhotoId" />
+              Valid for photo ID
+            </label>
+            <label class="inline-check">
+              <input type="checkbox" formControlName="validForAddress" />
+              Valid for address proof
+            </label>
+            <div class="row-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="busy()">
+                {{
+                  editingDocumentTypeId()
+                    ? busy()
+                      ? 'Saving…'
+                      : 'Update Document Type'
+                    : busy()
+                      ? 'Saving…'
+                      : 'Create Document Type'
+                }}
+              </button>
+              @if (editingDocumentTypeId()) {
                 <button
                   type="button"
-                  class="btn btn-secondary danger"
-                  (click)="clearAndSaveDocumentTypeMappings()"
-                  [disabled]="busy() || documentTypeMappings().length === 0"
+                  class="btn btn-secondary"
+                  (click)="cancelEditDocumentType()"
+                  [disabled]="busy()"
                 >
-                  Clear all &amp; save
+                  Cancel
                 </button>
+              }
+            </div>
+          </form>
+        }
+
+        <!-- DOCUMENT TYPE MAPPING -->
+        @case ('DOCUMENT_TYPE_MAPPING') {
+          <div class="form-grid">
+            <p class="field-hint">
+              Flow: <strong>Department → Subject → Case category</strong>, then select documents and
+              save.
+            </p>
+
+            <div class="filter-card">
+              <div class="filter-card-head">
+                <span class="filter-icon">①</span>
+                <h4>Department, subject &amp; case category</h4>
+              </div>
+              <form
+                class="filter-grid"
+                style="padding: 14px 16px"
+                [formGroup]="documentTypeMappingForm"
+              >
+                <label class="form-label-row"
+                  ><span>Department <span class="req">*</span></span>
+                  <select formControlName="mappingDepartmentId" [compareWith]="selectIdCompare">
+                    <option [ngValue]="0">Select department</option>
+                    @for (d of departments(); track d.id) {
+                      <option [ngValue]="d.id">{{ d.name }}</option>
+                    }
+                  </select>
+                </label>
+                <label class="form-label-row"
+                  ><span>Subject <span class="req">*</span></span>
+                  <select
+                    formControlName="subjectId"
+                    [compareWith]="selectIdCompare"
+                    [disabled]="
+                      documentTypeMappingForm.controls.mappingDepartmentId.getRawValue() < 1 ||
+                      mappingSubjectsLoading()
+                    "
+                  >
+                    <option [ngValue]="0">
+                      @if (documentTypeMappingForm.controls.mappingDepartmentId.getRawValue() < 1) {
+                        Select department first
+                      } @else if (mappingSubjectsLoading()) {
+                        Loading subjects…
+                      } @else if (mappingSubjects().length === 0) {
+                        No subjects for this dept
+                      } @else {
+                        Select subject
+                      }
+                    </option>
+                    @for (s of mappingSubjects(); track s.id) {
+                      <option [ngValue]="s.id">{{ s.subjectCode }} — {{ s.subjectName }}</option>
+                    }
+                  </select>
+                </label>
+                <label class="form-label-row"
+                  ><span>Case category <span class="req">*</span></span>
+                  <select
+                    formControlName="caseCategoryId"
+                    [compareWith]="selectIdCompare"
+                    [disabled]="documentTypeMappingForm.controls.subjectId.getRawValue() < 1"
+                  >
+                    <option [ngValue]="0">Select case category</option>
+                    @for (c of caseCategories(); track c.id) {
+                      <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
+                    }
+                  </select>
+                </label>
+                <div class="row-actions">
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    (click)="loadDocumentTypeMappings()"
+                    [disabled]="busy() || !mappingWorkspaceReady()"
+                  >
+                    Reload mapping
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            @if (mappingContextLabel()) {
+              <p class="field-hint"><strong>Editing:</strong> {{ mappingContextLabel() }}</p>
+            }
+
+            @if (hasCurrentMappingLoaded()) {
+              <div class="current-mapping-table-block">
+                <h5>Saved documents for this subject &amp; case category</h5>
+                <div class="table-wrap">
+                  <table class="data-table doc-mapping-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Code</th>
+                        <th>Document name</th>
+                        <th>Local name</th>
+                        <th>Required</th>
+                        <th>Order</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (
+                        item of documentTypeMappings();
+                        track item.documentTypeId;
+                        let i = $index
+                      ) {
+                        <tr>
+                          <td class="id-cell">{{ i + 1 }}</td>
+                          <td>{{ mappingDocumentCode(item) }}</td>
+                          <td>{{ mappingDocumentName(item) }}</td>
+                          <td>{{ mappingDocumentLocalName(item) }}</td>
+                          <td>{{ item.required ? 'Yes' : 'No' }}</td>
+                          <td>{{ item.displayOrder }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
               </div>
             }
-          </section>
+
+            @if (mappingCategorySelected() && configuredSubjectsForCategoryTable().length > 0) {
+              <div class="configured-subjects-table-block">
+                <h5>Subjects with saved mappings (this case category)</h5>
+                <div class="table-wrap">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Subject code</th>
+                        <th>Subject name</th>
+                        <th>Mapped docs</th>
+                        <th>Count</th>
+                        <th>Required</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (s of configuredSubjectsForCategoryTable(); track s.subjectId) {
+                        <tr [class.current-subject-row]="s.isCurrent">
+                          <td>{{ s.subjectCode }}</td>
+                          <td>{{ s.subjectName }}</td>
+                          <td class="mapped-doc-names-cell">
+                            {{ configuredSubjectDocumentNames(s.subjectId) }}
+                          </td>
+                          <td>{{ s.mappedDocumentCount }}</td>
+                          <td>{{ s.requiredDocumentCount }}</td>
+                          <td class="cell-actions">
+                            @if (s.isCurrent) {
+                              <span class="badge">Current</span>
+                            } @else {
+                              <button
+                                type="button"
+                                class="btn btn-secondary btn-xs"
+                                (click)="selectConfiguredSubject(s)"
+                                [disabled]="busy()"
+                              >
+                                Open
+                              </button>
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            }
+          </div>
         }
       }
-    }
+      <!-- end @switch -->
+    </article>
 
+    <!-- ── TABLE / WORKSPACE CARD ─────────────────────────── -->
     @if (!isDocumentTypeMapping()) {
-      <section class="list-card" aria-label="Existing masters">
-      <header class="list-head">
-        <h4>Existing</h4>
-        <div class="pager">
-          <label class="pager-field">
-            Page size
-            <select [value]="pageSize()" (change)="setPageSize(+($any($event.target).value))">
-              <option [value]="5">5</option>
-              <option [value]="10">10</option>
-              <option [value]="25">25</option>
-              <option [value]="50">50</option>
+      <div class="table-card">
+        <div class="table-card-head">
+          <div>
+            <h4>Existing {{ title() }}s</h4>
+            <div class="table-card-count">{{ total() }} records</div>
+          </div>
+          <div class="pager">
+            <select
+              class="pager-size"
+              [value]="pageSize()"
+              (change)="setPageSize(+$any($event.target).value)"
+            >
+              <option [value]="5">5 / page</option>
+              <option [value]="10">10 / page</option>
+              <option [value]="25">25 / page</option>
+              <option [value]="50">50 / page</option>
             </select>
-          </label>
-          <div class="pager-actions">
-            <button type="button" class="btn btn-secondary" (click)="prevPage()" [disabled]="page() <= 1">
-              Prev
+            <button type="button" class="pager-btn" (click)="prevPage()" [disabled]="page() <= 1">
+              ‹
             </button>
-            <span class="pager-meta">Page {{ page() }} / {{ totalPages() }} ({{ total() }} items)</span>
+            <span class="pager-meta">{{ page() }} / {{ totalPages() }}</span>
             <button
               type="button"
-              class="btn btn-secondary"
+              class="pager-btn"
               (click)="nextPage()"
               [disabled]="page() >= totalPages()"
             >
-              Next
+              ›
             </button>
           </div>
         </div>
-      </header>
 
-      <div class="table-wrap">
-        @if (selected() === 'DEPARTMENT') {
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Local name</th>
-                <th>LGD</th>
-                <th>State</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @if (pagedDepartmentList().length === 0) {
+        <div class="table-wrap">
+          @if (selected() === 'DEPARTMENT') {
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <td colspan="6" class="empty">No data</td>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Local name</th>
+                  <th>LGD</th>
+                  <th>State</th>
+                  <th>Actions</th>
                 </tr>
-              } @else {
-                @for (row of pagedDepartmentList(); track row.id) {
+              </thead>
+              <tbody>
+                @if (pagedDepartmentList().length === 0) {
                   <tr>
-                    <td>{{ row.id }}</td>
-                    <td>{{ row.name }}</td>
-                    <td>{{ row.localName || '-' }}</td>
-                    <td>{{ row.lgdCode || '-' }}</td>
-                    <td>{{ resolveStateName(row.stateId) }}</td>
-                    <td class="cell-actions">
-                      <button type="button" class="btn btn-secondary" (click)="startEditDepartment(row)" [disabled]="busy()">
-                        Edit
-                      </button>
-                      <button type="button" class="btn btn-secondary danger" (click)="deleteDepartment(row)" [disabled]="busy()">
-                        Delete
-                      </button>
-                    </td>
+                    <td colspan="6" class="empty">No data</td>
                   </tr>
+                } @else {
+                  @for (row of pagedDepartmentList(); track row.id) {
+                    <tr>
+                      <td class="id-cell">{{ row.id }}</td>
+                      <td>{{ row.name }}</td>
+                      <td>{{ row.localName || '—' }}</td>
+                      <td>{{ row.lgdCode || '—' }}</td>
+                      <td>{{ resolveStateName(row.stateId) }}</td>
+                      <td class="cell-actions">
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs"
+                          (click)="startEditDepartment(row)"
+                          [disabled]="busy()"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs danger"
+                          (click)="deleteDepartment(row)"
+                          [disabled]="busy()"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  }
                 }
-              }
-            </tbody>
-          </table>
-        } @else if (selected() === 'ACT') {
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Act code</th>
-                <th>Act name</th>
-                <th>Act name (local)</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @if (pagedActList().length === 0) {
+              </tbody>
+            </table>
+          } @else if (selected() === 'ACT') {
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <td colspan="5" class="empty">No data</td>
+                  <th>ID</th>
+                  <th>Act code</th>
+                  <th>Act name</th>
+                  <th>Local name</th>
+                  <th>Actions</th>
                 </tr>
-              } @else {
-                @for (row of pagedActList(); track row.id) {
+              </thead>
+              <tbody>
+                @if (pagedActList().length === 0) {
                   <tr>
-                    <td>{{ row.id }}</td>
-                    <td>{{ row.actCode }}</td>
-                    <td>{{ row.actName }}</td>
-                    <td>{{ row.actNameLocal || '-' }}</td>
-                    <td class="cell-actions">
-                      <button type="button" class="btn btn-secondary" (click)="startEditAct(row)" [disabled]="busy()">
-                        Edit
-                      </button>
-                      <button type="button" class="btn btn-secondary danger" (click)="deleteAct(row)" [disabled]="busy()">
-                        Delete
-                      </button>
-                    </td>
+                    <td colspan="5" class="empty">No data</td>
                   </tr>
+                } @else {
+                  @for (row of pagedActList(); track row.id) {
+                    <tr>
+                      <td class="id-cell">{{ row.id }}</td>
+                      <td>{{ row.actCode }}</td>
+                      <td>{{ row.actName }}</td>
+                      <td>{{ row.actNameLocal || '—' }}</td>
+                      <td class="cell-actions">
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs"
+                          (click)="startEditAct(row)"
+                          [disabled]="busy()"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs danger"
+                          (click)="deleteAct(row)"
+                          [disabled]="busy()"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  }
                 }
-              }
-            </tbody>
-          </table>
-        } @else if (selected() === 'SECTION') {
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Act</th>
-                <th>Section code</th>
-                <th>Section name</th>
-                <th>Section name (local)</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @if (pagedSectionList().length === 0) {
+              </tbody>
+            </table>
+          } @else if (selected() === 'SECTION') {
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <td colspan="6" class="empty">No data</td>
+                  <th>ID</th>
+                  <th>Act</th>
+                  <th>Code</th>
+                  <th>Section name</th>
+                  <th>Local name</th>
+                  <th>Actions</th>
                 </tr>
-              } @else {
-                @for (row of pagedSectionList(); track row.id) {
+              </thead>
+              <tbody>
+                @if (pagedSectionList().length === 0) {
                   <tr>
-                    <td>{{ row.id }}</td>
-                    <td>{{ row.actCode }} - {{ row.actName }}</td>
-                    <td>{{ row.sectionCode }}</td>
-                    <td>{{ row.sectionName }}</td>
-                    <td>{{ row.sectionNameLocal || '-' }}</td>
-                    <td class="cell-actions">
-                      <button type="button" class="btn btn-secondary" (click)="startEditSection(row)" [disabled]="busy()">
-                        Edit
-                      </button>
-                      <button type="button" class="btn btn-secondary danger" (click)="deleteSection(row)" [disabled]="busy()">
-                        Delete
-                      </button>
-                    </td>
+                    <td colspan="6" class="empty">No data</td>
                   </tr>
+                } @else {
+                  @for (row of pagedSectionList(); track row.id) {
+                    <tr>
+                      <td class="id-cell">{{ row.id }}</td>
+                      <td>{{ row.actCode }} - {{ row.actName }}</td>
+                      <td>{{ row.sectionCode }}</td>
+                      <td>{{ row.sectionName }}</td>
+                      <td>{{ row.sectionNameLocal || '—' }}</td>
+                      <td class="cell-actions">
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs"
+                          (click)="startEditSection(row)"
+                          [disabled]="busy()"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs danger"
+                          (click)="deleteSection(row)"
+                          [disabled]="busy()"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  }
                 }
-              }
-            </tbody>
-          </table>
-        } @else if (selected() === 'SUBJECT') {
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Department</th>
-                <th>Subject code</th>
-                <th>Subject name</th>
-                <th>Subject name (local)</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @if (pagedSubjectList().length === 0) {
+              </tbody>
+            </table>
+          } @else if (selected() === 'SUBJECT') {
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <td colspan="6" class="empty">No data</td>
+                  <th>ID</th>
+                  <th>Department</th>
+                  <th>Code</th>
+                  <th>Subject name</th>
+                  <th>Local name</th>
+                  <th>Actions</th>
                 </tr>
-              } @else {
-                @for (row of pagedSubjectList(); track row.id) {
+              </thead>
+              <tbody>
+                @if (pagedSubjectList().length === 0) {
                   <tr>
-                    <td>{{ row.id }}</td>
-                    <td>{{ row.departmentName || '-' }}</td>
-                    <td>{{ row.subjectCode }}</td>
-                    <td>{{ row.subjectName }}</td>
-                    <td>{{ row.subjectNameLocal || '-' }}</td>
-                    <td class="cell-actions">
-                      <button type="button" class="btn btn-secondary" (click)="startEditSubject(row)" [disabled]="busy()">
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-secondary danger"
-                        (click)="deleteSubject(row)"
-                        [disabled]="busy()"
-                      >
-                        Delete
-                      </button>
-                    </td>
+                    <td colspan="6" class="empty">No data</td>
                   </tr>
+                } @else {
+                  @for (row of pagedSubjectList(); track row.id) {
+                    <tr>
+                      <td class="id-cell">{{ row.id }}</td>
+                      <td>{{ row.departmentName || '—' }}</td>
+                      <td>{{ row.subjectCode }}</td>
+                      <td>{{ row.subjectName }}</td>
+                      <td>{{ row.subjectNameLocal || '—' }}</td>
+                      <td class="cell-actions">
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs"
+                          (click)="startEditSubject(row)"
+                          [disabled]="busy()"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs danger"
+                          (click)="deleteSubject(row)"
+                          [disabled]="busy()"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  }
                 }
-              }
-            </tbody>
-          </table>
-        } @else if (selected() === 'OFFICE_TYPE') {
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Department</th>
-                <th>Name</th>
-                <th>Local name</th>
-                <th>Short</th>
-                <th>Short (local)</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @if (pagedOfficeTypeList().length === 0) {
+              </tbody>
+            </table>
+          } @else if (selected() === 'OFFICE_TYPE') {
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <td colspan="7" class="empty">No data</td>
+                  <th>ID</th>
+                  <th>Department</th>
+                  <th>Name</th>
+                  <th>Local name</th>
+                  <th>Short</th>
+                  <th>Short (local)</th>
+                  <th>Actions</th>
                 </tr>
-              } @else {
-                @for (row of pagedOfficeTypeList(); track row.id) {
+              </thead>
+              <tbody>
+                @if (pagedOfficeTypeList().length === 0) {
                   <tr>
-                    <td>{{ row.id }}</td>
-                    <td>{{ row.departmentName || '-' }}</td>
-                    <td>{{ row.name }}</td>
-                    <td>{{ row.localName || '-' }}</td>
-                    <td>{{ row.shortName || '-' }}</td>
-                    <td>{{ row.shortNameLocal || '-' }}</td>
-                    <td class="cell-actions">
-                      <button type="button" class="btn btn-secondary" (click)="startEditOfficeType(row)" [disabled]="busy()">
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-secondary danger"
-                        (click)="deleteOfficeType(row)"
-                        [disabled]="busy()"
-                      >
-                        Delete
-                      </button>
-                    </td>
+                    <td colspan="7" class="empty">No data</td>
                   </tr>
+                } @else {
+                  @for (row of pagedOfficeTypeList(); track row.id) {
+                    <tr>
+                      <td class="id-cell">{{ row.id }}</td>
+                      <td>{{ row.departmentName || '—' }}</td>
+                      <td>{{ row.name }}</td>
+                      <td>{{ row.localName || '—' }}</td>
+                      <td>{{ row.shortName || '—' }}</td>
+                      <td>{{ row.shortNameLocal || '—' }}</td>
+                      <td class="cell-actions">
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs"
+                          (click)="startEditOfficeType(row)"
+                          [disabled]="busy()"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs danger"
+                          (click)="deleteOfficeType(row)"
+                          [disabled]="busy()"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  }
                 }
-              }
-            </tbody>
-          </table>
-        } @else if (selected() === 'OFFICE') {
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Department ID</th>
-                <th>Office Type ID</th>
-                <th>Level</th>
-                <th>Location ID</th>
-                <th>Name</th>
-                <th>Local name</th>
-                <th>Short</th>
-                <th>Short (local)</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @if (pagedOfficeList().length === 0) {
+              </tbody>
+            </table>
+          } @else if (selected() === 'OFFICE') {
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <td colspan="10" class="empty">No data</td>
+                  <th>ID</th>
+                  <th>Dept ID</th>
+                  <th>Type ID</th>
+                  <th>Level</th>
+                  <th>Location</th>
+                  <th>Name</th>
+                  <th>Local name</th>
+                  <th>Short</th>
+                  <th>Actions</th>
                 </tr>
-              } @else {
-                @for (row of pagedOfficeList(); track row.id) {
+              </thead>
+              <tbody>
+                @if (pagedOfficeList().length === 0) {
                   <tr>
-                    <td>{{ row.id }}</td>
-                    <td>{{ row.departmentId }}</td>
-                    <td>{{ row.officeTypeId }}</td>
-                    <td>{{ row.level }}</td>
-                    <td>{{ row.locationId }}</td>
-                    <td>{{ row.name }}</td>
-                    <td>{{ row.localName || '-' }}</td>
-                    <td>{{ row.shortName || '-' }}</td>
-                    <td>{{ row.shortNameLocal || '-' }}</td>
-                    <td class="cell-actions">
-                      <button type="button" class="btn btn-secondary" (click)="startEditOffice(row)" [disabled]="busy()">
-                        Edit
-                      </button>
-                      <button type="button" class="btn btn-secondary danger" (click)="deleteOffice(row)" [disabled]="busy()">
-                        Delete
-                      </button>
-                    </td>
+                    <td colspan="9" class="empty">No data</td>
                   </tr>
+                } @else {
+                  @for (row of pagedOfficeList(); track row.id) {
+                    <tr>
+                      <td class="id-cell">{{ row.id }}</td>
+                      <td>{{ row.departmentId }}</td>
+                      <td>{{ row.officeTypeId }}</td>
+                      <td>{{ row.level }}</td>
+                      <td>{{ row.locationId }}</td>
+                      <td>{{ row.name }}</td>
+                      <td>{{ row.localName || '—' }}</td>
+                      <td>{{ row.shortName || '—' }}</td>
+                      <td class="cell-actions">
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs"
+                          (click)="startEditOffice(row)"
+                          [disabled]="busy()"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs danger"
+                          (click)="deleteOffice(row)"
+                          [disabled]="busy()"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  }
                 }
-              }
-            </tbody>
-          </table>
-        } @else if (selected() === 'DESIGNATION') {
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Department</th>
-                <th>Name</th>
-                <th>Local name</th>
-                <th>Short</th>
-                <th>Short (local)</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @if (pagedDesignationList().length === 0) {
+              </tbody>
+            </table>
+          } @else if (selected() === 'DESIGNATION') {
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <td colspan="7" class="empty">No data</td>
+                  <th>ID</th>
+                  <th>Department</th>
+                  <th>Name</th>
+                  <th>Local name</th>
+                  <th>Short</th>
+                  <th>Short (local)</th>
+                  <th>Actions</th>
                 </tr>
-              } @else {
-                @for (row of pagedDesignationList(); track row.id) {
+              </thead>
+              <tbody>
+                @if (pagedDesignationList().length === 0) {
                   <tr>
-                    <td>{{ row.id }}</td>
-                    <td>{{ row.departmentName || '-' }}</td>
-                    <td>{{ row.name }}</td>
-                    <td>{{ row.localName || '-' }}</td>
-                    <td>{{ row.shortName || '-' }}</td>
-                    <td>{{ row.shortNameLocal || '-' }}</td>
-                    <td class="cell-actions">
-                      <button type="button" class="btn btn-secondary" (click)="startEditDesignation(row)" [disabled]="busy()">
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-secondary danger"
-                        (click)="deleteDesignation(row)"
-                        [disabled]="busy()"
-                      >
-                        Delete
-                      </button>
-                    </td>
+                    <td colspan="7" class="empty">No data</td>
                   </tr>
+                } @else {
+                  @for (row of pagedDesignationList(); track row.id) {
+                    <tr>
+                      <td class="id-cell">{{ row.id }}</td>
+                      <td>{{ row.departmentName || '—' }}</td>
+                      <td>{{ row.name }}</td>
+                      <td>{{ row.localName || '—' }}</td>
+                      <td>{{ row.shortName || '—' }}</td>
+                      <td>{{ row.shortNameLocal || '—' }}</td>
+                      <td class="cell-actions">
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs"
+                          (click)="startEditDesignation(row)"
+                          [disabled]="busy()"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs danger"
+                          (click)="deleteDesignation(row)"
+                          [disabled]="busy()"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  }
                 }
-              }
-            </tbody>
-          </table>
-        } @else if (selected() === 'EMPLOYEE') {
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Code</th>
-                <th>Full name</th>
-                <th>Mobile</th>
-                <th>Email</th>
-                <th>Active</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @if (pagedEmployeeList().length === 0) {
+              </tbody>
+            </table>
+          } @else if (selected() === 'EMPLOYEE') {
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <td colspan="7" class="empty">No data</td>
+                  <th>ID</th>
+                  <th>Code</th>
+                  <th>Full name</th>
+                  <th>Mobile</th>
+                  <th>Email</th>
+                  <th>Active</th>
+                  <th>Actions</th>
                 </tr>
-              } @else {
-                @for (row of pagedEmployeeList(); track row.id) {
+              </thead>
+              <tbody>
+                @if (pagedEmployeeList().length === 0) {
                   <tr>
-                    <td>{{ row.id }}</td>
-                    <td>{{ row.employeeCode }}</td>
-                    <td>{{ row.fullName }}</td>
-                    <td>{{ row.mobile }}</td>
-                    <td>{{ row.email }}</td>
-                    <td>{{ row.isActive ? 'Yes' : 'No' }}</td>
-                    <td class="cell-actions">
-                      <button type="button" class="btn btn-secondary" (click)="startEditEmployee(row)" [disabled]="busy()">
-                        Edit
-                      </button>
-                      <button type="button" class="btn btn-secondary" (click)="openEmployeePostings(row)" [disabled]="busy()">
-                        Postings
-                      </button>
-                    </td>
+                    <td colspan="7" class="empty">No data</td>
                   </tr>
+                } @else {
+                  @for (row of pagedEmployeeList(); track row.id) {
+                    <tr>
+                      <td class="id-cell">{{ row.id }}</td>
+                      <td>{{ row.employeeCode }}</td>
+                      <td>{{ row.fullName }}</td>
+                      <td>{{ row.mobile }}</td>
+                      <td>{{ row.email }}</td>
+                      <td>
+                        <span class="badge" [class.inactive]="!row.isActive">{{
+                          row.isActive ? 'Active' : 'Inactive'
+                        }}</span>
+                      </td>
+                      <td class="cell-actions">
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs"
+                          (click)="startEditEmployee(row)"
+                          [disabled]="busy()"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs"
+                          (click)="openEmployeePostings(row)"
+                          [disabled]="busy()"
+                        >
+                          Postings
+                        </button>
+                      </td>
+                    </tr>
+                  }
                 }
-              }
-            </tbody>
-          </table>
-        } @else if (selected() === 'DOCUMENT_TYPE') {
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Code</th>
-                <th>Name</th>
-                <th>Local name</th>
-                <th>Photo ID</th>
-                <th>Address</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @if (pagedDocumentTypeList().length === 0) {
+              </tbody>
+            </table>
+          } @else if (selected() === 'DOCUMENT_TYPE') {
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <td colspan="7" class="empty">No document types</td>
+                  <th>ID</th>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>Local name</th>
+                  <th>Photo ID</th>
+                  <th>Address</th>
+                  <th>Actions</th>
                 </tr>
-              } @else {
-                @for (row of pagedDocumentTypeList(); track row.id) {
+              </thead>
+              <tbody>
+                @if (pagedDocumentTypeList().length === 0) {
                   <tr>
-                    <td>{{ row.id }}</td>
-                    <td>{{ row.code }}</td>
-                    <td>{{ row.name }}</td>
-                    <td>{{ row.localName || '—' }}</td>
-                    <td>{{ row.validForPhotoId ? 'Yes' : 'No' }}</td>
-                    <td>{{ row.validForAddress ? 'Yes' : 'No' }}</td>
-                    <td class="cell-actions">
-                      <button type="button" class="btn btn-secondary" (click)="startEditDocumentType(row)" [disabled]="busy()">
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-secondary danger"
-                        (click)="deleteDocumentType(row)"
-                        [disabled]="busy()"
-                      >
-                        Delete
-                      </button>
-                    </td>
+                    <td colspan="7" class="empty">No document types</td>
                   </tr>
+                } @else {
+                  @for (row of pagedDocumentTypeList(); track row.id) {
+                    <tr>
+                      <td class="id-cell">{{ row.id }}</td>
+                      <td>{{ row.code }}</td>
+                      <td>{{ row.name }}</td>
+                      <td>{{ row.localName || '—' }}</td>
+                      <td>
+                        <span class="badge" [class.inactive]="!row.validForPhotoId">{{
+                          row.validForPhotoId ? 'Yes' : 'No'
+                        }}</span>
+                      </td>
+                      <td>
+                        <span class="badge" [class.inactive]="!row.validForAddress">{{
+                          row.validForAddress ? 'Yes' : 'No'
+                        }}</span>
+                      </td>
+                      <td class="cell-actions">
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs"
+                          (click)="startEditDocumentType(row)"
+                          [disabled]="busy()"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs danger"
+                          (click)="deleteDocumentType(row)"
+                          [disabled]="busy()"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  }
                 }
-              }
-            </tbody>
-          </table>
-        } @else if (selected() === 'OCCUPATION') {
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Local name</th>
-                <th>Short</th>
-                <th>Short (local)</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @if (pagedOccupationList().length === 0) {
+              </tbody>
+            </table>
+          } @else if (selected() === 'OCCUPATION') {
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <td colspan="6" class="empty">No data</td>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Local name</th>
+                  <th>Short</th>
+                  <th>Short (local)</th>
+                  <th>Actions</th>
                 </tr>
-              } @else {
-                @for (row of pagedOccupationList(); track row.id) {
+              </thead>
+              <tbody>
+                @if (pagedOccupationList().length === 0) {
                   <tr>
-                    <td>{{ row.id }}</td>
-                    <td>{{ row.name }}</td>
-                    <td>{{ row.localName || '-' }}</td>
-                    <td>{{ row.shortName || '-' }}</td>
-                    <td>{{ row.shortNameLocal || '-' }}</td>
-                    <td class="cell-actions">
-                      <button type="button" class="btn btn-secondary" (click)="startEditOccupation(row)" [disabled]="busy()">
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-secondary danger"
-                        (click)="deleteOccupation(row)"
-                        [disabled]="busy()"
-                      >
-                        Delete
-                      </button>
-                    </td>
+                    <td colspan="6" class="empty">No data</td>
                   </tr>
+                } @else {
+                  @for (row of pagedOccupationList(); track row.id) {
+                    <tr>
+                      <td class="id-cell">{{ row.id }}</td>
+                      <td>{{ row.name }}</td>
+                      <td>{{ row.localName || '—' }}</td>
+                      <td>{{ row.shortName || '—' }}</td>
+                      <td>{{ row.shortNameLocal || '—' }}</td>
+                      <td class="cell-actions">
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs"
+                          (click)="startEditOccupation(row)"
+                          [disabled]="busy()"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-xs danger"
+                          (click)="deleteOccupation(row)"
+                          [disabled]="busy()"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  }
                 }
-              }
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          } @else {
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Local name</th>
+                  <th>LGD</th>
+                  <th>State</th>
+                  <th>Division</th>
+                  <th>District</th>
+                  <th>Subdistrict</th>
+                  <th>Taluka</th>
+                </tr>
+              </thead>
+              <tbody>
+                @if (pagedMasterList().length === 0) {
+                  <tr>
+                    <td colspan="9" class="empty">No data</td>
+                  </tr>
+                } @else {
+                  @for (row of pagedMasterList(); track row.id) {
+                    <tr>
+                      <td class="id-cell">{{ row.id }}</td>
+                      <td>{{ row.name }}</td>
+                      <td>{{ row.localName || '—' }}</td>
+                      <td>{{ row.lgdCode || '—' }}</td>
+                      <td>{{ resolveStateName(row.stateId) }}</td>
+                      <td>{{ resolveDivisionName(row.divisionId) }}</td>
+                      <td>{{ resolveDistrictName(row.districtId) }}</td>
+                      <td>{{ resolveSubdistrictName(row.subdistrictId) }}</td>
+                      <td>{{ resolveTalukaName(row.talukaId) }}</td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Doc Mapping workspace (full-width right panel) -->
+    @if (isDocumentTypeMapping() && mappingWorkspaceReady()) {
+      <div class="table-card">
+        <div class="table-card-head">
+          <div>
+            <h4>② Add or edit documents</h4>
+            <div class="table-card-count">
+              Map document types to this subject &amp; case category
+            </div>
+          </div>
+        </div>
+
+        @if (documentTypes().length === 0) {
+          <p style="padding: 16px 20px; font-size: 13px; color: #6b7280">
+            No document types in master. Create them under <strong>Document Types</strong> first.
+          </p>
         } @else {
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Local name</th>
-                <th>LGD</th>
-                <th>State</th>
-                <th>Division</th>
-                <th>District</th>
-                <th>Subdistrict</th>
-                <th>Taluka</th>
-              </tr>
-            </thead>
-            <tbody>
-              @if (pagedMasterList().length === 0) {
-                <tr>
-                  <td colspan="9" class="empty">No data</td>
-                </tr>
-              } @else {
-                @for (row of pagedMasterList(); track row.id) {
-                  <tr>
-                    <td>{{ row.id }}</td>
-                    <td>{{ row.name }}</td>
-                    <td>{{ row.localName || '-' }}</td>
-                    <td>{{ row.lgdCode || '-' }}</td>
-                    <td>{{ resolveStateName(row.stateId) }}</td>
-                    <td>{{ resolveDivisionName(row.divisionId) }}</td>
-                    <td>{{ resolveDistrictName(row.districtId) }}</td>
-                    <td>{{ resolveSubdistrictName(row.subdistrictId) }}</td>
-                    <td>{{ resolveTalukaName(row.talukaId) }}</td>
-                  </tr>
-                }
-              }
-            </tbody>
-          </table>
+          <div style="padding: 14px 16px">
+            <div class="doc-mapping-panels">
+              <div class="doc-mapping-panel">
+                <div class="doc-mapping-panel-head">
+                  <h5>Available documents</h5>
+                  <div class="row-actions">
+                    <label class="inline-check" style="font-size: 12.5px">
+                      <input
+                        type="checkbox"
+                        [checked]="allUnmappedDocumentsSelected()"
+                        (change)="toggleSelectAllUnmapped($any($event.target).checked)"
+                        [disabled]="busy() || unmappedDocumentTypes().length === 0"
+                      />
+                      Select all
+                    </label>
+                    <button
+                      type="button"
+                      class="btn btn-primary btn-xs"
+                      (click)="addPendingDocumentsToMapping()"
+                      [disabled]="busy() || pendingDocumentSelectionCount() === 0"
+                    >
+                      Add ({{ pendingDocumentSelectionCount() }})
+                    </button>
+                  </div>
+                </div>
+                <div class="table-wrap">
+                  <table class="data-table doc-mapping-table">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th>Code</th>
+                        <th>Name</th>
+                        <th>Local name</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @if (unmappedDocumentTypes().length === 0) {
+                        <tr>
+                          <td colspan="4" class="empty">All documents are mapped</td>
+                        </tr>
+                      } @else {
+                        @for (doc of unmappedDocumentTypes(); track doc.id) {
+                          <tr [class.pending-row]="isDocumentPending(doc.id)">
+                            <td>
+                              <input
+                                type="checkbox"
+                                [checked]="isDocumentPending(doc.id)"
+                                (change)="
+                                  togglePendingDocument(doc.id, $any($event.target).checked)
+                                "
+                                [disabled]="busy()"
+                              />
+                            </td>
+                            <td>{{ doc.code }}</td>
+                            <td>{{ doc.name }}</td>
+                            <td>{{ doc.localName || '—' }}</td>
+                          </tr>
+                        }
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="doc-mapping-panel">
+                <div class="doc-mapping-panel-head">
+                  <h5>Mapped documents ({{ documentTypeMappings().length }})</h5>
+                </div>
+                <div class="table-wrap">
+                  <table class="data-table doc-mapping-table">
+                    <thead>
+                      <tr>
+                        <th>Code</th>
+                        <th>Name</th>
+                        <th>Required</th>
+                        <th>Order</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @if (documentTypeMappings().length === 0) {
+                        <tr>
+                          <td colspan="5" class="empty">Select from the left and click Add</td>
+                        </tr>
+                      } @else {
+                        @for (item of documentTypeMappings(); track item.documentTypeId) {
+                          <tr class="mapped-row">
+                            <td>{{ mappingDocumentCode(item) }}</td>
+                            <td>{{ mappingDocumentName(item) }}</td>
+                            <td>
+                              <label class="inline-check" style="font-size: 12.5px">
+                                <input
+                                  type="checkbox"
+                                  [checked]="item.required"
+                                  (change)="
+                                    setMappingRequired(
+                                      item.documentTypeId,
+                                      $any($event.target).checked
+                                    )
+                                  "
+                                  [disabled]="busy()"
+                                />
+                                Required
+                              </label>
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                class="order-input"
+                                min="1"
+                                [value]="item.displayOrder"
+                                (change)="
+                                  setMappingDisplayOrder(
+                                    item.documentTypeId,
+                                    +$any($event.target).value
+                                  )
+                                "
+                                [disabled]="busy()"
+                              />
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                class="btn btn-secondary btn-xs danger"
+                                (click)="removeDocumentTypeMappingItem(item.documentTypeId)"
+                                [disabled]="busy()"
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        }
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="row-actions" style="margin-top: 14px">
+              <button
+                type="button"
+                class="btn btn-primary"
+                (click)="saveDocumentTypeMappings()"
+                [disabled]="busy()"
+              >
+                {{ busy() ? 'Saving…' : 'Save mapping' }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary danger"
+                (click)="clearAndSaveDocumentTypeMappings()"
+                [disabled]="busy() || documentTypeMappings().length === 0"
+              >
+                Clear all &amp; save
+              </button>
+            </div>
+          </div>
         }
       </div>
-      </section>
     }
-  </article>
+  </div>
+  <!-- end masters-layout -->
 </section>
-
