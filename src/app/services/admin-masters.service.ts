@@ -20,12 +20,12 @@ export interface CreateStateRequest {
   name: string;
   localName?: string;
   lgdCode?: string;
+  stateOrUT?: string;
 }
 
 export interface CreateDivisionRequest {
   name: string;
   localName?: string;
-  lgdCode?: string;
   stateId: number;
 }
 
@@ -42,6 +42,7 @@ export interface CreateSubdistrictRequest {
   localName?: string;
   lgdCode?: string;
   districtId: number;
+  districtLgdCode?: string;
 }
 
 export interface CreateTalukaRequest {
@@ -49,7 +50,9 @@ export interface CreateTalukaRequest {
   localName?: string;
   lgdCode?: string;
   districtId: number;
+  districtLgdCode?: string;
   subdistrictId: number;
+  subdistrictLgdCode?: string;
 }
 
 export interface CreateVillageRequest {
@@ -57,6 +60,7 @@ export interface CreateVillageRequest {
   localName?: string;
   lgdCode?: string;
   talukaId: number;
+  talukaLgdCode?: string;
 }
 
 export interface DepartmentRecord {
@@ -70,7 +74,6 @@ export interface DepartmentRecord {
 export interface CreateOrUpdateDepartmentRequest {
   name: string;
   localName?: string;
-  lgdCode?: string;
   stateId: number;
 }
 
@@ -146,13 +149,10 @@ export interface CreateOrUpdateOfficeTypeRequest {
   shortNameLocal?: string;
 }
 
-export type OfficeLevel = 'STATE' | 'DIVISION' | 'DISTRICT' | 'SUBDISTRICT' | 'TALUKA' | 'VILLAGE';
-
 export interface OfficeRecord {
   id: number;
   departmentId: number;
   officeTypeId: number;
-  level: OfficeLevel;
   locationId: number;
   name: string;
   localName: string | null;
@@ -163,7 +163,6 @@ export interface OfficeRecord {
 export interface CreateOrUpdateOfficeRequest {
   departmentId: number;
   officeTypeId: number;
-  level: OfficeLevel;
   locationId: number;
   name: string;
   localName?: string;
@@ -448,18 +447,8 @@ export class AdminMastersService {
     return this.http.post<OfficeRecord>(`${this.apiBaseUrl}/api/admin/masters/offices`, payload);
   }
 
-  getOffices(filters?: {
-    departmentId?: number;
-    officeTypeId?: number;
-    level?: OfficeLevel;
-    locationId?: number;
-  }): Observable<OfficeRecord[]> {
-    const params: Record<string, string | number> = {};
-    if (filters?.departmentId) params['departmentId'] = filters.departmentId;
-    if (filters?.officeTypeId) params['officeTypeId'] = filters.officeTypeId;
-    if (filters?.level) params['level'] = filters.level;
-    if (filters?.locationId) params['locationId'] = filters.locationId;
-    return this.http.get<OfficeRecord[]>(`${this.apiBaseUrl}/api/admin/masters/offices`, { params });
+  getOffices(): Observable<OfficeRecord[]> {
+    return this.http.get<OfficeRecord[]>(`${this.apiBaseUrl}/api/admin/masters/offices`);
   }
 
   updateOffice(id: number, payload: CreateOrUpdateOfficeRequest): Observable<OfficeRecord> {
@@ -601,34 +590,40 @@ export class AdminMastersService {
     return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/states`);
   }
 
-  getDivisions(stateId: number): Observable<MasterRecord[]> {
+  getDivisions(stateId?: number): Observable<MasterRecord[]> {
+    const params: Record<string, number> = {};
+    if (stateId && stateId > 0) {
+      params['stateId'] = stateId;
+    }
     return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/divisions`, {
-      params: { stateId }
+      params
     });
   }
 
-  getDistricts(stateId: number, divisionId: number): Observable<MasterRecord[]> {
-    return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/districts`, {
-      params: { stateId, divisionId }
-    });
+  getDistricts(stateId?: number, divisionId?: number): Observable<MasterRecord[]> {
+    const params: Record<string, number> = {};
+    if (stateId && stateId > 0) params['stateId'] = stateId;
+    if (divisionId && divisionId > 0) params['divisionId'] = divisionId;
+    return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/districts`, { params });
   }
 
-  getSubdistricts(districtId: number): Observable<MasterRecord[]> {
-    return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/subdistricts`, {
-      params: { districtId }
-    });
+  getSubdistricts(districtId?: number): Observable<MasterRecord[]> {
+    const params: Record<string, number> = {};
+    if (districtId && districtId > 0) params['districtId'] = districtId;
+    return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/subdistricts`, { params });
   }
 
-  getTalukas(districtId: number, subdistrictId?: number): Observable<MasterRecord[]> {
-    return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/talukas`, {
-      params: subdistrictId ? { districtId, subdistrictId } : { districtId }
-    });
+  getTalukas(districtId?: number, subdistrictId?: number): Observable<MasterRecord[]> {
+    const params: Record<string, number> = {};
+    if (districtId && districtId > 0) params['districtId'] = districtId;
+    if (subdistrictId && subdistrictId > 0) params['subdistrictId'] = subdistrictId;
+    return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/talukas`, { params });
   }
 
-  getVillages(talukaId: number): Observable<MasterRecord[]> {
-    return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/villages`, {
-      params: { talukaId }
-    });
+  getVillages(talukaId?: number): Observable<MasterRecord[]> {
+    const params: Record<string, number> = {};
+    if (talukaId && talukaId > 0) params['talukaId'] = talukaId;
+    return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/villages`, { params });
   }
 }
 

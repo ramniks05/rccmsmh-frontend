@@ -70,8 +70,8 @@ export class NewApplicationComponent {
     this.caseCategories.getCaseCategory(id).subscribe({
       next: (cat) => {
         this.selectedCaseCategory.set(cat);
-        if (cat.id === 2) {
-          // Category 2 objection stepper form
+        if (cat.id === 1) {
+          // Category 1 application/suit stepper form
           this.selectedType.set('');
         } else if (cat.code === 'ORIGINAL') {
           this.selectedType.set('ORIGINAL_FILE_MUTATION');

@@ -117,6 +117,13 @@
             LGD code
             <input type="text" formControlName="lgdCode" placeholder="27" />
           </label>
+          <label>
+            State / UT
+            <select formControlName="stateOrUT">
+              <option value="State">State</option>
+              <option value="UT">UT</option>
+            </select>
+          </label>
 
           <button type="submit" class="btn btn-primary" [disabled]="busy()">
             {{ busy() ? 'Saving...' : 'Create State' }}
@@ -144,10 +151,6 @@
           <label>
             Local name
             <input type="text" formControlName="localName" placeholder="पुणे विभाग" />
-          </label>
-          <label>
-            LGD code
-            <input type="text" formControlName="lgdCode" placeholder="###" />
           </label>
 
           <button type="submit" class="btn btn-primary" [disabled]="busy()">
@@ -188,6 +191,38 @@
             {{ busy() ? 'Saving...' : 'Create District' }}
           </button>
         </form>
+
+        <section class="filter-card" aria-label="District filters">
+          <h4>List filters</h4>
+          <form class="filter-grid" [formGroup]="districtFilterForm" (ngSubmit)="$event.preventDefault(); applyDistrictFilter()">
+            <label>
+              State
+              <select formControlName="stateId">
+                <option [ngValue]="0">All</option>
+                @for (s of states(); track s.id) {
+                  <option [ngValue]="s.id">{{ s.name }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              Division
+              <select formControlName="divisionId">
+                <option [ngValue]="0">All</option>
+                @for (d of divisions(); track d.id) {
+                  <option [ngValue]="d.id">{{ d.name }}</option>
+                }
+              </select>
+            </label>
+            <div class="row-actions">
+              <button type="button" class="btn btn-primary" (click)="applyDistrictFilter()" [disabled]="busy()">
+                Apply
+              </button>
+              <button type="button" class="btn btn-secondary" (click)="clearDistrictFilter()" [disabled]="busy()">
+                Clear
+              </button>
+            </div>
+          </form>
+        </section>
       }
 
       @case ('SUBDISTRICT') {
@@ -303,11 +338,6 @@
             Local name
             <input type="text" formControlName="localName" placeholder="भूमि अभिलेख विभाग" />
           </label>
-          <label>
-            LGD / Code
-            <input type="text" formControlName="lgdCode" placeholder="Dept. of Land Records" />
-          </label>
-
           <div class="row-actions">
             <button type="submit" class="btn btn-primary" [disabled]="busy()">
               @if (editingDepartmentId()) {
@@ -507,24 +537,20 @@
               }
             </select>
           </label>
-          <label>
-            Level *
-            <select formControlName="level">
-              <option [ngValue]="'STATE'">STATE</option>
-              <option [ngValue]="'DIVISION'">DIVISION</option>
-              <option [ngValue]="'DISTRICT'">DISTRICT</option>
-              <option [ngValue]="'SUBDISTRICT'">SUBDISTRICT</option>
-              <option [ngValue]="'TALUKA'">TALUKA</option>
-              <option [ngValue]="'VILLAGE'">VILLAGE</option>
-            </select>
-          </label>
 
-          @if (officeForm.controls.level.value === 'STATE') {
+          @if (officeFormLevel() >= 1) {
             <label>
-              State
-              <input type="text" [value]="defaultState.name" readonly />
+              State *
+              <select formControlName="stateId">
+                <option [ngValue]="0">Select state</option>
+                @for (s of states(); track s.id) {
+                  <option [ngValue]="s.id">{{ s.name }}</option>
+                }
+              </select>
             </label>
-          } @else {
+          }
+
+          @if (officeFormLevel() >= 2) {
             <label>
               Division *
               <select formControlName="divisionId">
@@ -536,7 +562,7 @@
             </label>
           }
 
-          @if (officeForm.controls.level.value === 'DISTRICT' || officeForm.controls.level.value === 'SUBDISTRICT' || officeForm.controls.level.value === 'TALUKA' || officeForm.controls.level.value === 'VILLAGE') {
+          @if (officeFormLevel() >= 3) {
             <label>
               District *
               <select formControlName="districtId">
@@ -548,7 +574,7 @@
             </label>
           }
 
-          @if (officeForm.controls.level.value === 'SUBDISTRICT' || officeForm.controls.level.value === 'TALUKA' || officeForm.controls.level.value === 'VILLAGE') {
+          @if (officeFormLevel() >= 4) {
             <label>
               Subdistrict *
               <select formControlName="subdistrictId">
@@ -558,11 +584,8 @@
                 }
               </select>
             </label>
-          }
-
-          @if (officeForm.controls.level.value === 'TALUKA' || officeForm.controls.level.value === 'VILLAGE') {
             <label>
-              Taluka *
+              Taluka (Tehsil) *
               <select formControlName="talukaId">
                 <option [ngValue]="0">Select taluka</option>
                 @for (t of officeTalukas(); track t.id) {
@@ -571,23 +594,6 @@
               </select>
             </label>
           }
-
-          @if (officeForm.controls.level.value === 'VILLAGE') {
-            <label>
-              Village *
-              <select formControlName="villageId">
-                <option [ngValue]="0">Select village</option>
-                @for (v of officeVillages(); track v.id) {
-                  <option [ngValue]="v.id">{{ v.name }}</option>
-                }
-              </select>
-            </label>
-          }
-
-          <label>
-            Location ID
-            <input type="number" formControlName="locationId" readonly />
-          </label>
 
           <label>
             Name *
@@ -642,83 +648,6 @@
                   <option [ngValue]="t.id">{{ t.name }}</option>
                 }
               </select>
-            </label>
-            <label>
-              Level
-              <select formControlName="level">
-                <option [ngValue]="''">All</option>
-                <option [ngValue]="'STATE'">STATE</option>
-                <option [ngValue]="'DIVISION'">DIVISION</option>
-                <option [ngValue]="'DISTRICT'">DISTRICT</option>
-                <option [ngValue]="'SUBDISTRICT'">SUBDISTRICT</option>
-                <option [ngValue]="'TALUKA'">TALUKA</option>
-                <option [ngValue]="'VILLAGE'">VILLAGE</option>
-              </select>
-            </label>
-
-            @if (officeFilterForm.controls.level.value && officeFilterForm.controls.level.value !== 'STATE') {
-              <label>
-                Division
-                <select formControlName="divisionId">
-                  <option [ngValue]="0">All</option>
-                  @for (d of officeDivisions(); track d.id) {
-                    <option [ngValue]="d.id">{{ d.name }}</option>
-                  }
-                </select>
-              </label>
-            }
-
-            @if (officeFilterForm.controls.level.value === 'DISTRICT' || officeFilterForm.controls.level.value === 'SUBDISTRICT' || officeFilterForm.controls.level.value === 'TALUKA' || officeFilterForm.controls.level.value === 'VILLAGE') {
-              <label>
-                District
-                <select formControlName="districtId">
-                  <option [ngValue]="0">All</option>
-                  @for (d of officeDistricts(); track d.id) {
-                    <option [ngValue]="d.id">{{ d.name }}</option>
-                  }
-                </select>
-              </label>
-            }
-
-            @if (officeFilterForm.controls.level.value === 'SUBDISTRICT' || officeFilterForm.controls.level.value === 'TALUKA' || officeFilterForm.controls.level.value === 'VILLAGE') {
-              <label>
-                Subdistrict
-                <select formControlName="subdistrictId">
-                  <option [ngValue]="0">All</option>
-                  @for (s of officeSubdistricts(); track s.id) {
-                    <option [ngValue]="s.id">{{ s.name }}</option>
-                  }
-                </select>
-              </label>
-            }
-
-            @if (officeFilterForm.controls.level.value === 'TALUKA' || officeFilterForm.controls.level.value === 'VILLAGE') {
-              <label>
-                Taluka
-                <select formControlName="talukaId">
-                  <option [ngValue]="0">All</option>
-                  @for (t of officeTalukas(); track t.id) {
-                    <option [ngValue]="t.id">{{ t.name }}</option>
-                  }
-                </select>
-              </label>
-            }
-
-            @if (officeFilterForm.controls.level.value === 'VILLAGE') {
-              <label>
-                Village
-                <select formControlName="villageId">
-                  <option [ngValue]="0">All</option>
-                  @for (v of officeVillages(); track v.id) {
-                    <option [ngValue]="v.id">{{ v.name }}</option>
-                  }
-                </select>
-              </label>
-            }
-
-            <label>
-              Location ID
-              <input type="number" formControlName="locationId" readonly />
             </label>
             <div class="row-actions">
               <button type="button" class="btn btn-primary" (click)="applyOfficeFilters()" [disabled]="busy()">
@@ -1338,34 +1267,26 @@
 
     @if (!isDocumentTypeMapping()) {
       <section class="list-card" aria-label="Existing masters">
-      <header class="list-head">
-        <h4>Existing</h4>
-        <div class="pager">
-          <label class="pager-field">
-            Page size
-            <select [value]="pageSize()" (change)="setPageSize(+($any($event.target).value))">
-              <option [value]="5">5</option>
-              <option [value]="10">10</option>
-              <option [value]="25">25</option>
-              <option [value]="50">50</option>
-            </select>
-          </label>
-          <div class="pager-actions">
-            <button type="button" class="btn btn-secondary" (click)="prevPage()" [disabled]="page() <= 1">
-              Prev
-            </button>
-            <span class="pager-meta">Page {{ page() }} / {{ totalPages() }} ({{ total() }} items)</span>
-            <button
-              type="button"
-              class="btn btn-secondary"
-              (click)="nextPage()"
-              [disabled]="page() >= totalPages()"
-            >
-              Next
-            </button>
+        <header class="list-head">
+          <div class="list-head-left">
+            <h4>Records</h4>
+            @if (total() > 0) {
+              <span class="records-badge">{{ total() }}</span>
+            }
           </div>
-        </div>
-      </header>
+          <div class="pager-top">
+            <label class="page-size-label">
+              Show
+              <select [value]="pageSize()" (change)="setPageSize(+($any($event.target).value))">
+                <option [value]="5">5</option>
+                <option [value]="10">10</option>
+                <option [value]="25">25</option>
+                <option [value]="50">50</option>
+              </select>
+              per page
+            </label>
+          </div>
+        </header>
 
       <div class="table-wrap">
         @if (selected() === 'DEPARTMENT') {
@@ -1375,7 +1296,6 @@
                 <th>ID</th>
                 <th>Name</th>
                 <th>Local name</th>
-                <th>LGD</th>
                 <th>State</th>
                 <th>Actions</th>
               </tr>
@@ -1383,7 +1303,7 @@
             <tbody>
               @if (pagedDepartmentList().length === 0) {
                 <tr>
-                  <td colspan="6" class="empty">No data</td>
+                  <td colspan="5" class="empty">No data</td>
                 </tr>
               } @else {
                 @for (row of pagedDepartmentList(); track row.id) {
@@ -1391,7 +1311,6 @@
                     <td>{{ row.id }}</td>
                     <td>{{ row.name }}</td>
                     <td>{{ row.localName || '-' }}</td>
-                    <td>{{ row.lgdCode || '-' }}</td>
                     <td>{{ resolveStateName(row.stateId) }}</td>
                     <td class="cell-actions">
                       <button type="button" class="btn btn-secondary" (click)="startEditDepartment(row)" [disabled]="busy()">
@@ -1575,8 +1494,6 @@
                 <th>ID</th>
                 <th>Department ID</th>
                 <th>Office Type ID</th>
-                <th>Level</th>
-                <th>Location ID</th>
                 <th>Name</th>
                 <th>Local name</th>
                 <th>Short</th>
@@ -1587,7 +1504,7 @@
             <tbody>
               @if (pagedOfficeList().length === 0) {
                 <tr>
-                  <td colspan="10" class="empty">No data</td>
+                  <td colspan="8" class="empty">No data</td>
                 </tr>
               } @else {
                 @for (row of pagedOfficeList(); track row.id) {
@@ -1595,8 +1512,6 @@
                     <td>{{ row.id }}</td>
                     <td>{{ row.departmentId }}</td>
                     <td>{{ row.officeTypeId }}</td>
-                    <td>{{ row.level }}</td>
-                    <td>{{ row.locationId }}</td>
                     <td>{{ row.name }}</td>
                     <td>{{ row.localName || '-' }}</td>
                     <td>{{ row.shortName || '-' }}</td>
@@ -1794,7 +1709,9 @@
                 <th>ID</th>
                 <th>Name</th>
                 <th>Local name</th>
-                <th>LGD</th>
+                @if (selected() !== 'DIVISION') {
+                  <th>LGD</th>
+                }
                 <th>State</th>
                 <th>Division</th>
                 <th>District</th>
@@ -1805,7 +1722,7 @@
             <tbody>
               @if (pagedMasterList().length === 0) {
                 <tr>
-                  <td colspan="9" class="empty">No data</td>
+                  <td [attr.colspan]="selected() === 'DIVISION' ? 8 : 9" class="empty">No data</td>
                 </tr>
               } @else {
                 @for (row of pagedMasterList(); track row.id) {
@@ -1813,7 +1730,9 @@
                     <td>{{ row.id }}</td>
                     <td>{{ row.name }}</td>
                     <td>{{ row.localName || '-' }}</td>
-                    <td>{{ row.lgdCode || '-' }}</td>
+                    @if (selected() !== 'DIVISION') {
+                      <td>{{ row.lgdCode || '-' }}</td>
+                    }
                     <td>{{ resolveStateName(row.stateId) }}</td>
                     <td>{{ resolveDivisionName(row.divisionId) }}</td>
                     <td>{{ resolveDistrictName(row.districtId) }}</td>
@@ -1826,6 +1745,72 @@
           </table>
         }
       </div>
+
+      @if (total() > 0) {
+        <footer class="pager-footer">
+          <span class="pager-info">
+            Showing {{ pageFrom() }}–{{ pageTo() }} of {{ total() }} results
+          </span>
+          <nav class="pager-nav" aria-label="Pagination">
+            <button
+              type="button"
+              class="pager-btn"
+              (click)="goToPage(1)"
+              [disabled]="page() <= 1"
+              title="First page"
+            >
+              «
+            </button>
+            <button
+              type="button"
+              class="pager-btn"
+              (click)="prevPage()"
+              [disabled]="page() <= 1"
+              title="Previous page"
+            >
+              ‹
+            </button>
+
+            @if (pageRange()[0] > 1) {
+              <span class="pager-ellipsis">…</span>
+            }
+
+            @for (p of pageRange(); track p) {
+              <button
+                type="button"
+                class="pager-btn"
+                [class.pager-btn-active]="p === page()"
+                (click)="goToPage(p)"
+              >
+                {{ p }}
+              </button>
+            }
+
+            @if (pageRange()[pageRange().length - 1] < totalPages()) {
+              <span class="pager-ellipsis">…</span>
+            }
+
+            <button
+              type="button"
+              class="pager-btn"
+              (click)="nextPage()"
+              [disabled]="page() >= totalPages()"
+              title="Next page"
+            >
+              ›
+            </button>
+            <button
+              type="button"
+              class="pager-btn"
+              (click)="goToPage(totalPages())"
+              [disabled]="page() >= totalPages()"
+              title="Last page"
+            >
+              »
+            </button>
+          </nav>
+        </footer>
+      }
       </section>
     }
   </article>

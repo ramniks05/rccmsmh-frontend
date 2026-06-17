@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -20,7 +21,6 @@ import {
   OccupationRecord,
   EmployeePostingRecord,
   EmployeeRecord,
-  OfficeLevel,
   OfficeRecord,
   OfficeBranchRecord,
   OfficeTypeRecord,
@@ -35,7 +35,10 @@ import {
   type CreateOrUpdateOfficeTypeRequest,
   type CreateOrUpdateSubjectRequest,
   type CreateOrUpdateDepartmentRequest,
-  type CreateOrUpdateOccupationRequest
+  type CreateOrUpdateOccupationRequest,
+  type CreateSubdistrictRequest,
+  type CreateTalukaRequest,
+  type CreateVillageRequest
 } from '../../../services/admin-masters.service';
 import { environment } from '../../../../environments/environment';
 
@@ -119,13 +122,19 @@ export class AdminMastersComponent {
   protected readonly selectedSectionActId = signal<number>(0);
   protected readonly selectedOfficeTypeDepartmentId = signal<number>(0);
   protected readonly selectedSubjectDepartmentId = signal<number>(0);
+  protected readonly districtFilter = signal<{ stateId: number; divisionId: number }>({ stateId: 0, divisionId: 0 });
+  protected readonly designationDeptFilter = signal<number>(0);
+  protected readonly employeeActiveFilter = signal<'' | 'true' | 'false'>('');
+  protected readonly officeListFilter = signal<{
+    departmentId: number;
+    officeTypeId: number;
+  }>({ departmentId: 0, officeTypeId: 0 });
   protected readonly officeTypeOptions = signal<OfficeTypeRecord[]>([]);
 
   protected readonly officeDivisions = signal<MasterRecord[]>([]);
   protected readonly officeDistricts = signal<MasterRecord[]>([]);
   protected readonly officeSubdistricts = signal<MasterRecord[]>([]);
   protected readonly officeTalukas = signal<MasterRecord[]>([]);
-  protected readonly officeVillages = signal<MasterRecord[]>([]);
 
   protected readonly pageSize = signal(10);
   protected readonly page = signal(1);
@@ -150,7 +159,7 @@ export class AdminMastersComponent {
       case 'DIVISION':
         return this.divisions();
       case 'DISTRICT':
-        return this.districts();
+        return this.filteredDistricts();
       case 'SUBDISTRICT':
         return this.subdistricts();
       case 'TALUKA':
@@ -162,25 +171,74 @@ export class AdminMastersComponent {
     }
   });
 
+  protected readonly filteredDistricts = computed<MasterRecord[]>(() => {
+    const f = this.districtFilter();
+    return this.districts().filter((d) => {
+      if (f.stateId > 0 && d.stateId !== f.stateId) return false;
+      if (f.divisionId > 0 && d.divisionId !== f.divisionId) return false;
+      return true;
+    });
+  });
+
+  protected readonly filteredSections = computed<SectionRecord[]>(() =>
+    this.selectedSectionActId() > 0
+      ? this.sections().filter((s) => s.actId === this.selectedSectionActId())
+      : this.sections()
+  );
+
+  protected readonly filteredSubjects = computed<SubjectRecord[]>(() =>
+    this.selectedSubjectDepartmentId() > 0
+      ? this.subjects().filter((s) => s.departmentId === this.selectedSubjectDepartmentId())
+      : this.subjects()
+  );
+
+  protected readonly filteredOfficeTypes = computed<OfficeTypeRecord[]>(() =>
+    this.selectedOfficeTypeDepartmentId() > 0
+      ? this.officeTypes().filter((o) => o.departmentId === this.selectedOfficeTypeDepartmentId())
+      : this.officeTypes()
+  );
+
+  protected readonly filteredDesignations = computed<DesignationRecord[]>(() =>
+    this.designationDeptFilter() > 0
+      ? this.designations().filter((d) => d.departmentId === this.designationDeptFilter())
+      : this.designations()
+  );
+
+  protected readonly filteredEmployees = computed<EmployeeRecord[]>(() => {
+    const f = this.employeeActiveFilter();
+    if (f === '') return this.employees();
+    const active = f === 'true';
+    return this.employees().filter((e) => e.isActive === active);
+  });
+
+  protected readonly filteredOffices = computed<OfficeRecord[]>(() => {
+    const f = this.officeListFilter();
+    return this.offices().filter((o) => {
+      if (f.departmentId > 0 && o.departmentId !== f.departmentId) return false;
+      if (f.officeTypeId > 0 && o.officeTypeId !== f.officeTypeId) return false;
+      return true;
+    });
+  });
+
   protected readonly total = computed(() =>
     this.isDepartment()
       ? this.departments().length
       : this.isAct()
         ? this.acts().length
         : this.isSection()
-          ? this.sections().length
+          ? this.filteredSections().length
           : this.isSubject()
-            ? this.subjects().length
+            ? this.filteredSubjects().length
             : this.isOfficeType()
-              ? this.officeTypes().length
+              ? this.filteredOfficeTypes().length
                 : this.isOffice()
-                  ? this.offices().length
+                  ? this.filteredOffices().length
                   : this.isDesignation()
-                    ? this.designations().length
+                    ? this.filteredDesignations().length
                     : this.isOccupation()
                       ? this.occupations().length
                     : this.isEmployee()
-                      ? this.employees().length
+                      ? this.filteredEmployees().length
                       : this.isDocumentType()
                         ? this.documentTypes().length
           : this.activeMasterList().length
@@ -212,35 +270,35 @@ export class AdminMastersComponent {
     const size = this.pageSize();
     const currentPage = Math.min(this.page(), this.totalPages());
     const start = (currentPage - 1) * size;
-    return this.sections().slice(start, start + size);
+    return this.filteredSections().slice(start, start + size);
   });
 
   protected readonly pagedSubjectList = computed<SubjectRecord[]>(() => {
     const size = this.pageSize();
     const currentPage = Math.min(this.page(), this.totalPages());
     const start = (currentPage - 1) * size;
-    return this.subjects().slice(start, start + size);
+    return this.filteredSubjects().slice(start, start + size);
   });
 
   protected readonly pagedOfficeTypeList = computed<OfficeTypeRecord[]>(() => {
     const size = this.pageSize();
     const currentPage = Math.min(this.page(), this.totalPages());
     const start = (currentPage - 1) * size;
-    return this.officeTypes().slice(start, start + size);
+    return this.filteredOfficeTypes().slice(start, start + size);
   });
 
   protected readonly pagedOfficeList = computed<OfficeRecord[]>(() => {
     const size = this.pageSize();
     const currentPage = Math.min(this.page(), this.totalPages());
     const start = (currentPage - 1) * size;
-    return this.offices().slice(start, start + size);
+    return this.filteredOffices().slice(start, start + size);
   });
 
   protected readonly pagedDesignationList = computed<DesignationRecord[]>(() => {
     const size = this.pageSize();
     const currentPage = Math.min(this.page(), this.totalPages());
     const start = (currentPage - 1) * size;
-    return this.designations().slice(start, start + size);
+    return this.filteredDesignations().slice(start, start + size);
   });
 
   protected readonly pagedOccupationList = computed<OccupationRecord[]>(() => {
@@ -254,7 +312,7 @@ export class AdminMastersComponent {
     const size = this.pageSize();
     const currentPage = Math.min(this.page(), this.totalPages());
     const start = (currentPage - 1) * size;
-    return this.employees().slice(start, start + size);
+    return this.filteredEmployees().slice(start, start + size);
   });
 
   protected readonly pagedDocumentTypeList = computed<DocumentTypeRecord[]>(() => {
@@ -423,13 +481,13 @@ export class AdminMastersComponent {
   protected readonly stateForm = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2)]],
     localName: [''],
-    lgdCode: ['']
+    lgdCode: [''],
+    stateOrUT: ['State']
   });
 
   protected readonly divisionForm = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2)]],
     localName: [''],
-    lgdCode: [''],
     stateId: [0, [Validators.required, Validators.min(1)]]
   });
 
@@ -466,7 +524,6 @@ export class AdminMastersComponent {
   protected readonly departmentForm = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2)]],
     localName: [''],
-    lgdCode: [''],
     stateId: [0, [Validators.required, Validators.min(1)]]
   });
 
@@ -501,14 +558,12 @@ export class AdminMastersComponent {
   protected readonly officeForm = this.fb.nonNullable.group({
     departmentId: [0, [Validators.required, Validators.min(1)]],
     officeTypeId: [0, [Validators.required, Validators.min(1)]],
-    level: ['TALUKA' as OfficeLevel, [Validators.required]],
     locationId: [0, [Validators.required, Validators.min(1)]],
     stateId: [0],
     divisionId: [0],
     districtId: [0],
     subdistrictId: [0],
     talukaId: [0],
-    villageId: [0],
     name: ['', [Validators.required, Validators.minLength(2)]],
     localName: [''],
     shortName: [''],
@@ -517,16 +572,23 @@ export class AdminMastersComponent {
 
   protected readonly officeFilterForm = this.fb.nonNullable.group({
     departmentId: [0],
-    officeTypeId: [0],
-    level: ['' as '' | OfficeLevel],
-    locationId: [0],
-    stateId: [0],
-    divisionId: [0],
-    districtId: [0],
-    subdistrictId: [0],
-    talukaId: [0],
-    villageId: [0]
+    officeTypeId: [0]
   });
+
+  private readonly officeTypeIdValue = toSignal(
+    this.officeForm.controls.officeTypeId.valueChanges,
+    { initialValue: this.officeForm.controls.officeTypeId.value }
+  );
+  /**
+   * Location-chain depth based on office type id:
+   *   1 → State only
+   *   2 → Subdivision (State + Division)
+   *   3 → District (State + Division + District)
+   *   6 → Tehsil (State + Division + District + Subdistrict + Taluka)
+   */
+  protected readonly officeFormLevel = computed<number>(() =>
+    this.officeTypeIdToLevel(this.officeTypeIdValue())
+  );
 
   protected readonly designationForm = this.fb.nonNullable.group({
     departmentId: [0, [Validators.required, Validators.min(1)]],
@@ -534,6 +596,11 @@ export class AdminMastersComponent {
     localName: [''],
     shortName: [''],
     shortNameLocal: ['']
+  });
+
+  protected readonly districtFilterForm = this.fb.nonNullable.group({
+    stateId: [0],
+    divisionId: [0]
   });
 
   protected readonly designationFilterForm = this.fb.nonNullable.group({
@@ -600,67 +667,20 @@ export class AdminMastersComponent {
     this.loadStates();
     this.loadActs();
 
-    this.districtForm.controls.divisionId.valueChanges.subscribe((divisionId) => {
-      if (!divisionId || divisionId < 1) {
-        this.districts.set([]);
-        this.subdistricts.set([]);
-        this.talukas.set([]);
-        this.villages.set([]);
-        return;
-      }
-      this.loadDistricts();
-    });
-
-    this.subdistrictForm.controls.districtId.valueChanges.subscribe((districtId) => {
-      if (!districtId || districtId < 1) {
-        this.subdistricts.set([]);
-        this.talukas.set([]);
-        this.villages.set([]);
-        return;
-      }
-      this.loadSubdistricts();
-    });
-
-    this.talukaForm.controls.districtId.valueChanges.subscribe((districtId) => {
-      if (!districtId || districtId < 1) {
-        this.subdistricts.set([]);
-        this.talukas.set([]);
-        this.villages.set([]);
-        return;
-      }
-      this.loadSubdistricts();
-    });
-
-    this.talukaForm.controls.subdistrictId.valueChanges.subscribe((subdistrictId) => {
-      if (!subdistrictId || subdistrictId < 1) {
-        this.talukas.set([]);
-        this.villages.set([]);
-        return;
-      }
-      this.loadTalukas();
-    });
-
-    this.villageForm.controls.talukaId.valueChanges.subscribe((talukaId) => {
-      if (!talukaId || talukaId < 1) {
-        this.villages.set([]);
-        return;
-      }
-      this.loadVillages();
-    });
 
     this.sectionForm.controls.actId.valueChanges.subscribe((actId) => {
       this.selectedSectionActId.set(actId || 0);
-      this.loadSections();
+      this.page.set(1);
     });
 
     this.officeTypeForm.controls.departmentId.valueChanges.subscribe((departmentId) => {
       this.selectedOfficeTypeDepartmentId.set(departmentId || 0);
-      this.loadOfficeTypes();
+      this.page.set(1);
     });
 
     this.subjectForm.controls.departmentId.valueChanges.subscribe((departmentId) => {
       this.selectedSubjectDepartmentId.set(departmentId || 0);
-      this.loadSubjects();
+      this.page.set(1);
     });
 
     this.documentTypeMappingForm.controls.caseCategoryId.valueChanges.subscribe(() => {
@@ -690,8 +710,14 @@ export class AdminMastersComponent {
       this.masters.getOfficeTypes(departmentId).subscribe({
         next: (rows) => {
           this.officeTypeOptions.set(rows);
-          if (this.officeForm.controls.officeTypeId.getRawValue() < 1 && rows.length === 1) {
+          const currentTypeId = this.officeForm.controls.officeTypeId.getRawValue();
+          if (currentTypeId < 1 && rows.length === 1) {
             this.officeForm.controls.officeTypeId.setValue(rows[0].id);
+          } else if (currentTypeId > 0) {
+            // Options just loaded while a type was already selected — re-resolve level and location
+            const level = this.officeTypeIdToLevel(currentTypeId);
+            this.loadOfficeLocationOptions(level);
+            this.syncOfficeLocationId(level);
           }
         },
         error: () => this.officeTypeOptions.set([])
@@ -700,102 +726,54 @@ export class AdminMastersComponent {
 
     if (this.hasFixedState) {
       this.officeForm.controls.stateId.setValue(environment.defaultState.id);
-      this.officeFilterForm.controls.stateId.setValue(environment.defaultState.id);
     }
 
-    this.officeForm.controls.level.valueChanges.subscribe(() => {
+    this.officeForm.controls.officeTypeId.valueChanges.subscribe((typeId) => {
       this.resetOfficeLocationChain();
-      this.loadOfficeLocationOptions();
-      this.syncOfficeLocationId();
+      const level = this.officeTypeIdToLevel(typeId);
+      this.loadOfficeLocationOptions(level);
+      this.syncOfficeLocationId(level);
     });
+
+    this.officeForm.controls.stateId.valueChanges.subscribe(() => {
+      this.resetOfficeLocationChain();
+      const level = this.officeFormLevel();
+      this.loadOfficeLocationOptions(level);
+      this.syncOfficeLocationId(level);
+    });
+
     this.officeForm.controls.divisionId.valueChanges.subscribe(() => {
       this.officeDistricts.set([]);
       this.officeSubdistricts.set([]);
       this.officeTalukas.set([]);
-      this.officeVillages.set([]);
       this.officeForm.controls.districtId.setValue(0);
       this.officeForm.controls.subdistrictId.setValue(0);
       this.officeForm.controls.talukaId.setValue(0);
-      this.officeForm.controls.villageId.setValue(0);
       this.loadOfficeDistricts();
       this.syncOfficeLocationId();
     });
     this.officeForm.controls.districtId.valueChanges.subscribe(() => {
       this.officeSubdistricts.set([]);
       this.officeTalukas.set([]);
-      this.officeVillages.set([]);
       this.officeForm.controls.subdistrictId.setValue(0);
       this.officeForm.controls.talukaId.setValue(0);
-      this.officeForm.controls.villageId.setValue(0);
-      this.loadOfficeSubdistricts();
+      if (this.officeFormLevel() >= 4) {
+        this.loadOfficeSubdistricts();
+      }
       this.syncOfficeLocationId();
     });
     this.officeForm.controls.subdistrictId.valueChanges.subscribe(() => {
       this.officeTalukas.set([]);
-      this.officeVillages.set([]);
       this.officeForm.controls.talukaId.setValue(0);
-      this.officeForm.controls.villageId.setValue(0);
       this.loadOfficeTalukas();
       this.syncOfficeLocationId();
     });
-    this.officeForm.controls.talukaId.valueChanges.subscribe(() => {
-      this.officeVillages.set([]);
-      this.officeForm.controls.villageId.setValue(0);
-      this.loadOfficeVillages();
-      this.syncOfficeLocationId();
-    });
-    this.officeForm.controls.villageId.valueChanges.subscribe(() => this.syncOfficeLocationId());
+    this.officeForm.controls.talukaId.valueChanges.subscribe(() => this.syncOfficeLocationId());
 
-    this.officeFilterForm.controls.level.valueChanges.subscribe(() => {
-      this.resetOfficeFilterLocationChain();
-      this.loadOfficeFilterLocationOptions();
-      this.syncOfficeFilterLocationId();
+    this.designationForm.controls.departmentId.valueChanges.subscribe((deptId) => {
+      this.designationDeptFilter.set(deptId || 0);
+      this.page.set(1);
     });
-    this.officeFilterForm.controls.divisionId.valueChanges.subscribe(() => {
-      this.officeDistricts.set([]);
-      this.officeSubdistricts.set([]);
-      this.officeTalukas.set([]);
-      this.officeVillages.set([]);
-      this.officeFilterForm.controls.districtId.setValue(0);
-      this.officeFilterForm.controls.subdistrictId.setValue(0);
-      this.officeFilterForm.controls.talukaId.setValue(0);
-      this.officeFilterForm.controls.villageId.setValue(0);
-      this.loadOfficeDistricts(true);
-      this.syncOfficeFilterLocationId();
-    });
-    this.officeFilterForm.controls.districtId.valueChanges.subscribe(() => {
-      this.officeSubdistricts.set([]);
-      this.officeTalukas.set([]);
-      this.officeVillages.set([]);
-      this.officeFilterForm.controls.subdistrictId.setValue(0);
-      this.officeFilterForm.controls.talukaId.setValue(0);
-      this.officeFilterForm.controls.villageId.setValue(0);
-      this.loadOfficeSubdistricts(true);
-      this.syncOfficeFilterLocationId();
-    });
-    this.officeFilterForm.controls.subdistrictId.valueChanges.subscribe(() => {
-      this.officeTalukas.set([]);
-      this.officeVillages.set([]);
-      this.officeFilterForm.controls.talukaId.setValue(0);
-      this.officeFilterForm.controls.villageId.setValue(0);
-      this.loadOfficeTalukas(true);
-      this.syncOfficeFilterLocationId();
-    });
-    this.officeFilterForm.controls.talukaId.valueChanges.subscribe(() => {
-      this.officeVillages.set([]);
-      this.officeFilterForm.controls.villageId.setValue(0);
-      this.loadOfficeVillages(true);
-      this.syncOfficeFilterLocationId();
-    });
-    this.officeFilterForm.controls.villageId.valueChanges.subscribe(() => this.syncOfficeFilterLocationId());
-
-    this.officeFilterForm.controls.stateId.valueChanges.subscribe(() => {
-      this.resetOfficeFilterLocationChain();
-      this.loadOfficeFilterLocationOptions();
-      this.syncOfficeFilterLocationId();
-    });
-
-    this.designationForm.controls.departmentId.valueChanges.subscribe(() => this.loadDesignations());
 
     this.postingForm.controls.officeId.valueChanges.subscribe((officeId) => {
       this.postingForm.controls.officeBranchId.setValue(0);
@@ -822,6 +800,23 @@ export class AdminMastersComponent {
     this.editingOccupationId.set(null);
     this.editingEmployeeId.set(null);
     this.selectedEmployeeForPostingsId.set(null);
+
+    // Reset all client-side filter signals on tab switch
+    this.districtFilter.set({ stateId: 0, divisionId: 0 });
+    this.districtFilterForm.reset({ stateId: 0, divisionId: 0 }, { emitEvent: false });
+    this.selectedSectionActId.set(0);
+    this.selectedSubjectDepartmentId.set(0);
+    this.selectedOfficeTypeDepartmentId.set(0);
+    this.designationDeptFilter.set(0);
+    this.employeeActiveFilter.set('');
+    this.officeListFilter.set({ departmentId: 0, officeTypeId: 0 });
+
+    // Reset boundary create forms so stale values don't bleed into the next visit
+    this.districtForm.controls.divisionId.setValue(0, { emitEvent: false });
+    this.subdistrictForm.controls.districtId.setValue(0, { emitEvent: false });
+    this.talukaForm.controls.districtId.setValue(0, { emitEvent: false });
+    this.talukaForm.controls.subdistrictId.setValue(0, { emitEvent: false });
+    this.villageForm.controls.talukaId.setValue(0, { emitEvent: false });
 
     if (kind === 'DIVISION') {
       this.loadDivisions();
@@ -854,6 +849,7 @@ export class AdminMastersComponent {
       this.loadSections();
     } else if (kind === 'SUBJECT') {
       this.loadDepartments();
+      this.loadSubjects();
     } else if (kind === 'OFFICE_TYPE') {
       this.loadDepartments();
       this.loadOfficeTypes();
@@ -944,11 +940,11 @@ export class AdminMastersComponent {
           : kind === 'DISTRICT'
             ? this.masters.createDistrict(this.districtForm.getRawValue())
             : kind === 'SUBDISTRICT'
-              ? this.masters.createSubdistrict(this.subdistrictForm.getRawValue())
+              ? this.masters.createSubdistrict(this.subdistrictPayload())
               : kind === 'TALUKA'
-                ? this.masters.createTaluka(this.talukaForm.getRawValue())
+                ? this.masters.createTaluka(this.talukaPayload())
                 : kind === 'VILLAGE'
-                  ? this.masters.createVillage(this.villageForm.getRawValue())
+                  ? this.masters.createVillage(this.villagePayload())
                   : kind === 'DEPARTMENT'
                     ? this.submitDepartment()
                     : kind === 'ACT'
@@ -984,14 +980,13 @@ export class AdminMastersComponent {
             : 'Created successfully.'
         );
         if (kind === 'STATE') {
-          this.stateForm.reset({ name: '', localName: '', lgdCode: '' });
+          this.stateForm.reset({ name: '', localName: '', lgdCode: '', stateOrUT: 'State' });
           this.loadStates();
         } else if (kind === 'DIVISION') {
           this.divisionForm.reset({
             stateId: this.hasFixedState ? environment.defaultState.id : 0,
             name: '',
-            localName: '',
-            lgdCode: ''
+            localName: ''
           });
           if (this.hasFixedState) {
             this.divisionForm.controls.stateId.disable();
@@ -1034,8 +1029,7 @@ export class AdminMastersComponent {
             this.departmentForm.reset({
               stateId: this.hasFixedState ? environment.defaultState.id : 0,
               name: '',
-              localName: '',
-              lgdCode: ''
+              localName: ''
             });
             if (this.hasFixedState) {
               this.departmentForm.controls.stateId.disable();
@@ -1074,13 +1068,17 @@ export class AdminMastersComponent {
           } else if (kind === 'OFFICE') {
             const keepDeptId = this.officeForm.controls.departmentId.getRawValue();
             const keepOfficeTypeId = this.officeForm.controls.officeTypeId.getRawValue();
-            const keepLevel = this.officeForm.controls.level.getRawValue();
             this.editingOfficeId.set(null);
+            this.resetOfficeLocationChain();
             this.officeForm.reset({
               departmentId: keepDeptId,
               officeTypeId: keepOfficeTypeId,
-              level: keepLevel,
               locationId: 0,
+              stateId: 0,
+              divisionId: 0,
+              districtId: 0,
+              subdistrictId: 0,
+              talukaId: 0,
               name: '',
               localName: '',
               shortName: '',
@@ -1171,14 +1169,7 @@ export class AdminMastersComponent {
   }
 
   private loadDivisions(): void {
-    const stateId = this.hasFixedState
-      ? environment.defaultState.id
-      : this.divisionForm.controls.stateId.getRawValue();
-    if (!stateId || stateId < 1) {
-      this.divisions.set([]);
-      return;
-    }
-    this.masters.getDivisions(stateId).subscribe({
+    this.masters.getDivisions().subscribe({
       next: (rows) => {
         this.divisions.set(rows);
         this.page.set(1);
@@ -1193,24 +1184,10 @@ export class AdminMastersComponent {
   }
 
   private loadDistricts(): void {
-    const stateId = this.hasFixedState
-      ? environment.defaultState.id
-      : this.districtForm.controls.stateId.getRawValue();
-    const divisionId = this.districtForm.controls.divisionId.getRawValue();
-    if (!stateId || stateId < 1 || !divisionId || divisionId < 1) {
-      this.districts.set([]);
-      return;
-    }
-    this.masters.getDistricts(stateId, divisionId).subscribe({
+    this.masters.getDistricts().subscribe({
       next: (rows) => {
         this.districts.set(rows);
         this.page.set(1);
-        if (this.subdistrictForm.controls.districtId.getRawValue() < 1 && rows.length === 1) {
-          this.subdistrictForm.controls.districtId.setValue(rows[0].id);
-        }
-        if (this.talukaForm.controls.districtId.getRawValue() < 1 && rows.length === 1) {
-          this.talukaForm.controls.districtId.setValue(rows[0].id);
-        }
       },
       error: () => {
         this.districts.set([]);
@@ -1219,18 +1196,10 @@ export class AdminMastersComponent {
   }
 
   private loadSubdistricts(): void {
-    const districtId = this.talukaForm.controls.districtId.getRawValue() || this.subdistrictForm.controls.districtId.getRawValue();
-    if (!districtId || districtId < 1) {
-      this.subdistricts.set([]);
-      return;
-    }
-    this.masters.getSubdistricts(districtId).subscribe({
+    this.masters.getSubdistricts().subscribe({
       next: (rows) => {
         this.subdistricts.set(rows);
         this.page.set(1);
-        if (this.talukaForm.controls.subdistrictId.getRawValue() < 1 && rows.length === 1) {
-          this.talukaForm.controls.subdistrictId.setValue(rows[0].id);
-        }
       },
       error: () => {
         this.subdistricts.set([]);
@@ -1239,19 +1208,10 @@ export class AdminMastersComponent {
   }
 
   private loadTalukas(): void {
-    const districtId = this.talukaForm.controls.districtId.getRawValue();
-    const subdistrictId = this.talukaForm.controls.subdistrictId.getRawValue();
-    if (!districtId || districtId < 1 || !subdistrictId || subdistrictId < 1) {
-      this.talukas.set([]);
-      return;
-    }
-    this.masters.getTalukas(districtId, subdistrictId).subscribe({
+    this.masters.getTalukas().subscribe({
       next: (rows) => {
         this.talukas.set(rows);
         this.page.set(1);
-        if (this.villageForm.controls.talukaId.getRawValue() < 1 && rows.length === 1) {
-          this.villageForm.controls.talukaId.setValue(rows[0].id);
-        }
       },
       error: () => {
         this.talukas.set([]);
@@ -1260,12 +1220,7 @@ export class AdminMastersComponent {
   }
 
   private loadVillages(): void {
-    const talukaId = this.villageForm.controls.talukaId.getRawValue();
-    if (!talukaId || talukaId < 1) {
-      this.villages.set([]);
-      return;
-    }
-    this.masters.getVillages(talukaId).subscribe({
+    this.masters.getVillages().subscribe({
       next: (rows) => {
         this.villages.set(rows);
         this.page.set(1);
@@ -1311,8 +1266,7 @@ export class AdminMastersComponent {
   }
 
   private loadSections(): void {
-    const actId = this.selectedSectionActId() || this.sectionForm.controls.actId.getRawValue() || 0;
-    this.masters.getSections(actId > 0 ? actId : undefined).subscribe({
+    this.masters.getSections().subscribe({
       next: (rows) => {
         this.sections.set(rows);
         this.page.set(1);
@@ -1383,9 +1337,7 @@ export class AdminMastersComponent {
   }
 
   private loadSubjects(): void {
-    const departmentId =
-      this.selectedSubjectDepartmentId() || this.subjectForm.controls.departmentId.getRawValue() || 0;
-    this.masters.getSubjects(departmentId > 0 ? departmentId : undefined).subscribe({
+    this.masters.getSubjects().subscribe({
       next: (rows) => {
         this.subjects.set(rows);
         this.page.set(1);
@@ -1403,9 +1355,7 @@ export class AdminMastersComponent {
   }
 
   private loadOfficeTypes(): void {
-    const departmentId =
-      this.selectedOfficeTypeDepartmentId() || this.officeTypeForm.controls.departmentId.getRawValue() || 0;
-    this.masters.getOfficeTypes(departmentId > 0 ? departmentId : undefined).subscribe({
+    this.masters.getOfficeTypes().subscribe({
       next: (rows) => {
         this.officeTypes.set(rows);
         this.page.set(1);
@@ -1423,21 +1373,24 @@ export class AdminMastersComponent {
   }
 
   private loadOffices(): void {
-    const f = this.officeFilterForm.getRawValue();
-    this.masters
-      .getOffices({
-        departmentId: f.departmentId > 0 ? f.departmentId : undefined,
-        officeTypeId: f.officeTypeId > 0 ? f.officeTypeId : undefined,
-        level: f.level || undefined,
-        locationId: f.locationId > 0 ? f.locationId : undefined
-      })
-      .subscribe({
-        next: (rows) => {
-          this.offices.set(rows);
-          this.page.set(1);
-        },
-        error: () => this.offices.set([])
-      });
+    this.masters.getOffices().subscribe({
+      next: (rows) => {
+        this.offices.set(rows);
+        this.page.set(1);
+      },
+      error: () => this.offices.set([])
+    });
+  }
+
+  /** Maps office type id to location-chain depth (0 = unknown). */
+  private officeTypeIdToLevel(typeId: number | null | undefined): number {
+    switch (typeId) {
+      case 1: return 1;
+      case 2: return 2;
+      case 3: return 3;
+      case 6: return 4;
+      default: return 0;
+    }
   }
 
   private resetOfficeLocationChain(): void {
@@ -1445,58 +1398,30 @@ export class AdminMastersComponent {
     this.officeDistricts.set([]);
     this.officeSubdistricts.set([]);
     this.officeTalukas.set([]);
-    this.officeVillages.set([]);
     this.officeForm.controls.divisionId.setValue(0);
     this.officeForm.controls.districtId.setValue(0);
     this.officeForm.controls.subdistrictId.setValue(0);
     this.officeForm.controls.talukaId.setValue(0);
-    this.officeForm.controls.villageId.setValue(0);
   }
 
-  private resetOfficeFilterLocationChain(): void {
-    this.officeDivisions.set([]);
-    this.officeDistricts.set([]);
-    this.officeSubdistricts.set([]);
-    this.officeTalukas.set([]);
-    this.officeVillages.set([]);
-    this.officeFilterForm.controls.divisionId.setValue(0);
-    this.officeFilterForm.controls.districtId.setValue(0);
-    this.officeFilterForm.controls.subdistrictId.setValue(0);
-    this.officeFilterForm.controls.talukaId.setValue(0);
-    this.officeFilterForm.controls.villageId.setValue(0);
-  }
-
-  private loadOfficeLocationOptions(): void {
-    const level = this.officeForm.controls.level.getRawValue();
-    const stateId = this.hasFixedState ? environment.defaultState.id : this.officeForm.controls.stateId.getRawValue();
+  private loadOfficeLocationOptions(level = this.officeFormLevel()): void {
+    const stateId = this.officeForm.controls.stateId.getRawValue();
     if (!stateId || stateId < 1) return;
-    if (level === 'STATE') {
+    if (level === 1) {
       this.officeForm.controls.locationId.setValue(stateId);
       return;
     }
-    this.masters.getDivisions(stateId).subscribe({
-      next: (rows) => this.officeDivisions.set(rows),
-      error: () => this.officeDivisions.set([])
-    });
-  }
-
-  private loadOfficeFilterLocationOptions(): void {
-    const level = this.officeFilterForm.controls.level.getRawValue();
-    const stateId = this.hasFixedState ? environment.defaultState.id : this.officeFilterForm.controls.stateId.getRawValue();
-    if (!stateId || stateId < 1) return;
-    if (level === 'STATE') {
-      this.officeFilterForm.controls.locationId.setValue(stateId);
-      return;
+    if (level >= 2) {
+      this.masters.getDivisions(stateId).subscribe({
+        next: (rows) => this.officeDivisions.set(rows),
+        error: () => this.officeDivisions.set([])
+      });
     }
-    this.masters.getDivisions(stateId).subscribe({
-      next: (rows) => this.officeDivisions.set(rows),
-      error: () => this.officeDivisions.set([])
-    });
   }
 
-  private loadOfficeDistricts(isFilter = false): void {
-    const stateId = this.hasFixedState ? environment.defaultState.id : (isFilter ? this.officeFilterForm.controls.stateId.getRawValue() : this.officeForm.controls.stateId.getRawValue());
-    const divisionId = isFilter ? this.officeFilterForm.controls.divisionId.getRawValue() : this.officeForm.controls.divisionId.getRawValue();
+  private loadOfficeDistricts(): void {
+    const stateId = this.officeForm.controls.stateId.getRawValue();
+    const divisionId = this.officeForm.controls.divisionId.getRawValue();
     if (!stateId || stateId < 1 || !divisionId || divisionId < 1) return;
     this.masters.getDistricts(stateId, divisionId).subscribe({
       next: (rows) => this.officeDistricts.set(rows),
@@ -1504,8 +1429,8 @@ export class AdminMastersComponent {
     });
   }
 
-  private loadOfficeSubdistricts(isFilter = false): void {
-    const districtId = isFilter ? this.officeFilterForm.controls.districtId.getRawValue() : this.officeForm.controls.districtId.getRawValue();
+  private loadOfficeSubdistricts(): void {
+    const districtId = this.officeForm.controls.districtId.getRawValue();
     if (!districtId || districtId < 1) return;
     this.masters.getSubdistricts(districtId).subscribe({
       next: (rows) => this.officeSubdistricts.set(rows),
@@ -1513,61 +1438,28 @@ export class AdminMastersComponent {
     });
   }
 
-  private loadOfficeTalukas(isFilter = false): void {
-    const districtId = isFilter ? this.officeFilterForm.controls.districtId.getRawValue() : this.officeForm.controls.districtId.getRawValue();
-    const subdistrictId = isFilter ? this.officeFilterForm.controls.subdistrictId.getRawValue() : this.officeForm.controls.subdistrictId.getRawValue();
-    if (!districtId || districtId < 1 || !subdistrictId || subdistrictId < 1) return;
-    this.masters.getTalukas(districtId, subdistrictId).subscribe({
+  private loadOfficeTalukas(): void {
+    const districtId = this.officeForm.controls.districtId.getRawValue();
+    const subdistrictId = this.officeForm.controls.subdistrictId.getRawValue();
+    if (!districtId || districtId < 1) return;
+    this.masters.getTalukas(districtId, subdistrictId > 0 ? subdistrictId : undefined).subscribe({
       next: (rows) => this.officeTalukas.set(rows),
       error: () => this.officeTalukas.set([])
     });
   }
 
-  private loadOfficeVillages(isFilter = false): void {
-    const talukaId = isFilter ? this.officeFilterForm.controls.talukaId.getRawValue() : this.officeForm.controls.talukaId.getRawValue();
-    if (!talukaId || talukaId < 1) return;
-    this.masters.getVillages(talukaId).subscribe({
-      next: (rows) => this.officeVillages.set(rows),
-      error: () => this.officeVillages.set([])
-    });
-  }
-
-  private syncOfficeLocationId(): void {
-    const level = this.officeForm.controls.level.getRawValue();
+  private syncOfficeLocationId(level = this.officeFormLevel()): void {
     const id =
-      level === 'STATE'
-        ? (this.hasFixedState ? environment.defaultState.id : this.officeForm.controls.stateId.getRawValue())
-        : level === 'DIVISION'
+      level === 1
+        ? this.officeForm.controls.stateId.getRawValue()
+        : level === 2
           ? this.officeForm.controls.divisionId.getRawValue()
-          : level === 'DISTRICT'
+          : level === 3
             ? this.officeForm.controls.districtId.getRawValue()
-            : level === 'SUBDISTRICT'
-              ? this.officeForm.controls.subdistrictId.getRawValue()
-              : level === 'TALUKA'
-                ? this.officeForm.controls.talukaId.getRawValue()
-                : this.officeForm.controls.villageId.getRawValue();
+            : level === 4
+              ? this.officeForm.controls.talukaId.getRawValue()
+              : 0;
     this.officeForm.controls.locationId.setValue(id || 0);
-  }
-
-  private syncOfficeFilterLocationId(): void {
-    const level = this.officeFilterForm.controls.level.getRawValue();
-    if (!level) {
-      this.officeFilterForm.controls.locationId.setValue(0);
-      return;
-    }
-    const id =
-      level === 'STATE'
-        ? (this.hasFixedState ? environment.defaultState.id : this.officeFilterForm.controls.stateId.getRawValue())
-        : level === 'DIVISION'
-          ? this.officeFilterForm.controls.divisionId.getRawValue()
-          : level === 'DISTRICT'
-            ? this.officeFilterForm.controls.districtId.getRawValue()
-            : level === 'SUBDISTRICT'
-              ? this.officeFilterForm.controls.subdistrictId.getRawValue()
-              : level === 'TALUKA'
-                ? this.officeFilterForm.controls.talukaId.getRawValue()
-                : this.officeFilterForm.controls.villageId.getRawValue();
-    this.officeFilterForm.controls.locationId.setValue(id || 0);
   }
 
   private submitOffice() {
@@ -1581,7 +1473,6 @@ export class AdminMastersComponent {
     return {
       departmentId: raw.departmentId,
       officeTypeId: raw.officeTypeId,
-      level: raw.level,
       locationId: raw.locationId,
       name: raw.name,
       localName: raw.localName || undefined,
@@ -1597,8 +1488,12 @@ export class AdminMastersComponent {
     this.officeForm.reset({
       departmentId: row.departmentId,
       officeTypeId: row.officeTypeId,
-      level: row.level,
       locationId: row.locationId,
+      stateId: 0,
+      divisionId: 0,
+      districtId: 0,
+      subdistrictId: 0,
+      talukaId: 0,
       name: row.name,
       localName: row.localName || '',
       shortName: row.shortName || '',
@@ -1608,11 +1503,16 @@ export class AdminMastersComponent {
 
   protected cancelEditOffice(): void {
     this.editingOfficeId.set(null);
+    this.resetOfficeLocationChain();
     this.officeForm.reset({
       departmentId: 0,
       officeTypeId: 0,
-      level: 'TALUKA',
       locationId: 0,
+      stateId: 0,
+      divisionId: 0,
+      districtId: 0,
+      subdistrictId: 0,
+      talukaId: 0,
       name: '',
       localName: '',
       shortName: '',
@@ -1636,21 +1536,32 @@ export class AdminMastersComponent {
     });
   }
 
+  protected applyDistrictFilter(): void {
+    const f = this.districtFilterForm.getRawValue();
+    this.districtFilter.set({ stateId: f.stateId, divisionId: f.divisionId });
+    this.page.set(1);
+  }
+
+  protected clearDistrictFilter(): void {
+    this.districtFilterForm.reset({ stateId: 0, divisionId: 0 });
+    this.districtFilter.set({ stateId: 0, divisionId: 0 });
+    this.page.set(1);
+  }
+
   protected applyOfficeFilters(): void {
-    this.loadOffices();
+    const f = this.officeFilterForm.getRawValue();
+    this.officeListFilter.set({ departmentId: f.departmentId, officeTypeId: f.officeTypeId });
+    this.page.set(1);
   }
 
   protected clearOfficeFilters(): void {
-    this.officeFilterForm.reset({ departmentId: 0, officeTypeId: 0, level: '', locationId: 0 });
-    this.loadOffices();
+    this.officeFilterForm.reset({ departmentId: 0, officeTypeId: 0 });
+    this.officeListFilter.set({ departmentId: 0, officeTypeId: 0 });
+    this.page.set(1);
   }
 
   private loadDesignations(): void {
-    const deptId =
-      this.designationFilterForm.controls.departmentId.getRawValue() ||
-      this.designationForm.controls.departmentId.getRawValue();
-    const departmentId = deptId > 0 ? deptId : undefined;
-    this.masters.getDesignations(departmentId).subscribe({
+    this.masters.getDesignations().subscribe({
       next: (rows) => {
         this.designations.set(rows);
         this.page.set(1);
@@ -1682,9 +1593,7 @@ export class AdminMastersComponent {
   }
 
   private loadEmployees(): void {
-    const a = this.employeeFilterForm.controls.active.getRawValue();
-    const active = a === '' ? undefined : a === 'true';
-    this.masters.getEmployees(active).subscribe({
+    this.masters.getEmployees().subscribe({
       next: (rows) => {
         this.employees.set(rows);
         this.page.set(1);
@@ -1745,12 +1654,14 @@ export class AdminMastersComponent {
   }
 
   protected applyEmployeeFilter(): void {
-    this.loadEmployees();
+    this.employeeActiveFilter.set(this.employeeFilterForm.controls.active.getRawValue());
+    this.page.set(1);
   }
 
   protected clearEmployeeFilter(): void {
     this.employeeFilterForm.reset({ active: '' });
-    this.loadEmployees();
+    this.employeeActiveFilter.set('');
+    this.page.set(1);
   }
 
   protected openEmployeePostings(row: EmployeeRecord): void {
@@ -2271,12 +2182,14 @@ export class AdminMastersComponent {
   }
 
   protected applyDesignationFilter(): void {
-    this.loadDesignations();
+    this.designationDeptFilter.set(this.designationFilterForm.controls.departmentId.getRawValue());
+    this.page.set(1);
   }
 
   protected clearDesignationFilter(): void {
     this.designationFilterForm.reset({ departmentId: 0 });
-    this.loadDesignations();
+    this.designationDeptFilter.set(0);
+    this.page.set(1);
   }
 
   private occupationPayload(): CreateOrUpdateOccupationRequest {
@@ -2467,12 +2380,50 @@ export class AdminMastersComponent {
     });
   }
 
+  private subdistrictPayload(): CreateSubdistrictRequest {
+    const raw = this.subdistrictForm.getRawValue();
+    const district = this.districts().find((d) => d.id === raw.districtId);
+    return {
+      name: raw.name,
+      localName: raw.localName || undefined,
+      lgdCode: raw.lgdCode || undefined,
+      districtId: raw.districtId,
+      districtLgdCode: district?.lgdCode ?? undefined
+    };
+  }
+
+  private talukaPayload(): CreateTalukaRequest {
+    const raw = this.talukaForm.getRawValue();
+    const district = this.districts().find((d) => d.id === raw.districtId);
+    const subdistrict = this.subdistricts().find((s) => s.id === raw.subdistrictId);
+    return {
+      name: raw.name,
+      localName: raw.localName || undefined,
+      lgdCode: raw.lgdCode || undefined,
+      districtId: raw.districtId,
+      districtLgdCode: district?.lgdCode ?? undefined,
+      subdistrictId: raw.subdistrictId,
+      subdistrictLgdCode: subdistrict?.lgdCode ?? undefined
+    };
+  }
+
+  private villagePayload(): CreateVillageRequest {
+    const raw = this.villageForm.getRawValue();
+    const taluka = this.talukas().find((t) => t.id === raw.talukaId);
+    return {
+      name: raw.name,
+      localName: raw.localName || undefined,
+      lgdCode: raw.lgdCode || undefined,
+      talukaId: raw.talukaId,
+      talukaLgdCode: taluka?.lgdCode ?? undefined
+    };
+  }
+
   private departmentPayload(): CreateOrUpdateDepartmentRequest {
     const raw = this.departmentForm.getRawValue();
     return {
       name: raw.name,
       localName: raw.localName || undefined,
-      lgdCode: raw.lgdCode || undefined,
       stateId: this.hasFixedState ? environment.defaultState.id : raw.stateId
     };
   }
@@ -2484,7 +2435,6 @@ export class AdminMastersComponent {
     this.departmentForm.reset({
       name: row.name,
       localName: row.localName || '',
-      lgdCode: row.lgdCode || '',
       stateId: row.stateId
     });
     if (this.hasFixedState) {
@@ -2497,8 +2447,7 @@ export class AdminMastersComponent {
     this.departmentForm.reset({
       stateId: this.hasFixedState ? environment.defaultState.id : 0,
       name: '',
-      localName: '',
-      lgdCode: ''
+      localName: ''
     });
     if (this.hasFixedState) {
       this.departmentForm.controls.stateId.disable();
@@ -2528,6 +2477,27 @@ export class AdminMastersComponent {
     });
   }
 
+  protected readonly pageRange = computed<number[]>(() => {
+    const total = this.totalPages();
+    const current = this.page();
+    const delta = 2;
+    const range: number[] = [];
+    const rangeStart = Math.max(1, current - delta);
+    const rangeEnd = Math.min(total, current + delta);
+    for (let i = rangeStart; i <= rangeEnd; i++) range.push(i);
+    return range;
+  });
+
+  protected readonly pageFrom = computed(() => {
+    const current = Math.min(this.page(), this.totalPages());
+    return (current - 1) * this.pageSize() + 1;
+  });
+
+  protected readonly pageTo = computed(() => {
+    const current = Math.min(this.page(), this.totalPages());
+    return Math.min(current * this.pageSize(), this.total());
+  });
+
   protected setPageSize(size: number): void {
     this.pageSize.set(size);
     this.page.set(1);
@@ -2539,6 +2509,10 @@ export class AdminMastersComponent {
 
   protected nextPage(): void {
     this.page.set(Math.min(this.totalPages(), this.page() + 1));
+  }
+
+  protected goToPage(p: number): void {
+    this.page.set(Math.max(1, Math.min(this.totalPages(), p)));
   }
 }
 
