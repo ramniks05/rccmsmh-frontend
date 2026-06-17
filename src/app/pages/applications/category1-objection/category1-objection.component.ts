@@ -250,7 +250,7 @@ export class Category1ObjectionComponent {
     const code = String(subject.subjectCode || '').trim().toUpperCase();
     const name = String(subject.subjectName || '').trim().toUpperCase();
     return (
-      code === '001' ||
+      code === '003' ||
       name.includes('7/12') ||
       name.includes('712') ||
       name.includes('ROR') ||
@@ -334,7 +334,7 @@ export class Category1ObjectionComponent {
     this.partyDialogRole.set(role);
     this.partyDialogMode.set('add');
     this.dialogError.set(null);
-    
+
     if (role === 'applicant') {
       const g = this.createPartyGroup();
       this.applicants.push(g);
@@ -346,7 +346,7 @@ export class Category1ObjectionComponent {
       this.ensureLookupState('respondent', g.controls.tempId.getRawValue());
       this.partyDialogIndex.set(this.respondents.length - 1);
     }
-    
+
     this.isPartyDialogOpen.set(true);
   }
 
@@ -355,13 +355,13 @@ export class Category1ObjectionComponent {
     this.partyDialogMode.set('edit');
     this.partyDialogIndex.set(index);
     this.dialogError.set(null);
-    
+
     const arr = role === 'applicant' ? this.applicants : this.respondents;
     const group = arr.at(index);
     if (group) {
       this.partyGroupBackupValue = group.getRawValue();
     }
-    
+
     this.isPartyDialogOpen.set(true);
   }
 
@@ -370,7 +370,7 @@ export class Category1ObjectionComponent {
     const mode = this.partyDialogMode();
     const idx = this.partyDialogIndex();
     const arr = role === 'applicant' ? this.applicants : this.respondents;
-    
+
     if (!save) {
       if (mode === 'add' && idx >= 0 && idx < arr.length) {
         arr.removeAt(idx);
@@ -547,18 +547,18 @@ export class Category1ObjectionComponent {
     return arr.controls.map((c) => {
       const v = (c as any).getRawValue?.() as
         | {
-            tempId?: string;
-            firstName?: string;
-            middleName?: string;
-            lastName?: string;
-            name?: string;
-            mobile?: string;
-            email?: string;
-            address?: string;
-            village?: string;
-            taluka?: string;
-            district?: string;
-          }
+          tempId?: string;
+          firstName?: string;
+          middleName?: string;
+          lastName?: string;
+          name?: string;
+          mobile?: string;
+          email?: string;
+          address?: string;
+          village?: string;
+          taluka?: string;
+          district?: string;
+        }
         | undefined;
       const id = v?.tempId || this.makeTempId();
       const fullName = [v?.firstName || '', v?.middleName || '', v?.lastName || ''].join(' ').trim();
@@ -949,63 +949,63 @@ export class Category1ObjectionComponent {
   }
 
   private setupPartyGroupSubscriptions(
-  group: ReturnType<Category1ObjectionComponent['createPartyGroup']>
-): void {
+    group: ReturnType<Category1ObjectionComponent['createPartyGroup']>
+  ): void {
 
-  // DOB -> Age
-  group.controls.dob.valueChanges
-    .pipe(takeUntilDestroyed(this.destroyRef))
-    .subscribe((value) => {
+    // DOB -> Age
+    group.controls.dob.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
 
-      const calculated =
-        this.calculateAge(value || '');
+        const calculated =
+          this.calculateAge(value || '');
 
-      if (calculated !== null) {
-        group.controls.age.setValue(
-          String(calculated),
-          { emitEvent: false }
-        );
-      }
-    });
-
-  const translationMappings: [string, string][] = [
-    ['firstName', 'firstNameMr'],
-    ['middleName', 'middleNameMr'],
-    ['lastName', 'lastNameMr'],
-    ['address', 'addressMr'],
-    ['occupation', 'occupationMr']
-  ];
-
-  translationMappings.forEach(
-    ([englishField, marathiField]) => {
-
-      const control =
-        group.get(englishField);
-
-      if (!control) return;
-
-      // typing trigger
-      control.valueChanges
-        .pipe(
-          debounceTime(1500),
-          distinctUntilChanged(),
-          takeUntilDestroyed(this.destroyRef)
-        )
-        .subscribe((value) => {
-
-          this.tryAutoTranslate(value, marathiField, group, englishField);
-        });
-
-      // prefilled trigger
-      setTimeout(() => {
-        const existingValue = control.value?.trim();
-        if (existingValue) {
-          this.tryAutoTranslate(existingValue, marathiField, group, englishField);
+        if (calculated !== null) {
+          group.controls.age.setValue(
+            String(calculated),
+            { emitEvent: false }
+          );
         }
-      }, 300);
-    }
-  );
-}
+      });
+
+    const translationMappings: [string, string][] = [
+      ['firstName', 'firstNameMr'],
+      ['middleName', 'middleNameMr'],
+      ['lastName', 'lastNameMr'],
+      ['address', 'addressMr'],
+      ['occupation', 'occupationMr']
+    ];
+
+    translationMappings.forEach(
+      ([englishField, marathiField]) => {
+
+        const control =
+          group.get(englishField);
+
+        if (!control) return;
+
+        // typing trigger
+        control.valueChanges
+          .pipe(
+            debounceTime(1500),
+            distinctUntilChanged(),
+            takeUntilDestroyed(this.destroyRef)
+          )
+          .subscribe((value) => {
+
+            this.tryAutoTranslate(value, marathiField, group, englishField);
+          });
+
+        // prefilled trigger
+        setTimeout(() => {
+          const existingValue = control.value?.trim();
+          if (existingValue) {
+            this.tryAutoTranslate(existingValue, marathiField, group, englishField);
+          }
+        }, 300);
+      }
+    );
+  }
 
   private partyRowMeta(
     group: ReturnType<Category1ObjectionComponent['createPartyGroup']>
@@ -1021,62 +1021,62 @@ export class Category1ObjectionComponent {
     return `${role}-${index}-${marathiFieldName}`;
   }
 
-private tryAutoTranslate(
-  englishText: string,
-  marathiFieldName: string,
-  group: ReturnType<Category1ObjectionComponent['createPartyGroup']>,
-  fieldName: string
-): void {
+  private tryAutoTranslate(
+    englishText: string,
+    marathiFieldName: string,
+    group: ReturnType<Category1ObjectionComponent['createPartyGroup']>,
+    fieldName: string
+  ): void {
 
-  const text = (englishText ?? '').trim();
-  const { role, index } = this.partyRowMeta(group);
-  const marathiKey = this.marathiFieldKey(role, index, marathiFieldName);
+    const text = (englishText ?? '').trim();
+    const { role, index } = this.partyRowMeta(group);
+    const marathiKey = this.marathiFieldKey(role, index, marathiFieldName);
 
-  // if English field is cleared, also clear Marathi field to allow re-translation when user adds text again
-  if (!text) {
-    group.patchValue(
-      {
-        [marathiFieldName]: ''
-      },
-      { emitEvent: false }
+    // if English field is cleared, also clear Marathi field to allow re-translation when user adds text again
+    if (!text) {
+      group.patchValue(
+        {
+          [marathiFieldName]: ''
+        },
+        { emitEvent: false }
+      );
+      this.manuallyEditedMarathiFields.update((s) => {
+        const next = new Set(s);
+        next.delete(marathiKey);
+        return next;
+      });
+      return;
+    }
+
+    const marathiAlready =
+      group.get(marathiFieldName)
+        ?.value
+        ?.trim();
+
+    const wasManuallyEdited = this.manuallyEditedMarathiFields().has(marathiKey);
+
+    if (marathiAlready && wasManuallyEdited) {
+      return;
+    }
+
+    if (marathiAlready && !wasManuallyEdited) {
+      group.patchValue(
+        {
+          [marathiFieldName]: ''
+        },
+        { emitEvent: false }
+      );
+    }
+
+    this.transliterateToMarathi(
+      text,
+      marathiFieldName,
+      group,
+      role,
+      index,
+      fieldName
     );
-    this.manuallyEditedMarathiFields.update((s) => {
-      const next = new Set(s);
-      next.delete(marathiKey);
-      return next;
-    });
-    return;
   }
-
-  const marathiAlready =
-    group.get(marathiFieldName)
-      ?.value
-      ?.trim();
-
-  const wasManuallyEdited = this.manuallyEditedMarathiFields().has(marathiKey);
-
-  if (marathiAlready && wasManuallyEdited) {
-    return;
-  }
-
-  if (marathiAlready && !wasManuallyEdited) {
-    group.patchValue(
-      {
-        [marathiFieldName]: ''
-      },
-      { emitEvent: false }
-    );
-  }
-
-  this.transliterateToMarathi(
-    text,
-    marathiFieldName,
-    group,
-    role,
-    index,
-    fieldName
-  );
-}
 
   private calculateAge(dobIso: string): number | null {
     if (!dobIso) return null;
@@ -1138,16 +1138,30 @@ private tryAutoTranslate(
         }
       });
 
-    this.loadActs();
-    this.loadOccupations();
-    this.loadUrbanSearchDistricts();
-    this.loadRuralSearchDistricts();
-
     effect(() => {
       const stepKey = this.activeStep().key;
       if (stepKey !== 'DISPUTED_ORDER' || this.hydrating) return;
       untracked(() => {
         queueMicrotask(() => this.ensureUrbanInwardChainLoaded());
+      });
+    });
+
+    effect(() => {
+      const subject = this.selectedSubject();
+      if (!subject) return;
+      untracked(() => {
+        if (this.isEpicsSubject() && this.urbanSearchDistricts().length === 0) {
+          this.loadUrbanSearchDistricts();
+        }
+        if (this.isRural712Subject() && this.ruralSearchDistricts().length === 0) {
+          this.loadRuralSearchDistricts();
+        }
+        if (this.acts().length === 0) {
+          this.loadActs();
+        }
+        if (this.occupations().length === 0) {
+          this.loadOccupations();
+        }
       });
     });
 
@@ -1190,7 +1204,7 @@ private tryAutoTranslate(
         this.resetRural712SearchChain();
       }
       this.resetLocationChain();
-      if (subjectId && subjectId > 0) {
+      if (subjectId && subjectId > 0 && this.districts().length === 0) {
         this.loadDistricts();
       }
     });
@@ -2838,7 +2852,7 @@ private tryAutoTranslate(
     this.form.controls.subdistrictId.setValue(0);
     this.form.controls.talukaId.setValue(0);
     this.form.controls.officeId.setValue(0);
-    this.districts.set([]);
+    // Do not clear districts because they are loaded at startup and are static for the default state
     this.subdistricts.set([]);
     this.talukas.set([]);
     this.offices.set([]);
@@ -3391,10 +3405,10 @@ private tryAutoTranslate(
 
   /** Maps English control names → paired Marathi control names. */
   private readonly marathiFieldMap: Record<string, string> = {
-    firstName:  'firstNameMr',
+    firstName: 'firstNameMr',
     middleName: 'middleNameMr',
-    lastName:   'lastNameMr',
-    address:    'addressMr',
+    lastName: 'lastNameMr',
+    address: 'addressMr',
     occupation: 'occupationMr',
   };
 
@@ -3403,46 +3417,46 @@ private tryAutoTranslate(
    * no HTTP request needed. Keys are lowercase substrings; first match wins.
    */
   private readonly occupationMarathiMap: Record<string, string> = {
-    'doctor':        'डॉक्टर',
-    'engineer':      'अभियंता',
-    'farmer':        'शेतकरी',
-    'teacher':       'शिक्षक',
-    'business':      'व्यापारी',
-    'student':       'विद्यार्थी',
-    'retired':       'निवृत्त',
-    'unemployed':    'बेरोजगार',
+    'doctor': 'डॉक्टर',
+    'engineer': 'अभियंता',
+    'farmer': 'शेतकरी',
+    'teacher': 'शिक्षक',
+    'business': 'व्यापारी',
+    'student': 'विद्यार्थी',
+    'retired': 'निवृत्त',
+    'unemployed': 'बेरोजगार',
     'self employed': 'स्वयंरोजगार',
     'self-employed': 'स्वयंरोजगार',
-    'lawyer':        'वकील',
-    'advocate':      'अधिवक्ता',
-    'accountant':    'लेखापाल',
-    'clerk':         'लिपिक',
-    'officer':       'अधिकारी',
-    'government':    'सरकारी कर्मचारी',
-    'housewife':     'गृहिणी',
-    'labour':        'मजूर',
-    'laborer':       'मजूर',
-    'labourer':      'मजूर',
-    'police':        'पोलीस',
-    'army':          'सैनिक',
-    'nurse':         'परिचारिका',
-    'driver':        'चालक',
-    'carpenter':     'सुतार',
-    'electrician':   'विद्युत तंत्रज्ञ',
-    'plumber':       'नलसाज',
-    'tailor':        'शिंपी',
-    'shopkeeper':    'दुकानदार',
-    'contractor':    'कंत्राटदार',
-    'professor':     'प्राध्यापक',
-    'principal':     'मुख्याध्यापक',
-    'journalist':    'पत्रकार',
-    'artist':        'कलाकार',
-    'architect':     'वास्तुविशारद',
-    'banker':        'बँकर',
-    'manager':       'व्यवस्थापक',
-    'director':      'संचालक',
-    'trader':        'व्यापारी',
-    'agriculture':   'शेतकरी',
+    'lawyer': 'वकील',
+    'advocate': 'अधिवक्ता',
+    'accountant': 'लेखापाल',
+    'clerk': 'लिपिक',
+    'officer': 'अधिकारी',
+    'government': 'सरकारी कर्मचारी',
+    'housewife': 'गृहिणी',
+    'labour': 'मजूर',
+    'laborer': 'मजूर',
+    'labourer': 'मजूर',
+    'police': 'पोलीस',
+    'army': 'सैनिक',
+    'nurse': 'परिचारिका',
+    'driver': 'चालक',
+    'carpenter': 'सुतार',
+    'electrician': 'विद्युत तंत्रज्ञ',
+    'plumber': 'नलसाज',
+    'tailor': 'शिंपी',
+    'shopkeeper': 'दुकानदार',
+    'contractor': 'कंत्राटदार',
+    'professor': 'प्राध्यापक',
+    'principal': 'मुख्याध्यापक',
+    'journalist': 'पत्रकार',
+    'artist': 'कलाकार',
+    'architect': 'वास्तुविशारद',
+    'banker': 'बँकर',
+    'manager': 'व्यवस्थापक',
+    'director': 'संचालक',
+    'trader': 'व्यापारी',
+    'agriculture': 'शेतकरी',
   };
 
   /**
@@ -3477,42 +3491,42 @@ private tryAutoTranslate(
   }
 
   private saveTranslation(
-  role: string,
-  index: number,
-  fieldName: string
-): void {
+    role: string,
+    index: number,
+    fieldName: string
+  ): void {
 
-  const array =
-    role === 'applicant'
-      ? this.applicants
-      : this.respondents;
+    const array =
+      role === 'applicant'
+        ? this.applicants
+        : this.respondents;
 
-  const group = array.at(index);
+    const group = array.at(index);
 
-  const marathiMap: Record<string, string> = {
-    firstName: 'firstNameMr',
-    middleName: 'middleNameMr',
-    lastName: 'lastNameMr',
-    address: 'addressMr',
-    occupation: 'occupationMr'
-  };
+    const marathiMap: Record<string, string> = {
+      firstName: 'firstNameMr',
+      middleName: 'middleNameMr',
+      lastName: 'lastNameMr',
+      address: 'addressMr',
+      occupation: 'occupationMr'
+    };
 
-  const marathiFieldName = marathiMap[fieldName];
+    const marathiFieldName = marathiMap[fieldName];
 
-  if (!marathiFieldName) return;
+    if (!marathiFieldName) return;
 
-  const englishText =
-    group.get(fieldName)?.value ?? '';
+    const englishText =
+      group.get(fieldName)?.value ?? '';
 
-  this.transliterateToMarathi(
-    englishText,
-    marathiFieldName,
-    group as any,
-    role,
-    index,
-    fieldName
-  );
-}
+    this.transliterateToMarathi(
+      englishText,
+      marathiFieldName,
+      group as any,
+      role,
+      index,
+      fieldName
+    );
+  }
 
   private lookupOccupationMarathi(text: string): string {
     const lower = text.toLowerCase();
@@ -3522,142 +3536,177 @@ private tryAutoTranslate(
     return '';
   }
 
-private transliterateToMarathi(
-  englishText: string,
-  marathiFieldName: string,
-  group: ReturnType<Category1ObjectionComponent['createPartyGroup']>,
-  role: string,
-  index: number,
-  fieldName: string
-): void {
+  private transliterateToMarathi(
+    englishText: string,
+    marathiFieldName: string,
+    group: ReturnType<Category1ObjectionComponent['createPartyGroup']>,
+    role: string,
+    index: number,
+    fieldName: string
+  ): void {
 
-  const text = englishText?.trim();
+    const text = englishText?.trim();
 
-  if (!text) {
-    return;
-  }
+    if (!text) {
+      return;
+    }
 
-  const key = `${role}-${index}-${fieldName}`;
+    const key = `${role}-${index}-${fieldName}`;
 
-  // loading state
-  this.translatingFields.update((s) => {
-    const next = new Set(s);
-    next.add(key);
-    return next;
-  });
-
-  const url =
-    `https://translate.googleapis.com/translate_a/single` +
-    `?client=gtx&sl=en&tl=mr&dt=t&q=${encodeURIComponent(text)}`;
-
-  this.http
-    .get<any>(url)
-    .pipe(
-      takeUntilDestroyed(this.destroyRef),
-      finalize(() => {
-        this.translatingFields.update((s) => {
-          const next = new Set(s);
-          next.delete(key);
-          return next;
-        });
-      })
-    )
-    .subscribe({
-      next: (resp) => {
-        try {
-
-          const translated =
-            resp?.[0]
-              ?.map((x: any) => x[0])
-              ?.join('')
-              ?.trim() ?? '';
-
-          if (!translated) return;
-
-          const currentMr =
-            group.get(marathiFieldName)?.value?.trim();
-
-          // don't overwrite manually entered Marathi
-          if (currentMr) return;
-
-          group.patchValue(
-            {
-              [marathiFieldName]: translated
-            },
-            { emitEvent: false }
-          );
-
-          this.schedulePersist();
-
-        } catch (e) {
-          console.error('Translation parse failed', e);
-        }
-      },
-
-      error: (err) => {
-        console.error('Translation failed', err);
-      }
+    // loading state
+    this.translatingFields.update((s) => {
+      const next = new Set(s);
+      next.add(key);
+      return next;
     });
-}
-private setupAutoTranslation(
-  role: 'applicant' | 'respondent',
-  index: number,
-  group: ReturnType<Category1ObjectionComponent['createPartyGroup']>
-): void {
 
-  Object.entries(this.marathiFieldMap).forEach(
-    ([englishField, marathiField]) => {
+    const url =
+      `https://translate.googleapis.com/translate_a/single` +
+      `?client=gtx&sl=en&tl=mr&dt=t&q=${encodeURIComponent(text)}`;
 
-      const englishControl = group.get(englishField);
-      if (!englishControl) return;
+    this.http
+      .get<any>(url)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.translatingFields.update((s) => {
+            const next = new Set(s);
+            next.delete(key);
+            return next;
+          });
+        })
+      )
+      .subscribe({
+        next: (resp) => {
+          try {
 
-      englishControl.valueChanges
-        .pipe(
-          takeUntilDestroyed(this.destroyRef),
-          debounceTime(1500),
-          distinctUntilChanged()
-        )
-        .subscribe((value) => {
+            const translated =
+              resp?.[0]
+                ?.map((x: any) => x[0])
+                ?.join('')
+                ?.trim() ?? '';
 
-          const englishValue = String(value || '').trim();
-          const key = `${role}-${index}-${marathiField}`;
+            if (!translated) return;
 
-          if (!englishValue) {
-            // Clear Marathi field when English is cleared to allow re-translation
+            const currentMr =
+              group.get(marathiFieldName)?.value?.trim();
+
+            // don't overwrite manually entered Marathi
+            if (currentMr) return;
+
             group.patchValue(
-              { [marathiField]: '' },
+              {
+                [marathiFieldName]: translated
+              },
               { emitEvent: false }
             );
-            // Also clear the "manually edited" flag
-            this.manuallyEditedMarathiFields.update((s) => {
-              const next = new Set(s);
-              next.delete(key);
-              return next;
-            });
-            return;
+
+            this.schedulePersist();
+
+          } catch (e) {
+            console.error('Translation parse failed', e);
           }
+        },
 
-          // Check if Marathi field was manually edited
-          const wasManuallyEdited = this.manuallyEditedMarathiFields().has(key);
-          const marathiValue = group.get(marathiField)?.value?.trim() || '';
+        error: (err) => {
+          console.error('Translation failed', err);
+        }
+      });
+  }
+  private setupAutoTranslation(
+    role: 'applicant' | 'respondent',
+    index: number,
+    group: ReturnType<Category1ObjectionComponent['createPartyGroup']>
+  ): void {
 
-          // Skip if manually edited, but allow re-translation if Marathi is empty or auto-generated
-          if (marathiValue && wasManuallyEdited) {
-            return;
-          }
+    Object.entries(this.marathiFieldMap).forEach(
+      ([englishField, marathiField]) => {
 
-          // If Marathi has auto-generated value, clear it before re-translating
-          if (marathiValue && !wasManuallyEdited) {
-            group.patchValue(
-              { [marathiField]: '' },
-              { emitEvent: false }
+        const englishControl = group.get(englishField);
+        if (!englishControl) return;
+
+        englishControl.valueChanges
+          .pipe(
+            takeUntilDestroyed(this.destroyRef),
+            debounceTime(1500),
+            distinctUntilChanged()
+          )
+          .subscribe((value) => {
+
+            const englishValue = String(value || '').trim();
+            const key = `${role}-${index}-${marathiField}`;
+
+            if (!englishValue) {
+              // Clear Marathi field when English is cleared to allow re-translation
+              group.patchValue(
+                { [marathiField]: '' },
+                { emitEvent: false }
+              );
+              // Also clear the "manually edited" flag
+              this.manuallyEditedMarathiFields.update((s) => {
+                const next = new Set(s);
+                next.delete(key);
+                return next;
+              });
+              return;
+            }
+
+            // Check if Marathi field was manually edited
+            const wasManuallyEdited = this.manuallyEditedMarathiFields().has(key);
+            const marathiValue = group.get(marathiField)?.value?.trim() || '';
+
+            // Skip if manually edited, but allow re-translation if Marathi is empty or auto-generated
+            if (marathiValue && wasManuallyEdited) {
+              return;
+            }
+
+            // If Marathi has auto-generated value, clear it before re-translating
+            if (marathiValue && !wasManuallyEdited) {
+              group.patchValue(
+                { [marathiField]: '' },
+                { emitEvent: false }
+              );
+            }
+
+            // Occupation → static map
+            if (englishField === 'occupation') {
+              const translated =
+                this.lookupOccupationMarathi(englishValue);
+
+              if (translated) {
+                group.patchValue(
+                  { [marathiField]: translated },
+                  { emitEvent: false }
+                );
+              }
+
+              return;
+            }
+
+            this.transliterateToMarathi(
+              englishValue,
+              marathiField,
+              group,
+              role,
+              index,
+              englishField
             );
-          }
+          });
 
-          // Occupation → static map
+        // AUTO TRANSLATE PREFILLED VALUE
+        const existingValue = String(
+          englishControl.getRawValue() || ''
+        ).trim();
+
+        const marathiExisting = String(
+          group.get(marathiField)?.getRawValue() || ''
+        ).trim();
+
+        if (existingValue && !marathiExisting) {
+
           if (englishField === 'occupation') {
             const translated =
-              this.lookupOccupationMarathi(englishValue);
+              this.lookupOccupationMarathi(existingValue);
 
             if (translated) {
               group.patchValue(
@@ -3665,55 +3714,20 @@ private setupAutoTranslation(
                 { emitEvent: false }
               );
             }
-
-            return;
-          }
-
-          this.transliterateToMarathi(
-            englishValue,
-            marathiField,
-            group,
-            role,
-            index,
-            englishField
-          );
-        });
-
-      // AUTO TRANSLATE PREFILLED VALUE
-      const existingValue = String(
-        englishControl.getRawValue() || ''
-      ).trim();
-
-      const marathiExisting = String(
-        group.get(marathiField)?.getRawValue() || ''
-      ).trim();
-
-      if (existingValue && !marathiExisting) {
-
-        if (englishField === 'occupation') {
-          const translated =
-            this.lookupOccupationMarathi(existingValue);
-
-          if (translated) {
-            group.patchValue(
-              { [marathiField]: translated },
-              { emitEvent: false }
+          } else {
+            this.transliterateToMarathi(
+              existingValue,
+              marathiField,
+              group,
+              role,
+              index,
+              englishField
             );
           }
-        } else {
-          this.transliterateToMarathi(
-            existingValue,
-            marathiField,
-            group,
-            role,
-            index,
-            englishField
-          );
         }
       }
-    }
-  );
-}
+    );
+  }
 
   private formatError(err: unknown): string {
     if (err instanceof HttpErrorResponse) {
