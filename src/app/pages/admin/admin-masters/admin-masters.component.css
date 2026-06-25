@@ -334,60 +334,49 @@
   padding-top: 4px;
 }
 
-/* ── Filter card ────────────────────────────────────────── */
+/* ── Filter bar (sits above the table, inside .table-card) ─ */
 
-.filter-card {
-  margin-top: 16px;
-  border: 1px solid rgba(31, 41, 55, 0.1);
-  border-radius: 14px;
-  overflow: hidden;
-  background: #ffffff;
-}
-
-.filter-card-head {
+.filter-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   background: #f8fafc;
   border-bottom: 1px solid rgba(31, 41, 55, 0.08);
-  padding: 10px 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  padding: 12px 20px;
 }
 
-.filter-card-head h4 {
-  margin: 0;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #374151;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.filter-card-head .filter-icon {
+.filter-bar-icon {
   color: #9ca3af;
-  font-size: 15px;
+  font-size: 14px;
+  line-height: 1;
+  margin-top: 9px;
+  flex-shrink: 0;
 }
 
 .filter-grid {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding: 14px 16px;
+  gap: 10px 14px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  align-items: end;
+  flex: 1;
 }
 
 .filter-grid label {
   display: grid;
   gap: 5px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #374151;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
 .filter-grid input,
 .filter-grid select {
-  max-width: 146px;
+  width: 100%;
   border: 1px solid rgba(31, 41, 55, 0.18);
-  border-radius: 10px;
-  padding: 9px 12px;
+  border-radius: 9px;
+  padding: 8px 11px;
   font-size: 13px;
   font-family: 'DM Sans', sans-serif;
   color: #111827;
@@ -402,10 +391,59 @@
   box-shadow: 0 0 0 3px rgba(11, 61, 145, 0.1);
 }
 
+.filter-actions {
+  padding-top: 0;
+  align-self: end;
+}
+
+/* Posting-history form reuses .filter-grid but needs normal-case labels
+   and its own breathing room since it sits beneath a data table rather
+   than a card head. */
+.posting-form {
+  padding: 14px 20px;
+  background: #fbfbfd;
+  border-bottom: 1px solid rgba(31, 41, 55, 0.06);
+}
+
+.posting-form label {
+  text-transform: none;
+  letter-spacing: 0.15px;
+  color: #374151;
+  font-size: 12px;
+}
+
+/* Empty-state copy used in the Doc Mapping workspace */
+.empty-state-note {
+  padding: 28px 20px;
+  font-size: 13px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.mapping-context-hint {
+  margin: 0;
+  padding: 10px 20px 0;
+}
+
+.doc-mapping-body {
+  padding: 14px 20px 18px;
+}
+
+.doc-mapping-save-row {
+  margin-top: 14px;
+}
+
 @media (max-width: 820px) {
-  .form-row,
-  .filter-grid {
+  .form-row {
     grid-template-columns: 1fr;
+  }
+
+  .filter-bar {
+    flex-direction: column;
+  }
+
+  .filter-bar-icon {
+    margin-top: 0;
   }
 }
 
@@ -581,14 +619,6 @@
   border-color: rgba(245, 158, 11, 0.25);
 }
 
-/* ── List section (legacy .list-card kept for compat) ───── */
-
-.list-card {
-  margin-top: 0;
-  border-top: none;
-  padding-top: 0;
-}
-
 /* ── Doc mapping panels ─────────────────────────────────── */
 
 .doc-mapping-panels {
@@ -688,18 +718,10 @@
   box-shadow: 0 0 0 3px rgba(11, 61, 145, 0.1);
 }
 
-/* ── Doc mapping workspace ──────────────────────────────── */
-
-.doc-mapping-workspace {
-  margin-top: 16px;
-}
-
 /* ── Posting section ────────────────────────────────────── */
 
 .posting-section {
-  margin-top: 16px;
-  border: 1px solid rgba(11, 61, 145, 0.15);
-  border-radius: 14px;
+  border-top: 1px solid rgba(31, 41, 55, 0.08);
   overflow: hidden;
   background: #fff;
 }
