@@ -143,7 +143,7 @@ export class DisputedLandPanelComponent {
 
   protected getDisputedArea(rowIndex: number, row?: Record<string, unknown>): string {
     const mapped = this.disputedAreaMap()[String(rowIndex)];
-    if (mapped != null && mapped !== '') return mapped;
+    if (mapped !== undefined) return mapped;
     const source = row ?? this.urbanPropertyDetails()[rowIndex];
     return source ? this.extractTotalArea(source) : '';
   }
@@ -223,12 +223,9 @@ export class DisputedLandPanelComponent {
   }
 
   private seedDisputedAreaDefaults(rows: Record<string, unknown>[]): void {
-    const next: Record<string, string> = {};
-    rows.forEach((row, index) => {
-      const area = this.extractTotalArea(row);
-      if (area) next[String(index)] = area;
-    });
-    this.disputedAreaMap.set(next);
+    const next: Record<string, string | undefined> = {};
+    rows.forEach((_row, index) => {next[String(index)] = undefined;});
+    this.disputedAreaMap.set(next as Record<string, string>);
     this.disputedAreaErrors.set({});
   }
 
