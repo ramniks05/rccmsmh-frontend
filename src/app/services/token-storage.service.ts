@@ -11,6 +11,8 @@ const OFFICE_ID_KEY = 'rccms.office_id';
 const OFFICE_NAME_KEY = 'rccms.office_name';
 const OFFICE_CODE_KEY = 'rccms.office_code';
 const PROFILE_COMPLETE_KEY = 'rccms.profile_complete';
+/** Treat token as expired slightly before JWT `exp` to avoid race with the server. */
+const SESSION_EXPIRY_SKEW_MS = 30_000;
 
 @Injectable({
   providedIn: 'root'
@@ -51,7 +53,11 @@ export class TokenStorageService {
       this.profileComplete = storedProfile === null ? null : storedProfile === 'true';
     }
     if (this.accessToken) {
-      this.syncClaimsFromJwt();
+      if (this.isSessionExpired()) {
+        this.clear();
+      } else {
+        this.syncClaimsFromJwt();
+      }
     }
     this.isLoggedIn.set(!!this.accessToken);
     this.refreshSessionSignals();
@@ -89,6 +95,35 @@ export class TokenStorageService {
 
   getAccessToken(): string | null {
     return this.accessToken;
+  }
+
+  /** JWT `exp` claim as epoch milliseconds, or null when absent / unreadable. */
+  getTokenExpiresAtMs(): number | null {
+    const payload = this.decodeTokenPayload();
+    if (!payload) return null;
+
+    const exp = payload['exp'];
+    if (typeof exp === 'number' && Number.isFinite(exp)) {
+      return exp * 1000;
+    }
+    if (typeof exp === 'string') {
+      const parsed = Number(exp);
+      return Number.isFinite(parsed) ? parsed * 1000 : null;
+    }
+    return null;
+  }
+
+  isSessionExpired(skewMs = SESSION_EXPIRY_SKEW_MS): boolean {
+    if (!this.accessToken) return true;
+
+    const expMs = this.getTokenExpiresAtMs();
+    if (expMs === null) return false;
+
+    return Date.now() >= expMs - skewMs;
+  }
+
+  hasValidSession(): boolean {
+    return !!this.accessToken && !this.isSessionExpired();
   }
 
   /** JWT `role` claim, else value from login response. */

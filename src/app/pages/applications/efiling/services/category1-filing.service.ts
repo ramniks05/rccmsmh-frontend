@@ -3280,14 +3280,6 @@ export class Category1FilingService {
     this.apiMessage.set(null);
     this.apiError.set(null);
 
-    for (let i = 0; i < this.steps.length; i++) {
-      const key = this.steps[i].key;
-      if (!this.validateStepByKey(key, true)) {
-        this.stepIndex.set(i);
-        return;
-      }
-    }
-
     const id = this.serverApplicationId() ?? 0;
     this.openPreviewModal(id > 0 ? id : 0);
   }
@@ -3397,10 +3389,9 @@ export class Category1FilingService {
   /** Keep embedded preview status in sync after draft save (e.g. status → DRAFT). */
   private refreshFilingPreviewBundleIfOpen(): void {
     if (!this.previewModalOpen()) return;
-    const id = this.serverApplicationId();
-    if (id != null && id > 0) {
-      this.filingPreviewBundle.set(this.buildLocalPreviewBundle(id));
-    }
+    const id = this.serverApplicationId() ?? 0;
+    this.filingPreviewBundle.set(this.buildLocalPreviewBundle(id > 0 ? id : 0));
+    this.previewModalApplicationId.set(id > 0 ? id : 0);
   }
 
   /** Remember draft for Continue filing from application preview. */

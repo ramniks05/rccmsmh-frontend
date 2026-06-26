@@ -66,13 +66,14 @@
       </button>
       }
       <button type="button" class="btn btn-secondary" (click)="filing.back()" [disabled]="filing.stepIndex() === 0">Back</button>
+      <button type="button" class="btn btn-secondary" (click)="filing.previewApplication()">Preview</button>
       @if (!filing.isLastStep()) {
       <button type="button" class="btn btn-primary" (click)="filing.next()">Next</button>
       }
     </footer>
   </article>
 
-  @if (filing.previewModalOpen() && filing.previewModalApplicationId(); as previewId) {
+  @if (filing.previewModalOpen()) {
   <div class="app-preview-modal-backdrop" role="presentation" (click)="filing.onPreviewModalBackdropClick($event)">
     <div class="app-preview-modal" role="dialog" aria-modal="true" aria-labelledby="app-preview-modal-title"
       (click)="$event.stopPropagation()">
@@ -83,7 +84,7 @@
       </header>
       <div class="app-preview-modal-body">
         <app-application-preview
-          [applicationId]="previewId"
+          [applicationId]="filing.previewModalApplicationId() ?? 0"
           [embedded]="true"
           [applicationOnly]="true"
           [localPreview]="filing.filingPreviewBundle()" />

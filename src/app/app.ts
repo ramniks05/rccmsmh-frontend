@@ -6,6 +6,7 @@ import { finalize } from 'rxjs';
 import { AuthService } from './services/auth.service';
 import { AdvocateService } from './services/advocate.service';
 import { TokenStorageService } from './services/token-storage.service';
+import { SessionTimeoutService } from './services/session-timeout.service';
 
 @Component({
   selector: 'app-root',
@@ -32,6 +33,7 @@ export class App implements OnInit {
   }
 
   ngOnInit(): void {
+    inject(SessionTimeoutService);
     this.syncAdvocateSession();
   }
   protected readonly displayName = this.tokenStorage.sessionDisplayName;
@@ -87,7 +89,7 @@ export class App implements OnInit {
 
   /** Refresh advocate flag and profileComplete from API after reload or stale session. */
   private syncAdvocateSession(): void {
-    if (!this.tokenStorage.getAccessToken() || !this.tokenStorage.isAdvocate()) {
+    if (!this.tokenStorage.hasValidSession() || !this.tokenStorage.isAdvocate()) {
       return;
     }
     this.advocateService.getMyProfile().subscribe({

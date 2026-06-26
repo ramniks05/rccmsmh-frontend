@@ -2,7 +2,7 @@ import { Component, inject, NgZone, ChangeDetectorRef } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router, RouterLink, ActivatedRoute } from '@angular/router';
 
 import { AuthService, LoginResponse, LoginRole } from '../../services/auth.service';
 import { TokenStorageService } from '../../services/token-storage.service';
@@ -18,6 +18,7 @@ export class LoginComponent {
   private readonly authService = inject(AuthService);
   private readonly tokenStorage = inject(TokenStorageService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly ngZone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -27,8 +28,12 @@ export class LoginComponent {
   protected selectedLoginUserType: LoginRole = 'ADVOCATE';
 
   constructor() {
-    // If already logged in, redirect to the correct dashboard immediately.
-    if (this.tokenStorage.getAccessToken()) {
+    if (this.route.snapshot.queryParamMap.get('sessionExpired') === '1') {
+      this.loginErrorMessage = 'Your session has expired. Please sign in again.';
+    }
+
+    // If already logged in with a valid token, redirect to the correct dashboard.
+    if (this.tokenStorage.hasValidSession()) {
       void this.router.navigate([this.dashboardRoute(this.tokenStorage.getRole())]);
     }
   }

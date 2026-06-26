@@ -8,6 +8,7 @@ import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 
 import { TokenStorageService } from '../services/token-storage.service';
+import { SessionTimeoutService } from '../services/session-timeout.service';
 
 /** Never attach Authorization (public registration / login / master lookups for signup). */
 const NO_AUTH_PATHS = [
@@ -36,10 +37,18 @@ export const authInterceptor: HttpInterceptorFn = (
 ) => {
 
   const tokenStorage = inject(TokenStorageService);
+  const sessionTimeout = inject(SessionTimeoutService);
   const router = inject(Router);
 
   const skipAuth = NO_AUTH_PATHS.some((path) => req.url.includes(path));
   const accessToken = tokenStorage.getAccessToken();
+
+  if (!skipAuth && accessToken && tokenStorage.isSessionExpired()) {
+    sessionTimeout.forceLogout();
+    return throwError(
+      () => new HttpErrorResponse({ status: 401, statusText: 'Session expired' })
+    );
+  }
 
   // Attach JWT when present (lookups work for logged-in users; registration APIs stay public)
   if (!skipAuth && accessToken) {
@@ -59,7 +68,9 @@ export const authInterceptor: HttpInterceptorFn = (
         if (error.status === 401) {
           tokenStorage.clear();
           if (!isPublicAppRoute(router.url)) {
-            void router.navigate(['/login']);
+            void router.navigate(['/login'], {
+              queryParams: { sessionExpired: '1' }
+            });
           }
         }
 
