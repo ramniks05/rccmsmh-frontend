@@ -18,6 +18,7 @@ export class App implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly advocateService = inject(AdvocateService);
   private readonly tokenStorage = inject(TokenStorageService);
+  private readonly sessionTimeout = inject(SessionTimeoutService);
   private readonly router = inject(Router);
 
   protected readonly appName = 'RCCMS Maharashtra';
@@ -33,7 +34,6 @@ export class App implements OnInit {
   }
 
   ngOnInit(): void {
-    inject(SessionTimeoutService);
     this.syncAdvocateSession();
   }
   protected readonly displayName = this.tokenStorage.sessionDisplayName;
