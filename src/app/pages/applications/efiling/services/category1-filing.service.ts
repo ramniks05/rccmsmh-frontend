@@ -3373,7 +3373,14 @@ export class Category1FilingService {
               ? 'Draft saved successfully.'
               : 'Application submitted successfully. The form has been cleared — you can start a new filing.'
           );
-          if (status === 'SUBMITTED') { this.resetAfterFinalSubmit(); return; }
+          if (status === 'SUBMITTED') {
+            try {
+              sessionStorage.removeItem(this.sessionKey());
+              sessionStorage.removeItem(CATEGORY1_FILING_RETURN_SESSION_KEY);
+            } catch { /**/ }
+            void this.router.navigate(['/applications']);
+            return;
+          }
           if (resp?.applicationId != null && resp.applicationId > 0) this.serverApplicationId.set(resp.applicationId);
           if (resp?.applicantIdByClientRowKey && typeof resp.applicantIdByClientRowKey === 'object') {
             this.applicantIdByClientRowKeySig.set(resp.applicantIdByClientRowKey as Record<string, number>);
