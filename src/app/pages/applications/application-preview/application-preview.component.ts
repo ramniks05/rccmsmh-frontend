@@ -23,6 +23,8 @@ import {
   attachmentFileName,
   attachmentStorageKey,
   descriptionParagraphs,
+  pickAffidavitPreviewText,
+  pickPrayerPreviewText,
   isImageAttachmentMime,
   formatPreviewDate,
   formatApplicationStatusLabel,
@@ -48,7 +50,10 @@ import {
   openPrintWindow,
   type ApplicationPreviewPrintModel
 } from '../../../shared/application-preview-print.util';
-import { isFilingDocumentHtml, openFilingDocumentHtml } from '../../../shared/filing-affidavit-prayer.util';
+import {
+  filingDocumentPreviewInnerHtml,
+  openFilingDocumentHtml
+} from '../../../shared/filing-affidavit-prayer.util';
 import { CATEGORY1_FILING_RETURN_SESSION_KEY } from '../efiling/services/category1-filing.service';
 import { CaseCategoryService } from '../../../services/case-category.service';
 import { FileUploadService } from '../../../services/file-upload.service';
@@ -374,31 +379,23 @@ export class ApplicationPreviewComponent implements OnInit {
   }
 
   protected affidavitText(): string {
-    const d = this.app()?.description;
-    const direct = d?.affidavitText?.trim();
-    if (direct) return direct;
-    return pickStr(this.form(), 'affidavitText');
+    return pickAffidavitPreviewText(this.app());
   }
 
   protected prayerText(): string {
-    const d = this.app()?.description;
-    const direct = d?.prayerText?.trim();
-    if (direct) return direct;
-    return pickStr(this.form(), 'prayerText');
+    return pickPrayerPreviewText(this.app());
   }
 
-  protected affidavitSrcdoc(): SafeHtml | null {
+  protected affidavitBodyHtml(): SafeHtml | null {
     const raw = this.affidavitText();
     if (!raw.trim()) return null;
-    const html = isFilingDocumentHtml(raw) ? raw : `<pre style="font-family:inherit;white-space:pre-wrap;padding:16px">${this.escapeForHtml(raw)}</pre>`;
-    return this.sanitizer.bypassSecurityTrustHtml(html);
+    return this.sanitizer.bypassSecurityTrustHtml(filingDocumentPreviewInnerHtml(raw));
   }
 
-  protected prayerSrcdoc(): SafeHtml | null {
+  protected prayerBodyHtml(): SafeHtml | null {
     const raw = this.prayerText();
     if (!raw.trim()) return null;
-    const html = isFilingDocumentHtml(raw) ? raw : `<pre style="font-family:inherit;white-space:pre-wrap;padding:16px">${this.escapeForHtml(raw)}</pre>`;
-    return this.sanitizer.bypassSecurityTrustHtml(html);
+    return this.sanitizer.bypassSecurityTrustHtml(filingDocumentPreviewInnerHtml(raw));
   }
 
   protected vakaltnamaAssignments(): Array<Record<string, unknown>> {
@@ -439,13 +436,6 @@ export class ApplicationPreviewComponent implements OnInit {
     if (!openFilingDocumentHtml(raw)) {
       alert('Allow pop-ups to print the prayer.');
     }
-  }
-
-  private escapeForHtml(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
   }
 
   protected actSectionLabel(): string {

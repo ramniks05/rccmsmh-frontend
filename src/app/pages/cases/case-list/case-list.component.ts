@@ -12,6 +12,7 @@ import {
 } from '../../../services/officer-filing.service';
 import {
   ApplicationHistoryResponse,
+  ApplicationPreviewApplication,
   ApplicationPreviewResponse,
   FilingApplicationService
 } from '../../../services/filing-application.service';
@@ -63,7 +64,9 @@ import {
   SunvaniNoticeVars,
   toDevanagariDigits
 } from '../../../shared/sunvai-marathi-template';
-import { formatSearchModeLabel } from '../../../shared/application-preview.util';
+import { formatSearchModeLabel, descriptionParagraphs, pickAffidavitPreviewText, pickPrayerPreviewText } from '../../../shared/application-preview.util';
+import { filingDocumentPreviewInnerHtml } from '../../../shared/filing-affidavit-prayer.util';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { landDetailDisplayFields } from '../../../shared/land-display.util';
 import { RichTextEditorComponent } from '../../../shared/rich-text-editor/rich-text-editor.component';
 import { MappedDocumentsPanelComponent } from '../../applications/mapped-documents-panel/mapped-documents-panel.component';
@@ -134,6 +137,7 @@ export class CaseListComponent implements OnInit {
   private readonly officerCaseStage = inject(OfficerCaseStageService);
   private readonly landRecords = inject(LandRecordsService);
   private readonly tokenStorage = inject(TokenStorageService);
+  private readonly sanitizer = inject(DomSanitizer);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -5158,6 +5162,44 @@ export class CaseListComponent implements OnInit {
     const f = this.detailForm();
     const fromForm = f?.['applicationDescription'];
     return typeof fromForm === 'string' && fromForm.trim() ? fromForm : '-';
+  }
+
+  protected detailDescriptionParagraphs(): string[] {
+    const detail = this.officerDetail();
+    if (!detail) return [];
+    return descriptionParagraphs({
+      applicationDescription: detail.applicationDescription,
+      form: this.detailForm() ?? undefined,
+      description: this.toRecord((detail as unknown as Record<string, unknown>)['description'])
+    } as ApplicationPreviewApplication);
+  }
+
+  protected detailAffidavitText(): string {
+    const detail = this.officerDetail();
+    return pickAffidavitPreviewText({
+      form: this.detailForm() ?? undefined,
+      description: this.toRecord((detail as unknown as Record<string, unknown> | null)?.['description'])
+    });
+  }
+
+  protected detailPrayerText(): string {
+    const detail = this.officerDetail();
+    return pickPrayerPreviewText({
+      form: this.detailForm() ?? undefined,
+      description: this.toRecord((detail as unknown as Record<string, unknown> | null)?.['description'])
+    });
+  }
+
+  protected detailAffidavitHtml(): SafeHtml | null {
+    const raw = this.detailAffidavitText();
+    if (!raw.trim()) return null;
+    return this.sanitizer.bypassSecurityTrustHtml(filingDocumentPreviewInnerHtml(raw));
+  }
+
+  protected detailPrayerHtml(): SafeHtml | null {
+    const raw = this.detailPrayerText();
+    if (!raw.trim()) return null;
+    return this.sanitizer.bypassSecurityTrustHtml(filingDocumentPreviewInnerHtml(raw));
   }
 
   protected detailMutationDetails(): Record<string, unknown> | null {

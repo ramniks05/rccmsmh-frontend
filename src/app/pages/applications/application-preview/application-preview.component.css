@@ -55,6 +55,32 @@
   box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
+.filing-doc-preview {
+  padding: 1rem 1.1rem;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  max-height: none;
+  overflow: visible;
+  font-family: 'Noto Serif Devanagari', 'Mangal', serif;
+  font-size: 0.92rem;
+  line-height: 1.7;
+  color: #0f172a;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.filing-doc-preview .plain-doc {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+}
+
+.filing-doc-preview .sub-title,
+.filing-doc-preview .section-title,
+.filing-doc-preview .title {
+  text-align: center;
+}
+
 .preview-embedded .preview-doc-iframe {
   min-height: 360px;
 }

@@ -167,6 +167,21 @@ export function filingDocumentBodyHtml(fullHtml: string): string {
   return match ? match[1].trim() : t;
 }
 
+function escapeHtmlPlain(text: string): string {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/** Inner HTML for affidavit/prayer blocks on the application details page. */
+export function filingDocumentPreviewInnerHtml(raw: string): string {
+  const t = (raw || '').trim();
+  if (!t) return '';
+  if (isFilingDocumentHtml(t)) return filingDocumentBodyHtml(t);
+  return `<pre class="plain-doc">${escapeHtmlPlain(t)}</pre>`;
+}
+
 export function openFilingDocumentHtml(html: string): Window | null {
   const w = window.open('', '_blank');
   if (!w) return null;

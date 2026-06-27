@@ -987,6 +987,35 @@
               </section>
             }
 
+            @if (detailDescriptionParagraphs().length > 0) {
+              <section class="preview-section">
+                <h4>Application description (ज्ञापन)</h4>
+                <div class="description-block">
+                  @for (para of detailDescriptionParagraphs(); track $index) {
+                    <p class="description-para">{{ para }}</p>
+                  }
+                </div>
+              </section>
+            }
+
+            @if (detailAffidavitText()) {
+              <section class="preview-section preview-doc-section">
+                <h4>Affidavit (शपथपत्र)</h4>
+                @if (detailAffidavitHtml(); as bodyHtml) {
+                  <div class="filing-doc-preview" [innerHTML]="bodyHtml"></div>
+                }
+              </section>
+            }
+
+            @if (detailPrayerText()) {
+              <section class="preview-section preview-doc-section">
+                <h4>Prayer / Verification (सत्यापन नमुना)</h4>
+                @if (detailPrayerHtml(); as bodyHtml) {
+                  <div class="filing-doc-preview" [innerHTML]="bodyHtml"></div>
+                }
+              </section>
+            }
+
             @if (detailDisputedLands().length > 0) {
               <section class="preview-section">
                 <h4>Disputed Lands</h4>

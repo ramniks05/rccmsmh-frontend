@@ -662,3 +662,38 @@
   letter-spacing: 0.05em;
   color: #64748b;
 }
+
+.description-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.description-para {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.65;
+}
+
+.filing-doc-preview {
+  padding: 1rem 1.1rem;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-family: 'Noto Serif Devanagari', 'Mangal', serif;
+  font-size: 0.92rem;
+  line-height: 1.7;
+  color: #0f172a;
+}
+
+.filing-doc-preview .plain-doc {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+}
+
+.filing-doc-preview .sub-title,
+.filing-doc-preview .section-title,
+.filing-doc-preview .title {
+  text-align: center;
+}

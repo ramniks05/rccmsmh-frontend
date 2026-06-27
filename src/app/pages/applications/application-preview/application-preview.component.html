@@ -247,10 +247,10 @@
           <section class="preview-section preview-doc-section">
             <div class="preview-doc-head">
               <h4>Affidavit (शपथपत्र)</h4>
-              <button type="button" class="btn btn-secondary btn-xs" (click)="openAffidavitPrint()">View / Print</button>
+              <button type="button" class="btn btn-secondary btn-xs" (click)="openAffidavitPrint()">Print</button>
             </div>
-            @if (affidavitSrcdoc(); as srcdoc) {
-              <iframe class="preview-doc-iframe" title="Affidavit preview" [srcdoc]="srcdoc"></iframe>
+            @if (affidavitBodyHtml(); as bodyHtml) {
+              <div class="filing-doc-preview" [innerHTML]="bodyHtml"></div>
             }
           </section>
         }
@@ -259,10 +259,10 @@
           <section class="preview-section preview-doc-section">
             <div class="preview-doc-head">
               <h4>Prayer / Verification (सत्यापन नमुना)</h4>
-              <button type="button" class="btn btn-secondary btn-xs" (click)="openPrayerPrint()">View / Print</button>
+              <button type="button" class="btn btn-secondary btn-xs" (click)="openPrayerPrint()">Print</button>
             </div>
-            @if (prayerSrcdoc(); as srcdoc) {
-              <iframe class="preview-doc-iframe" title="Prayer preview" [srcdoc]="srcdoc"></iframe>
+            @if (prayerBodyHtml(); as bodyHtml) {
+              <div class="filing-doc-preview" [innerHTML]="bodyHtml"></div>
             }
           </section>
         }

@@ -389,9 +389,49 @@ export function descriptionParagraphs(app: ApplicationPreviewApplication | null)
     }
     if (out.length) return out;
   }
+  const formParagraphs = app.form?.['descriptionParagraphs'];
+  if (Array.isArray(formParagraphs)) {
+    const out: string[] = [];
+    for (const p of formParagraphs) {
+      const t = String(p ?? '').trim();
+      if (!t) continue;
+      out.push(...t.split(/\n\n+/).map((x) => x.trim()).filter(Boolean));
+    }
+    if (out.length) return out;
+  }
   const text = app.applicationDescription?.trim();
   if (!text) return [];
   return text.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+}
+
+/** Resolve affidavit HTML/text from description block and/or nested form fields. */
+export function pickAffidavitPreviewText(
+  app: Pick<ApplicationPreviewApplication, 'description' | 'form'> | null | undefined
+): string {
+  if (!app) return '';
+  const desc = toRecord(app.description as unknown);
+  const form = app.form ?? {};
+  const nestedDesc = toRecord(form['description']);
+  return (
+    pickStr(desc, 'affidavitText') ||
+    pickStr(form, 'affidavitText') ||
+    pickStr(nestedDesc, 'affidavitText')
+  );
+}
+
+/** Resolve prayer HTML/text from description block and/or nested form fields. */
+export function pickPrayerPreviewText(
+  app: Pick<ApplicationPreviewApplication, 'description' | 'form'> | null | undefined
+): string {
+  if (!app) return '';
+  const desc = toRecord(app.description as unknown);
+  const form = app.form ?? {};
+  const nestedDesc = toRecord(form['description']);
+  return (
+    pickStr(desc, 'prayerText') ||
+    pickStr(form, 'prayerText') ||
+    pickStr(nestedDesc, 'prayerText')
+  );
 }
 
 export interface FileDownloadUrlOptions {
@@ -459,12 +499,22 @@ export function formatPreviewDate(value: string | null | undefined): string {
 
 function mergePreviewDescription(
   local?: ApplicationPreviewApplication['description'],
-  api?: ApplicationPreviewApplication['description']
+  api?: ApplicationPreviewApplication['description'],
+  localForm?: Record<string, unknown>,
+  apiForm?: Record<string, unknown>
 ): ApplicationPreviewApplication['description'] {
   const l = toRecord(local as unknown);
   const a = toRecord(api as unknown);
-  const affidavit = pickStr(l, 'affidavitText') || pickStr(a, 'affidavitText');
-  const prayer = pickStr(l, 'prayerText') || pickStr(a, 'prayerText');
+  const affidavit =
+    pickStr(l, 'affidavitText') ||
+    pickStr(a, 'affidavitText') ||
+    pickStr(localForm, 'affidavitText') ||
+    pickStr(apiForm, 'affidavitText');
+  const prayer =
+    pickStr(l, 'prayerText') ||
+    pickStr(a, 'prayerText') ||
+    pickStr(localForm, 'prayerText') ||
+    pickStr(apiForm, 'prayerText');
   const localParagraphs = Array.isArray(l?.['paragraphs'])
     ? (l['paragraphs'] as unknown[]).map((p) => String(p ?? '').trim()).filter(Boolean)
     : [];
@@ -516,7 +566,7 @@ export function mergeApplicationPreviewWithLocal(
       respondents: la.respondents?.length ? la.respondents : aa.respondents,
       disputedLands: la.disputedLands?.length ? la.disputedLands : aa.disputedLands,
       attachments: la.attachments?.length ? la.attachments : aa.attachments,
-      description: mergePreviewDescription(la.description, aa.description),
+      description: mergePreviewDescription(la.description, aa.description, la.form, aa.form),
       applicationDescription: la.applicationDescription || aa.applicationDescription,
       subjectName: la.subjectName || aa.subjectName
     },
