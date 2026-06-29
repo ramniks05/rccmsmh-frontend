@@ -261,6 +261,25 @@ export class AdminMastersComponent {
     return this.officeTypes();
   });
 
+  protected readonly postingOfficeTypeOptions = computed<OfficeTypeRecord[]>(() => {
+    const deptId = this.postingDepartmentId();
+    if (deptId <= 0) return [];
+    return this.officeTypes().filter((o) => o.departmentId === deptId);
+  });
+
+  protected readonly postingOfficeOptions = computed<OfficeRecord[]>(() => {
+    const deptId = this.postingDepartmentId();
+    const typeId = this.postingOfficeTypeId();
+    if (deptId <= 0 || typeId <= 0) return [];
+    return this.offices().filter((o) => o.departmentId === deptId && o.officeTypeId === typeId);
+  });
+
+  protected readonly postingDesignationOptions = computed<DesignationRecord[]>(() => {
+    const deptId = this.postingDepartmentId();
+    if (deptId <= 0) return [];
+    return this.designations().filter((d) => d.departmentId === deptId);
+  });
+
   protected readonly total = computed(() =>
     this.isDepartment()
       ? this.departments().length
@@ -688,10 +707,20 @@ export class AdminMastersComponent {
   });
 
   protected readonly postingForm = this.fb.nonNullable.group({
+    departmentId: [0, [Validators.required, Validators.min(1)]],
+    officeTypeId: [0, [Validators.required, Validators.min(1)]],
     officeId: [0, [Validators.required, Validators.min(1)]],
     officeBranchId: [0, [Validators.min(0)]],
     designationId: [0, [Validators.required, Validators.min(1)]],
     fromDate: ['', [Validators.required]]
+  });
+
+  private readonly postingDepartmentId = toSignal(this.postingForm.controls.departmentId.valueChanges, {
+    initialValue: this.postingForm.controls.departmentId.value
+  });
+
+  private readonly postingOfficeTypeId = toSignal(this.postingForm.controls.officeTypeId.valueChanges, {
+    initialValue: this.postingForm.controls.officeTypeId.value
   });
 
   protected readonly documentTypeForm = this.fb.nonNullable.group({
@@ -847,6 +876,20 @@ export class AdminMastersComponent {
       });
     });
 
+    this.postingForm.controls.departmentId.valueChanges.subscribe(() => {
+      this.postingForm.controls.officeTypeId.setValue(0, { emitEvent: true });
+      this.postingForm.controls.officeId.setValue(0, { emitEvent: false });
+      this.postingForm.controls.officeBranchId.setValue(0, { emitEvent: false });
+      this.postingForm.controls.designationId.setValue(0, { emitEvent: false });
+      this.officeBranches.set([]);
+    });
+
+    this.postingForm.controls.officeTypeId.valueChanges.subscribe(() => {
+      this.postingForm.controls.officeId.setValue(0, { emitEvent: false });
+      this.postingForm.controls.officeBranchId.setValue(0, { emitEvent: false });
+      this.officeBranches.set([]);
+    });
+
     this.postingForm.controls.officeId.valueChanges.subscribe((officeId) => {
       this.postingForm.controls.officeBranchId.setValue(0);
       if (!officeId || officeId < 1) {
@@ -944,6 +987,8 @@ export class AdminMastersComponent {
     } else if (kind === 'OCCUPATION') {
       this.loadOccupations();
     } else if (kind === 'EMPLOYEE') {
+      this.loadDepartments();
+      this.loadOfficeTypes();
       this.loadOffices();
       this.loadDesignations();
       this.loadEmployees();
@@ -1892,6 +1937,19 @@ export class AdminMastersComponent {
 
   protected openEmployeePostings(row: EmployeeRecord): void {
     this.selectedEmployeeForPostingsId.set(row.id);
+    this.postingForm.reset({
+      departmentId: 0,
+      officeTypeId: 0,
+      officeId: 0,
+      officeBranchId: 0,
+      designationId: 0,
+      fromDate: ''
+    });
+    this.officeBranches.set([]);
+    this.loadDepartments();
+    this.loadOfficeTypes();
+    this.loadOffices();
+    this.loadDesignations();
     this.loadEmployeePostings(row.id);
   }
 
@@ -1933,7 +1991,14 @@ export class AdminMastersComponent {
     this.masters.addEmployeePosting(employeeId, payload).subscribe({
       next: () => {
         this.apiMessage.set('Posting saved successfully.');
-        this.postingForm.reset({ officeId: 0, officeBranchId: 0, designationId: 0, fromDate: '' });
+        this.postingForm.reset({
+          departmentId: 0,
+          officeTypeId: 0,
+          officeId: 0,
+          officeBranchId: 0,
+          designationId: 0,
+          fromDate: ''
+        });
         this.loadEmployeePostings(employeeId);
       },
       error: (err: unknown) => this.apiError.set(this.formatError(err)),
