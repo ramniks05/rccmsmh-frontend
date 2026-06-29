@@ -45,7 +45,7 @@ export class AdvocateProfileComponent implements OnInit {
     postOfficeValue: [''],
     stateName: ['', Validators.required],
     districtName: ['', Validators.required],
-    subdistrictName: [''],
+    talukaName: [''],
     village: [''],
     addressLine1: ['', [Validators.required, Validators.maxLength(200)]]
   });
@@ -117,7 +117,7 @@ export class AdvocateProfileComponent implements OnInit {
       pinCode: v.pinCode.trim(),
       stateName: v.stateName.trim(),
       districtName: v.districtName.trim(),
-      subdistrictName: v.subdistrictName.trim() || undefined,
+      talukaName: v.talukaName.trim() || undefined,
       village: v.village.trim() || undefined,
       addressLine1: v.addressLine1.trim()
     };
@@ -170,7 +170,7 @@ export class AdvocateProfileComponent implements OnInit {
     this.form.patchValue({
       stateName,
       districtName,
-      subdistrictName: talukaName,
+      talukaName: talukaName,
       postOfficeValue: firstOffice?.value || '',
       village: firstOffice?.name || this.form.controls.village.getRawValue()
     });
@@ -189,7 +189,7 @@ export class AdvocateProfileComponent implements OnInit {
       pinCode: profile.pinCode || '',
       stateName: profile.stateName || '',
       districtName: profile.districtName || '',
-      subdistrictName: profile.subdistrictName || '',
+      talukaName: profile.talukaName || '',
       village: profile.village || '',
       addressLine1: profile.addressLine1 || ''
     });

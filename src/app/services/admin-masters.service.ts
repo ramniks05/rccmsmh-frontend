@@ -11,8 +11,8 @@ export interface MasterRecord {
   lgdCode: string | null;
   stateId: number | null;
   divisionId: number | null;
+  divisionCode: string | null;
   districtId: number | null;
-  subdistrictId?: number | null;
   talukaId: number | null;
 }
 
@@ -34,15 +34,7 @@ export interface CreateDistrictRequest {
   localName?: string;
   lgdCode?: string;
   stateId: number;
-  divisionId: number;
-}
-
-export interface CreateSubdistrictRequest {
-  name: string;
-  localName?: string;
-  lgdCode?: string;
-  districtId: number;
-  districtLgdCode?: string;
+  divisionCode: string;
 }
 
 export interface CreateTalukaRequest {
@@ -51,8 +43,6 @@ export interface CreateTalukaRequest {
   lgdCode?: string;
   districtId: number;
   districtLgdCode?: string;
-  subdistrictId: number;
-  subdistrictLgdCode?: string;
 }
 
 export interface CreateVillageRequest {
@@ -345,10 +335,6 @@ export class AdminMastersService {
     return this.http.post<MasterRecord>(`${this.apiBaseUrl}/api/admin/masters/districts`, payload);
   }
 
-  createSubdistrict(payload: CreateSubdistrictRequest): Observable<MasterRecord> {
-    return this.http.post<MasterRecord>(`${this.apiBaseUrl}/api/admin/masters/subdistricts`, payload);
-  }
-
   createTaluka(payload: CreateTalukaRequest): Observable<MasterRecord> {
     return this.http.post<MasterRecord>(`${this.apiBaseUrl}/api/admin/masters/talukas`, payload);
   }
@@ -412,9 +398,11 @@ export class AdminMastersService {
   }
 
   getSubjects(departmentId?: number): Observable<SubjectRecord[]> {
-    return this.http.get<SubjectRecord[]>(`${this.apiBaseUrl}/api/admin/masters/subjects`, {
-      params: departmentId ? { departmentId: String(departmentId) } : {}
-    });
+    const params: Record<string, number> = {};
+    if (departmentId && departmentId > 0) {
+      params['departmentId'] = departmentId;
+    }
+    return this.http.get<SubjectRecord[]>(`${this.apiBaseUrl}/api/admin/masters/subjects`, { params });
   }
 
   updateSubject(id: number, payload: CreateOrUpdateSubjectRequest): Observable<SubjectRecord> {
@@ -600,30 +588,35 @@ export class AdminMastersService {
     });
   }
 
-  getDistricts(stateId?: number, divisionId?: number): Observable<MasterRecord[]> {
-    const params: Record<string, number> = {};
+  getDistricts(stateId?: number, divisionCode?: string): Observable<MasterRecord[]> {
+    const params: Record<string, string | number> = {};
     if (stateId && stateId > 0) params['stateId'] = stateId;
-    if (divisionId && divisionId > 0) params['divisionId'] = divisionId;
+    if (divisionCode?.trim()) params['divisionCode'] = divisionCode.trim();
     return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/districts`, { params });
   }
 
-  getSubdistricts(districtId?: number): Observable<MasterRecord[]> {
+  getTalukas(districtId?: number): Observable<MasterRecord[]> {
     const params: Record<string, number> = {};
     if (districtId && districtId > 0) params['districtId'] = districtId;
-    return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/subdistricts`, { params });
-  }
-
-  getTalukas(districtId?: number, subdistrictId?: number): Observable<MasterRecord[]> {
-    const params: Record<string, number> = {};
-    if (districtId && districtId > 0) params['districtId'] = districtId;
-    if (subdistrictId && subdistrictId > 0) params['subdistrictId'] = subdistrictId;
     return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/talukas`, { params });
   }
 
-  getVillages(talukaId?: number): Observable<MasterRecord[]> {
-    const params: Record<string, number> = {};
-    if (talukaId && talukaId > 0) params['talukaId'] = talukaId;
-    return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/villages`, { params });
+  getVillages(params?: VillageQueryParams): Observable<MasterRecord[]> {
+    const query: Record<string, string | number> = {};
+    if (params?.stateId && params.stateId > 0) query['stateId'] = params.stateId;
+    if (params?.divisionCode?.trim()) query['divisionCode'] = params.divisionCode.trim();
+    if (params?.districtId && params.districtId > 0) query['districtId'] = params.districtId;
+    if (params?.talukaId && params.talukaId > 0) query['talukaId'] = params.talukaId;
+    if (params?.talukaLgdCode?.trim()) query['talukaLgdCode'] = params.talukaLgdCode.trim();
+    return this.http.get<MasterRecord[]>(`${this.apiBaseUrl}/api/admin/masters/villages`, { params: query });
   }
+}
+
+export interface VillageQueryParams {
+  stateId?: number;
+  divisionCode?: string;
+  districtId?: number;
+  talukaId?: number;
+  talukaLgdCode?: string;
 }
 

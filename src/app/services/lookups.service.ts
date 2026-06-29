@@ -11,12 +11,12 @@ export interface BoundaryMasterResponse {
   lgdCode: string | null;
   stateId: number | null;
   divisionId: number | null;
+  divisionCode: string | null;
   districtId: number | null;
-  subdistrictId?: number | null;
   talukaId: number | null;
 }
 
-export type OfficeLevel = 'STATE' | 'DIVISION' | 'DISTRICT' | 'SUBDISTRICT' | 'TALUKA' | 'VILLAGE';
+export type OfficeLevel = 'STATE' | 'DIVISION' | 'DISTRICT' | 'TALUKA' | 'VILLAGE';
 
 export interface OfficeResponse {
   id: number;
@@ -89,21 +89,31 @@ export class LookupsService {
     return this.http.get<BoundaryMasterResponse[]>(`${this.apiBaseUrl}/api/lookups/states`);
   }
 
-  getDistricts(stateId: number, divisionId?: number): Observable<BoundaryMasterResponse[]> {
-    return this.http.get<BoundaryMasterResponse[]>(`${this.apiBaseUrl}/api/lookups/districts`, {
-      params: divisionId ? { stateId, divisionId } : { stateId }
+  getDivisions(stateId: number): Observable<BoundaryMasterResponse[]> {
+    return this.http.get<BoundaryMasterResponse[]>(`${this.apiBaseUrl}/api/lookups/divisions`, {
+      params: { stateId }
     });
   }
 
-  getSubdistricts(districtId: number): Observable<BoundaryMasterResponse[]> {
-    return this.http.get<BoundaryMasterResponse[]>(`${this.apiBaseUrl}/api/lookups/subdistricts`, {
+  getDistricts(stateId: number, divisionCode?: string): Observable<BoundaryMasterResponse[]> {
+    const params: Record<string, string | number> = { stateId };
+    if (divisionCode?.trim()) {
+      params['divisionCode'] = divisionCode.trim();
+    }
+    return this.http.get<BoundaryMasterResponse[]>(`${this.apiBaseUrl}/api/lookups/districts`, {
+      params
+    });
+  }
+
+  getTalukas(districtId: number): Observable<BoundaryMasterResponse[]> {
+    return this.http.get<BoundaryMasterResponse[]>(`${this.apiBaseUrl}/api/lookups/talukas`, {
       params: { districtId }
     });
   }
 
-  getTalukas(districtId: number, subdistrictId?: number): Observable<BoundaryMasterResponse[]> {
-    return this.http.get<BoundaryMasterResponse[]>(`${this.apiBaseUrl}/api/lookups/talukas`, {
-      params: subdistrictId ? { districtId, subdistrictId } : { districtId }
+  getVillages(talukaId: number): Observable<BoundaryMasterResponse[]> {
+    return this.http.get<BoundaryMasterResponse[]>(`${this.apiBaseUrl}/api/lookups/villages`, {
+      params: { talukaId }
     });
   }
 
@@ -139,4 +149,3 @@ export class LookupsService {
     return this.http.get<OccupationLookupResponse[]>(`${this.apiBaseUrl}/api/lookups/occupations`);
   }
 }
-

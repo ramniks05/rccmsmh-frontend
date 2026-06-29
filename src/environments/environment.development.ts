@@ -2,7 +2,7 @@ export const environment = {
   production: false,
   apiBaseUrl: 'http://localhost:8080',
   defaultState: {
-    id: 1,
+    id: 20,
     name: 'Maharashtra'
   }
 };

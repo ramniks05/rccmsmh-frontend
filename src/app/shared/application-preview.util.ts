@@ -158,14 +158,13 @@ export function buildDisputedOrderFromForm(
     manualStatus: form['manualStatus'],
     landRecordType: form['landRecordType'],
     districtId: form['districtId'],
-    subdistrictId: form['subdistrictId'],
     talukaId: form['talukaId'],
+    divisionCode: form['divisionCode'],
     officeId: form['officeId'],
     officeName: form['officeName'],
     hearingOfficeName: form['hearingOfficeName'],
     districtName: form['districtName'],
     talukaName: form['talukaName'],
-    subdistrictName: form['subdistrictName'],
     ruralDistrictCode: form['ruralDistrictCode'],
     ruralDistrictName: form['ruralDistrictName'],
     ruralTalukaCode: form['ruralTalukaCode'],
@@ -279,7 +278,6 @@ export function searchCriteriaPreviewItems(
   push('Hearing office', 'hearingOfficeName', 'officeName', 'urbanOfficeName');
   push('District', 'districtName');
   push('Taluka', 'talukaName');
-  push('Sub-district', 'subdistrictName');
 
   if (mode === 'INWARD_NUMBER') {
     push('Inward / search number', 'searchValue', 'selectedInwardNumber');
@@ -376,7 +374,9 @@ export function partyDisplayName(p: Record<string, unknown>): string {
     .join(' ');
 }
 
-export function descriptionParagraphs(app: ApplicationPreviewApplication | null): string[] {
+export function descriptionParagraphs(
+  app: Pick<ApplicationPreviewApplication, 'description' | 'form' | 'applicationDescription'> | null | undefined
+): string[] {
   if (!app) return [];
   const desc = toRecord(app.description);
   const raw = desc?.['paragraphs'];

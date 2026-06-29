@@ -22,8 +22,7 @@ export interface AdvocateProfile {
   stateName?: string | null;
   districtId?: number | null;
   districtName?: string | null;
-  subdistrictId?: number | null;
-  subdistrictName?: string | null;
+  talukaName?: string | null;
   village?: string | null;
   addressLine1?: string | null;
   addressLine2?: string | null;

@@ -141,7 +141,7 @@ interface Category1FilingSession {
   respondentPincodeLookup?: Record<string, PartyAddressLookupState>;
   actsSnapshot?: ActLookupResponse[];
   sectionsSnapshot?: SectionLookupResponse[];
-  subdistrictsSnapshot?: BoundaryMasterResponse[];
+  divisionsSnapshot?: BoundaryMasterResponse[];
   talukasSnapshot?: BoundaryMasterResponse[];
   officesSnapshot?: OfficeResponse[];
   mappedAttachments?: FilingMappedAttachment[];
@@ -231,12 +231,12 @@ export class Category1ObjectionComponent {
   protected readonly apiError = signal<string | null>(null);
 
   protected readonly districts = signal<BoundaryMasterResponse[]>([]);
-  protected readonly subdistricts = signal<BoundaryMasterResponse[]>([]);
+  protected readonly divisionsForLocation = signal<BoundaryMasterResponse[]>([]);
   protected readonly talukas = signal<BoundaryMasterResponse[]>([]);
   protected readonly offices = signal<OfficeResponse[]>([]);
 
   protected readonly loadingDistricts = signal(false);
-  protected readonly loadingSubdistricts = signal(false);
+  protected readonly loadingDivisions = signal(false);
   protected readonly loadingTalukas = signal(false);
   protected readonly loadingOffices = signal(false);
 
@@ -453,8 +453,8 @@ export class Category1ObjectionComponent {
 
   protected readonly form = this.fb.nonNullable.group({
     subjectId: [0, [Validators.required, Validators.min(1)]],
+    divisionCode: [''],
     districtId: [0],
-    subdistrictId: [0],
     talukaId: [0],
     officeId: [0],
     searchMode: ['INWARD_NUMBER' as 'INWARD_NUMBER' | 'SURVEY_NUMBER' | 'MUTATION_NUMBER'],
@@ -1124,13 +1124,13 @@ private tryAutoTranslate(
 
     forkJoin({
       subjects: this.subjectsApi.listSubjects(),
-      districts: this.lookups.getDistricts(environment.defaultState?.id || 1)
+      divisions: this.lookups.getDivisions(environment.defaultState.id)
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ subjects, districts }) => {
+        next: ({ subjects, divisions }) => {
           this.subjects.set(subjects);
-          this.districts.set(districts);
+          this.divisionsForLocation.set(divisions);
           this.tryRestoreSession();
         },
         error: (err: unknown) => {
@@ -1197,21 +1197,33 @@ private tryAutoTranslate(
       }
       this.resetLocationChain();
       if (subjectId && subjectId > 0) {
-        this.loadDistricts();
+        this.loadDivisionsForLocation();
+      }
+    });
+
+    this.form.controls.divisionCode.valueChanges.subscribe((divisionCode) => {
+      if (this.hydrating) return;
+      this.form.controls.districtId.setValue(0);
+      this.form.controls.talukaId.setValue(0);
+      this.form.controls.officeId.setValue(0);
+      this.districts.set([]);
+      this.talukas.set([]);
+      this.offices.set([]);
+      this.selectedOffice.set(null);
+      const stateId = environment.defaultState.id;
+      if (divisionCode?.trim()) {
+        this.loadDistrictsForLocation(stateId, divisionCode.trim());
       }
     });
 
     this.form.controls.districtId.valueChanges.subscribe((districtId) => {
       if (this.hydrating) return;
-      this.form.controls.subdistrictId.setValue(0);
       this.form.controls.talukaId.setValue(0);
       this.form.controls.officeId.setValue(0);
-      this.subdistricts.set([]);
       this.talukas.set([]);
       this.offices.set([]);
       this.selectedOffice.set(null);
       if (districtId && districtId > 0) {
-        this.loadSubdistricts(districtId);
         this.loadTalukas(districtId);
       }
     });
@@ -1223,19 +1235,6 @@ private tryAutoTranslate(
       this.selectedOffice.set(null);
       if (talukaId && talukaId > 0) {
         this.loadTalukaOffices(talukaId);
-      }
-    });
-
-    this.form.controls.subdistrictId.valueChanges.subscribe((subdistrictId) => {
-      if (this.hydrating) return;
-      const districtId = this.form.controls.districtId.getRawValue();
-      this.form.controls.talukaId.setValue(0);
-      this.form.controls.officeId.setValue(0);
-      this.talukas.set([]);
-      this.offices.set([]);
-      this.selectedOffice.set(null);
-      if (districtId && districtId > 0) {
-        this.loadTalukas(districtId, subdistrictId > 0 ? subdistrictId : undefined);
       }
     });
 
@@ -1528,7 +1527,7 @@ private tryAutoTranslate(
         respondentPincodeLookup: { ...this.respondentPincodeLookup() },
         actsSnapshot: [...this.acts()],
         sectionsSnapshot: [...this.sections()],
-        subdistrictsSnapshot: [...this.subdistricts()],
+        divisionsSnapshot: [...this.divisionsForLocation()],
         talukasSnapshot: [...this.talukas()],
         officesSnapshot: [...this.offices()],
         rural712Searched: this.rural712Searched(),
@@ -1633,8 +1632,8 @@ private tryAutoTranslate(
     if (snap.sectionsSnapshot?.length) {
       this.sections.set(snap.sectionsSnapshot);
     }
-    if (snap.subdistrictsSnapshot?.length) {
-      this.subdistricts.set(snap.subdistrictsSnapshot);
+    if (snap.divisionsSnapshot?.length) {
+      this.divisionsForLocation.set(snap.divisionsSnapshot);
     }
     if (snap.talukasSnapshot?.length) {
       this.talukas.set(snap.talukasSnapshot);
@@ -1717,8 +1716,9 @@ private tryAutoTranslate(
     officeFallback: OfficeResponse | null
   ): void {
     const districtId = Number(scalarFields['districtId'] ?? 0);
+    const divisionCode = String(scalarFields['divisionCode'] ?? '').trim();
     const deptId = this.selectedSubject()?.departmentId;
-    const subPref = Number(scalarFields['subdistrictId'] ?? 0);
+    const stateId = environment.defaultState.id;
 
     const actIdSaved = Number(scalarFields['actId'] ?? 0);
     const sectionIdSaved = Number(scalarFields['sectionId'] ?? 0);
@@ -1742,30 +1742,39 @@ private tryAutoTranslate(
       return;
     }
 
-    this.lookups.getSubdistricts(districtId).subscribe({
-      next: (subs) => {
-        this.subdistricts.set(subs);
-        this.lookups.getTalukas(districtId, subPref > 0 ? subPref : undefined).subscribe({
-          next: (talukaRows) => {
-            this.talukas.set(talukaRows);
-            const talukaIdNow = Number(scalarFields['talukaId'] ?? 0);
-            if (talukaIdNow > 0) {
-              this.lookups.getTalukaOffices(talukaIdNow, deptId || undefined).subscribe({
-                next: (offices) => {
-                  this.offices.set(offices);
-                  finish();
-                },
-                error: () => this.onRestoreChainFail()
-              });
-            } else {
-              this.onRestoreChainFail();
-            }
-          },
-          error: () => this.onRestoreChainFail()
-        });
-      },
-      error: () => this.onRestoreChainFail()
-    });
+    const loadTalukaChain = (): void => {
+      this.lookups.getTalukas(districtId).subscribe({
+        next: (talukaRows) => {
+          this.talukas.set(talukaRows);
+          const talukaIdNow = Number(scalarFields['talukaId'] ?? 0);
+          if (talukaIdNow > 0) {
+            this.lookups.getTalukaOffices(talukaIdNow, deptId || undefined).subscribe({
+              next: (offices) => {
+                this.offices.set(offices);
+                finish();
+              },
+              error: () => this.onRestoreChainFail()
+            });
+          } else {
+            this.onRestoreChainFail();
+          }
+        },
+        error: () => this.onRestoreChainFail()
+      });
+    };
+
+    if (divisionCode) {
+      this.lookups.getDistricts(stateId, divisionCode).subscribe({
+        next: (rows) => {
+          this.districts.set(rows);
+          loadTalukaChain();
+        },
+        error: () => this.onRestoreChainFail()
+      });
+      return;
+    }
+
+    loadTalukaChain();
   }
 
   private restoreSectionsThenHydrationDone(actId: number, sectionId = 0): void {
@@ -1840,28 +1849,28 @@ private tryAutoTranslate(
     });
   }
 
-  private loadDistricts(): void {
-    const stateId = environment.defaultState?.id || 1;
+  private loadDivisionsForLocation(): void {
+    const stateId = environment.defaultState.id;
+    this.loadingDivisions.set(true);
+    this.lookups.getDivisions(stateId).subscribe({
+      next: (rows) => this.divisionsForLocation.set(rows),
+      error: (err: unknown) => this.apiError.set(this.formatError(err)),
+      complete: () => this.loadingDivisions.set(false)
+    });
+  }
+
+  private loadDistrictsForLocation(stateId: number, divisionCode: string): void {
     this.loadingDistricts.set(true);
-    this.lookups.getDistricts(stateId).subscribe({
+    this.lookups.getDistricts(stateId, divisionCode).subscribe({
       next: (rows) => this.districts.set(rows),
       error: (err: unknown) => this.apiError.set(this.formatError(err)),
       complete: () => this.loadingDistricts.set(false)
     });
   }
 
-  private loadSubdistricts(districtId: number): void {
-    this.loadingSubdistricts.set(true);
-    this.lookups.getSubdistricts(districtId).subscribe({
-      next: (rows) => this.subdistricts.set(rows),
-      error: (err: unknown) => this.apiError.set(this.formatError(err)),
-      complete: () => this.loadingSubdistricts.set(false)
-    });
-  }
-
-  private loadTalukas(districtId: number, subdistrictId?: number): void {
+  private loadTalukas(districtId: number): void {
     this.loadingTalukas.set(true);
-    this.lookups.getTalukas(districtId, subdistrictId).subscribe({
+    this.lookups.getTalukas(districtId).subscribe({
       next: (rows) => this.talukas.set(rows),
       error: (err: unknown) => this.apiError.set(this.formatError(err)),
       complete: () => this.loadingTalukas.set(false)
@@ -2836,12 +2845,12 @@ private tryAutoTranslate(
   }
 
   private resetLocationChain(): void {
+    this.form.controls.divisionCode.setValue('');
     this.form.controls.districtId.setValue(0);
-    this.form.controls.subdistrictId.setValue(0);
     this.form.controls.talukaId.setValue(0);
     this.form.controls.officeId.setValue(0);
     this.districts.set([]);
-    this.subdistricts.set([]);
+    this.divisionsForLocation.set([]);
     this.talukas.set([]);
     this.offices.set([]);
   }
@@ -2887,11 +2896,10 @@ private tryAutoTranslate(
       { emitEvent: false }
     );
     this.descriptionParagraphs.set(['']);
+    this.form.controls.divisionCode.setValue('', { emitEvent: false });
     this.form.controls.districtId.setValue(0, { emitEvent: false });
-    this.form.controls.subdistrictId.setValue(0, { emitEvent: false });
     this.form.controls.talukaId.setValue(0, { emitEvent: false });
     this.form.controls.officeId.setValue(0, { emitEvent: false });
-    this.subdistricts.set([]);
     this.talukas.set([]);
     this.offices.set([]);
     this.sections.set([]);

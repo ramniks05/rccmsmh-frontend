@@ -25,6 +25,7 @@ import {
   OfficeBranchRecord,
   OfficeTypeRecord,
   SubjectRecord,
+  VillageQueryParams,
   type CreateOrUpdateActRequest,
   type CreateOrUpdateDesignationRequest,
   type ClosePostingRequest,
@@ -36,7 +37,6 @@ import {
   type CreateOrUpdateSubjectRequest,
   type CreateOrUpdateDepartmentRequest,
   type CreateOrUpdateOccupationRequest,
-  type CreateSubdistrictRequest,
   type CreateTalukaRequest,
   type CreateVillageRequest
 } from '../../../services/admin-masters.service';
@@ -46,7 +46,6 @@ type MasterKind =
   | 'STATE'
   | 'DIVISION'
   | 'DISTRICT'
-  | 'SUBDISTRICT'
   | 'TALUKA'
   | 'VILLAGE'
   | 'DEPARTMENT'
@@ -60,6 +59,20 @@ type MasterKind =
   | 'EMPLOYEE'
   | 'DOCUMENT_TYPE'
   | 'DOCUMENT_TYPE_MAPPING';
+
+type HierarchyFilter = {
+  stateId: number;
+  divisionCode: string;
+  districtId: number;
+  talukaId: number;
+};
+
+const emptyHierarchyFilter = (): HierarchyFilter => ({
+  stateId: 0,
+  divisionCode: '',
+  districtId: 0,
+  talukaId: 0
+});
 
 @Component({
   selector: 'app-admin-masters',
@@ -82,7 +95,6 @@ export class AdminMastersComponent {
   protected readonly states = signal<MasterRecord[]>([]);
   protected readonly divisions = signal<MasterRecord[]>([]);
   protected readonly districts = signal<MasterRecord[]>([]);
-  protected readonly subdistricts = signal<MasterRecord[]>([]);
   protected readonly talukas = signal<MasterRecord[]>([]);
   protected readonly villages = signal<MasterRecord[]>([]);
   protected readonly departments = signal<DepartmentRecord[]>([]);
@@ -106,6 +118,8 @@ export class AdminMastersComponent {
     Map<number, DocumentTypeMappingItemRecord[]>
   >(new Map());
   protected readonly mappingContextLabel = signal<string | null>(null);
+  protected readonly mappingSelectionReady = signal(false);
+  protected readonly mappingFormSubjectId = signal(0);
 
   protected readonly editingDepartmentId = signal<number | null>(null);
   protected readonly editingActId = signal<number | null>(null);
@@ -122,7 +136,7 @@ export class AdminMastersComponent {
   protected readonly selectedSectionActId = signal<number>(0);
   protected readonly selectedOfficeTypeDepartmentId = signal<number>(0);
   protected readonly selectedSubjectDepartmentId = signal<number>(0);
-  protected readonly districtFilter = signal<{ stateId: number; divisionId: number }>({ stateId: 0, divisionId: 0 });
+  protected readonly hierarchyFilter = signal<HierarchyFilter>(emptyHierarchyFilter());
   protected readonly designationDeptFilter = signal<number>(0);
   protected readonly employeeActiveFilter = signal<'' | 'true' | 'false'>('');
   protected readonly officeListFilter = signal<{
@@ -133,7 +147,6 @@ export class AdminMastersComponent {
 
   protected readonly officeDivisions = signal<MasterRecord[]>([]);
   protected readonly officeDistricts = signal<MasterRecord[]>([]);
-  protected readonly officeSubdistricts = signal<MasterRecord[]>([]);
   protected readonly officeTalukas = signal<MasterRecord[]>([]);
 
   protected readonly pageSize = signal(10);
@@ -157,28 +170,50 @@ export class AdminMastersComponent {
       case 'STATE':
         return this.states();
       case 'DIVISION':
-        return this.divisions();
+        return this.filteredDivisions();
       case 'DISTRICT':
         return this.filteredDistricts();
-      case 'SUBDISTRICT':
-        return this.subdistricts();
       case 'TALUKA':
-        return this.talukas();
+        return this.filteredTalukas();
       case 'VILLAGE':
-        return this.villages();
+        return this.filteredVillages();
       default:
         return [];
     }
   });
 
-  protected readonly filteredDistricts = computed<MasterRecord[]>(() => {
-    const f = this.districtFilter();
-    return this.districts().filter((d) => {
-      if (f.stateId > 0 && d.stateId !== f.stateId) return false;
-      if (f.divisionId > 0 && d.divisionId !== f.divisionId) return false;
-      return true;
-    });
+  protected readonly hierarchyFilterLevel = computed(() => {
+    switch (this.selected()) {
+      case 'DIVISION':
+        return 1;
+      case 'DISTRICT':
+        return 2;
+      case 'TALUKA':
+        return 3;
+      case 'VILLAGE':
+        return 4;
+      default:
+        return 0;
+    }
   });
+
+  protected readonly filteredDivisions = computed<MasterRecord[]>(() => {
+    const f = this.hierarchyFilter();
+    if (this.hasFixedState || f.stateId <= 0) return this.divisions();
+    return this.divisions().filter((d) => !d.stateId || d.stateId === f.stateId);
+  });
+
+  protected readonly filteredDistricts = computed<MasterRecord[]>(() => {
+    const f = this.hierarchyFilter();
+    return this.districts().filter((d) => this.matchesHierarchyFilter(d, f, 'DISTRICT'));
+  });
+
+  protected readonly filteredTalukas = computed<MasterRecord[]>(() => {
+    const f = this.hierarchyFilter();
+    return this.talukas().filter((t) => this.matchesHierarchyFilter(t, f, 'TALUKA'));
+  });
+
+  protected readonly filteredVillages = computed<MasterRecord[]>(() => this.villages());
 
   protected readonly filteredSections = computed<SectionRecord[]>(() =>
     this.selectedSectionActId() > 0
@@ -218,6 +253,12 @@ export class AdminMastersComponent {
       if (f.officeTypeId > 0 && o.officeTypeId !== f.officeTypeId) return false;
       return true;
     });
+  });
+
+  protected readonly officeFilterOfficeTypeOptions = computed<OfficeTypeRecord[]>(() => {
+    const deptId = this.officeFilterDepartmentId();
+    if (deptId > 0) return this.officeTypes().filter((o) => o.departmentId === deptId);
+    return this.officeTypes();
   });
 
   protected readonly total = computed(() =>
@@ -343,25 +384,7 @@ export class AdminMastersComponent {
     return unmapped.every((doc) => pending.has(doc.id));
   });
 
-  protected readonly mappingWorkspaceReady = computed(() => this.mappingFormSelection() !== null);
-
-  protected readonly configuredSubjectsForCategoryTable = computed(() => {
-    const currentSubjectId = this.toPositiveInt(
-      this.documentTypeMappingForm.controls.subjectId.getRawValue()
-    );
-    return this.configuredMappingSubjects().map((row) => ({
-      ...row,
-      isCurrent: row.subjectId === currentSubjectId
-    }));
-  });
-
-  protected readonly otherConfiguredSubjectsTable = computed(() =>
-    this.configuredSubjectsForCategoryTable().filter((row) => !row.isCurrent)
-  );
-
-  protected readonly hasCurrentMappingLoaded = computed(
-    () => this.mappingWorkspaceReady() && this.documentTypeMappings().length > 0
-  );
+  protected readonly mappingWorkspaceReady = computed(() => this.mappingSelectionReady());
 
   /** Normalize select values (DOM may return strings). */
   protected readonly selectIdCompare = (a: number | string, b: number | string): boolean =>
@@ -398,14 +421,6 @@ export class AdminMastersComponent {
     return map;
   });
 
-  private readonly subdistrictNameById = computed(() => {
-    const map = new Map<number, string>();
-    for (const s of this.subdistricts()) {
-      map.set(s.id, s.name);
-    }
-    return map;
-  });
-
   private readonly talukaNameById = computed(() => {
     const map = new Map<number, string>();
     for (const t of this.talukas()) {
@@ -429,14 +444,19 @@ export class AdminMastersComponent {
     return this.districtNameById().get(id) ?? '-';
   }
 
-  protected resolveSubdistrictName(id: number | null | undefined): string {
-    if (!id) return '-';
-    return this.subdistrictNameById().get(id) ?? '-';
-  }
-
   protected resolveTalukaName(id: number | null | undefined): string {
     if (!id) return '-';
     return this.talukaNameById().get(id) ?? '-';
+  }
+
+  protected resolveDepartmentName(id: number | null | undefined): string {
+    if (!id) return '-';
+    return this.departments().find((d) => d.id === id)?.name ?? '-';
+  }
+
+  protected resolveOfficeTypeName(id: number | null | undefined): string {
+    if (!id) return '-';
+    return this.officeTypes().find((o) => o.id === id)?.name ?? '-';
   }
 
   protected readonly title = computed(() => {
@@ -447,8 +467,6 @@ export class AdminMastersComponent {
         return 'Create Division';
       case 'DISTRICT':
         return 'Create District';
-      case 'SUBDISTRICT':
-        return 'Create Subdistrict';
       case 'TALUKA':
         return 'Create Taluka';
       case 'VILLAGE':
@@ -496,18 +514,10 @@ export class AdminMastersComponent {
     localName: [''],
     lgdCode: [''],
     stateId: [0, [Validators.required, Validators.min(1)]],
-    divisionId: [0, [Validators.required, Validators.min(1)]]
+    divisionCode: ['', [Validators.required, Validators.minLength(1)]]
   });
 
   protected readonly talukaForm = this.fb.nonNullable.group({
-    name: ['', [Validators.required, Validators.minLength(2)]],
-    localName: [''],
-    lgdCode: [''],
-    districtId: [0, [Validators.required, Validators.min(1)]],
-    subdistrictId: [0, [Validators.required, Validators.min(1)]]
-  });
-
-  protected readonly subdistrictForm = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2)]],
     localName: [''],
     lgdCode: [''],
@@ -515,10 +525,11 @@ export class AdminMastersComponent {
   });
 
   protected readonly villageForm = this.fb.nonNullable.group({
+    districtId: [0],
+    talukaId: [0, [Validators.required, Validators.min(1)]],
     name: ['', [Validators.required, Validators.minLength(2)]],
     localName: [''],
-    lgdCode: [''],
-    talukaId: [0, [Validators.required, Validators.min(1)]]
+    lgdCode: ['']
   });
 
   protected readonly departmentForm = this.fb.nonNullable.group({
@@ -562,7 +573,6 @@ export class AdminMastersComponent {
     stateId: [0],
     divisionId: [0],
     districtId: [0],
-    subdistrictId: [0],
     talukaId: [0],
     name: ['', [Validators.required, Validators.minLength(2)]],
     localName: [''],
@@ -584,11 +594,70 @@ export class AdminMastersComponent {
    *   1 → State only
    *   2 → Subdivision (State + Division)
    *   3 → District (State + Division + District)
-   *   6 → Tehsil (State + Division + District + Subdistrict + Taluka)
+   *   6 → Tehsil (State + Division + District + Taluka)
    */
   protected readonly officeFormLevel = computed<number>(() =>
     this.officeTypeIdToLevel(this.officeTypeIdValue())
   );
+
+  protected readonly hierarchyFilterForm = this.fb.nonNullable.group({
+    stateId: [this.hasFixedState ? environment.defaultState.id : 0],
+    divisionCode: [''],
+    districtId: [0],
+    talukaId: [0]
+  });
+
+  protected readonly sectionFilterForm = this.fb.nonNullable.group({
+    actId: [0]
+  });
+
+  protected readonly subjectFilterForm = this.fb.nonNullable.group({
+    departmentId: [0]
+  });
+
+  protected readonly officeTypeFilterForm = this.fb.nonNullable.group({
+    departmentId: [0]
+  });
+
+  protected readonly designationFilterForm = this.fb.nonNullable.group({
+    departmentId: [0]
+  });
+
+  private readonly hierarchyFilterFormValue = toSignal(this.hierarchyFilterForm.valueChanges, {
+    initialValue: this.hierarchyFilterForm.getRawValue()
+  });
+
+  private readonly officeFilterDepartmentId = toSignal(
+    this.officeFilterForm.controls.departmentId.valueChanges,
+    { initialValue: this.officeFilterForm.controls.departmentId.value }
+  );
+
+  protected readonly hierarchyDivisionOptions = computed<MasterRecord[]>(() => this.divisions());
+
+  protected readonly hierarchyDistrictOptions = computed<MasterRecord[]>(() => {
+    const f = this.hierarchyFilterFormValue();
+    const stateId = f.stateId ?? 0;
+    const divisionCode = (f.divisionCode ?? '').trim();
+    return this.districts().filter((d) => {
+      if (stateId > 0 && d.stateId && d.stateId !== stateId) return false;
+      if (divisionCode && !this.districtMatchesDivisionCode(d, divisionCode)) return false;
+      return true;
+    });
+  });
+
+  protected readonly hierarchyTalukaOptions = computed<MasterRecord[]>(() => {
+    const f = this.hierarchyFilterFormValue();
+    return this.talukas().filter((t) =>
+      this.talukaMatchesFormContext(t, {
+        stateId: f.stateId ?? 0,
+        divisionCode: (f.divisionCode ?? '').trim(),
+        districtId: f.districtId ?? 0,
+        talukaId: f.talukaId ?? 0
+      })
+    );
+  });
+
+  protected readonly villageFormTalukaOptions = signal<MasterRecord[]>([]);
 
   protected readonly designationForm = this.fb.nonNullable.group({
     departmentId: [0, [Validators.required, Validators.min(1)]],
@@ -596,15 +665,6 @@ export class AdminMastersComponent {
     localName: [''],
     shortName: [''],
     shortNameLocal: ['']
-  });
-
-  protected readonly districtFilterForm = this.fb.nonNullable.group({
-    stateId: [0],
-    divisionId: [0]
-  });
-
-  protected readonly designationFilterForm = this.fb.nonNullable.group({
-    departmentId: [0]
   });
 
   protected readonly employeeForm = this.fb.nonNullable.group({
@@ -652,6 +712,9 @@ export class AdminMastersComponent {
   /** Multi-select buffer before adding to mapped list */
   private readonly pendingDocumentTypeIds = signal<Set<number>>(new Set());
 
+  /** Ignores stale GET responses when filters change quickly. */
+  private mappingLoadToken = 0;
+
   constructor() {
     if (this.hasFixedState) {
       this.divisionForm.controls.stateId.setValue(environment.defaultState.id);
@@ -667,21 +730,6 @@ export class AdminMastersComponent {
     this.loadStates();
     this.loadActs();
 
-
-    this.sectionForm.controls.actId.valueChanges.subscribe((actId) => {
-      this.selectedSectionActId.set(actId || 0);
-      this.page.set(1);
-    });
-
-    this.officeTypeForm.controls.departmentId.valueChanges.subscribe((departmentId) => {
-      this.selectedOfficeTypeDepartmentId.set(departmentId || 0);
-      this.page.set(1);
-    });
-
-    this.subjectForm.controls.departmentId.valueChanges.subscribe((departmentId) => {
-      this.selectedSubjectDepartmentId.set(departmentId || 0);
-      this.page.set(1);
-    });
 
     this.documentTypeMappingForm.controls.caseCategoryId.valueChanges.subscribe(() => {
       if (this.selected() === 'DOCUMENT_TYPE_MAPPING') {
@@ -700,6 +748,8 @@ export class AdminMastersComponent {
         this.onMappingSubjectChange();
       }
     });
+
+    this.refreshMappingFormSignals();
 
     this.officeForm.controls.departmentId.valueChanges.subscribe((departmentId) => {
       if (!departmentId || departmentId < 1) {
@@ -744,35 +794,57 @@ export class AdminMastersComponent {
 
     this.officeForm.controls.divisionId.valueChanges.subscribe(() => {
       this.officeDistricts.set([]);
-      this.officeSubdistricts.set([]);
       this.officeTalukas.set([]);
       this.officeForm.controls.districtId.setValue(0);
-      this.officeForm.controls.subdistrictId.setValue(0);
       this.officeForm.controls.talukaId.setValue(0);
       this.loadOfficeDistricts();
       this.syncOfficeLocationId();
     });
     this.officeForm.controls.districtId.valueChanges.subscribe(() => {
-      this.officeSubdistricts.set([]);
       this.officeTalukas.set([]);
-      this.officeForm.controls.subdistrictId.setValue(0);
       this.officeForm.controls.talukaId.setValue(0);
       if (this.officeFormLevel() >= 4) {
-        this.loadOfficeSubdistricts();
+        this.loadOfficeTalukas();
       }
-      this.syncOfficeLocationId();
-    });
-    this.officeForm.controls.subdistrictId.valueChanges.subscribe(() => {
-      this.officeTalukas.set([]);
-      this.officeForm.controls.talukaId.setValue(0);
-      this.loadOfficeTalukas();
       this.syncOfficeLocationId();
     });
     this.officeForm.controls.talukaId.valueChanges.subscribe(() => this.syncOfficeLocationId());
 
-    this.designationForm.controls.departmentId.valueChanges.subscribe((deptId) => {
-      this.designationDeptFilter.set(deptId || 0);
-      this.page.set(1);
+    this.hierarchyFilterForm.controls.stateId.valueChanges.subscribe((stateId) => {
+      this.hierarchyFilterForm.patchValue(
+        { divisionCode: '', districtId: 0, talukaId: 0 },
+        { emitEvent: true }
+      );
+      if (this.usesHierarchyDivisionList()) {
+        this.loadDivisions(stateId);
+      }
+    });
+    this.hierarchyFilterForm.controls.divisionCode.valueChanges.subscribe(() => {
+      this.hierarchyFilterForm.patchValue({ districtId: 0, talukaId: 0 }, { emitEvent: true });
+    });
+    this.hierarchyFilterForm.controls.districtId.valueChanges.subscribe(() => {
+      this.hierarchyFilterForm.patchValue({ talukaId: 0 }, { emitEvent: true });
+    });
+
+    this.officeFilterForm.controls.departmentId.valueChanges.subscribe(() => {
+      this.officeFilterForm.controls.officeTypeId.setValue(0);
+    });
+
+    this.villageForm.controls.districtId.valueChanges.subscribe((districtId) => {
+      this.villageForm.controls.talukaId.setValue(0);
+      if (!districtId || districtId < 1) {
+        this.villageFormTalukaOptions.set([]);
+        return;
+      }
+      this.masters.getTalukas(districtId).subscribe({
+        next: (rows) => {
+          this.villageFormTalukaOptions.set(rows);
+          if (rows.length === 1) {
+            this.villageForm.controls.talukaId.setValue(rows[0].id);
+          }
+        },
+        error: () => this.villageFormTalukaOptions.set([])
+      });
     });
 
     this.postingForm.controls.officeId.valueChanges.subscribe((officeId) => {
@@ -802,40 +874,48 @@ export class AdminMastersComponent {
     this.selectedEmployeeForPostingsId.set(null);
 
     // Reset all client-side filter signals on tab switch
-    this.districtFilter.set({ stateId: 0, divisionId: 0 });
-    this.districtFilterForm.reset({ stateId: 0, divisionId: 0 }, { emitEvent: false });
+    this.hierarchyFilter.set(emptyHierarchyFilter());
+    this.hierarchyFilterForm.reset(
+      {
+        stateId: this.hasFixedState ? environment.defaultState.id : 0,
+        divisionCode: '',
+        districtId: 0,
+        talukaId: 0
+      },
+      { emitEvent: false }
+    );
     this.selectedSectionActId.set(0);
+    this.sectionFilterForm.reset({ actId: 0 }, { emitEvent: false });
     this.selectedSubjectDepartmentId.set(0);
+    this.subjectFilterForm.reset({ departmentId: 0 }, { emitEvent: false });
     this.selectedOfficeTypeDepartmentId.set(0);
+    this.officeTypeFilterForm.reset({ departmentId: 0 }, { emitEvent: false });
     this.designationDeptFilter.set(0);
+    this.designationFilterForm.reset({ departmentId: 0 }, { emitEvent: false });
     this.employeeActiveFilter.set('');
+    this.employeeFilterForm.reset({ active: '' }, { emitEvent: false });
     this.officeListFilter.set({ departmentId: 0, officeTypeId: 0 });
+    this.officeFilterForm.reset({ departmentId: 0, officeTypeId: 0 }, { emitEvent: false });
 
     // Reset boundary create forms so stale values don't bleed into the next visit
-    this.districtForm.controls.divisionId.setValue(0, { emitEvent: false });
-    this.subdistrictForm.controls.districtId.setValue(0, { emitEvent: false });
+    this.districtForm.controls.divisionCode.setValue('', { emitEvent: false });
     this.talukaForm.controls.districtId.setValue(0, { emitEvent: false });
-    this.talukaForm.controls.subdistrictId.setValue(0, { emitEvent: false });
+    this.villageForm.controls.districtId.setValue(0, { emitEvent: false });
     this.villageForm.controls.talukaId.setValue(0, { emitEvent: false });
+    this.villageFormTalukaOptions.set([]);
 
     if (kind === 'DIVISION') {
       this.loadDivisions();
     } else if (kind === 'DISTRICT') {
       this.loadDivisions();
       this.loadDistricts();
-    } else if (kind === 'SUBDISTRICT') {
-      this.loadDivisions();
-      this.loadDistricts();
-      this.loadSubdistricts();
     } else if (kind === 'TALUKA') {
       this.loadDivisions();
       this.loadDistricts();
-      this.loadSubdistricts();
       this.loadTalukas();
     } else if (kind === 'VILLAGE') {
       this.loadDivisions();
       this.loadDistricts();
-      this.loadSubdistricts();
       this.loadTalukas();
       this.loadVillages();
     } else if (kind === 'STATE') {
@@ -883,6 +963,9 @@ export class AdminMastersComponent {
       this.configuredMappingSubjects.set([]);
       this.mappingContextLabel.set(null);
       this.pendingDocumentTypeIds.set(new Set());
+      this.mappingSelectionReady.set(false);
+      this.mappingFormSubjectId.set(0);
+      this.mappingLoadToken += 1;
     }
   }
 
@@ -896,12 +979,10 @@ export class AdminMastersComponent {
         ? this.stateForm
         : kind === 'DIVISION'
           ? this.divisionForm
-          : kind === 'DISTRICT'
+            : kind === 'DISTRICT'
             ? this.districtForm
-            : kind === 'SUBDISTRICT'
-              ? this.subdistrictForm
-              : kind === 'TALUKA'
-                ? this.talukaForm
+            : kind === 'TALUKA'
+              ? this.talukaForm
                 : kind === 'VILLAGE'
                   ? this.villageForm
                   : kind === 'DEPARTMENT'
@@ -937,12 +1018,10 @@ export class AdminMastersComponent {
         ? this.masters.createState(this.stateForm.getRawValue())
         : kind === 'DIVISION'
           ? this.masters.createDivision(this.divisionForm.getRawValue())
-          : kind === 'DISTRICT'
+            : kind === 'DISTRICT'
             ? this.masters.createDistrict(this.districtForm.getRawValue())
-            : kind === 'SUBDISTRICT'
-              ? this.masters.createSubdistrict(this.subdistrictPayload())
-              : kind === 'TALUKA'
-                ? this.masters.createTaluka(this.talukaPayload())
+            : kind === 'TALUKA'
+              ? this.masters.createTaluka(this.talukaPayload())
                 : kind === 'VILLAGE'
                   ? this.masters.createVillage(this.villagePayload())
                   : kind === 'DEPARTMENT'
@@ -995,7 +1074,7 @@ export class AdminMastersComponent {
         } else if (kind === 'DISTRICT') {
           this.districtForm.reset({
             stateId: this.hasFixedState ? environment.defaultState.id : 0,
-            divisionId: this.districtForm.controls.divisionId.getRawValue(),
+            divisionCode: this.districtForm.controls.divisionCode.getRawValue(),
             name: '',
             localName: '',
             lgdCode: ''
@@ -1004,16 +1083,10 @@ export class AdminMastersComponent {
             this.districtForm.controls.stateId.disable();
           }
           this.loadDistricts();
-        } else if (kind === 'SUBDISTRICT') {
-          const keepDistrictId = this.subdistrictForm.controls.districtId.getRawValue();
-          this.subdistrictForm.reset({ districtId: keepDistrictId, name: '', localName: '', lgdCode: '' });
-          this.loadSubdistricts();
         } else if (kind === 'TALUKA') {
           const keepDistrictId = this.talukaForm.controls.districtId.getRawValue();
-          const keepSubdistrictId = this.talukaForm.controls.subdistrictId.getRawValue();
           this.talukaForm.reset({
             districtId: keepDistrictId,
-            subdistrictId: keepSubdistrictId,
             name: '',
             localName: '',
             lgdCode: ''
@@ -1021,9 +1094,16 @@ export class AdminMastersComponent {
           this.loadTalukas();
         } else {
           if (kind === 'VILLAGE') {
+            const keepDistrictId = this.villageForm.controls.districtId.getRawValue();
             const keepTalukaId = this.villageForm.controls.talukaId.getRawValue();
-            this.villageForm.reset({ talukaId: keepTalukaId, name: '', localName: '', lgdCode: '' });
-            this.loadVillages();
+            this.villageForm.reset({
+              districtId: keepDistrictId,
+              talukaId: keepTalukaId,
+              name: '',
+              localName: '',
+              lgdCode: ''
+            });
+            this.loadVillages(this.hierarchyFilter(), true);
           } else if (kind === 'DEPARTMENT') {
             this.editingDepartmentId.set(null);
             this.departmentForm.reset({
@@ -1077,7 +1157,6 @@ export class AdminMastersComponent {
               stateId: 0,
               divisionId: 0,
               districtId: 0,
-              subdistrictId: 0,
               talukaId: 0,
               name: '',
               localName: '',
@@ -1134,6 +1213,89 @@ export class AdminMastersComponent {
     });
   }
 
+  private matchesHierarchyFilter(record: MasterRecord, f: HierarchyFilter, kind: MasterKind): boolean {
+    if (kind === 'DIVISION') {
+      return f.stateId <= 0 || record.stateId === f.stateId;
+    }
+    if (kind === 'DISTRICT') {
+      if (f.stateId > 0 && record.stateId && record.stateId !== f.stateId) return false;
+      if (f.divisionCode && !this.districtMatchesDivisionCode(record, f.divisionCode)) return false;
+      return true;
+    }
+    if (kind === 'TALUKA') {
+      if (f.districtId > 0 && record.districtId !== f.districtId) return false;
+      if (f.divisionCode || f.stateId > 0) {
+        const dist = this.districts().find((d) => d.id === record.districtId);
+        if (dist) {
+          if (f.divisionCode && !this.districtMatchesDivisionCode(dist, f.divisionCode)) return false;
+          if (f.stateId > 0 && dist.stateId !== f.stateId) return false;
+        }
+      }
+      return true;
+    }
+    if (kind === 'VILLAGE') {
+      if (f.talukaId > 0 && record.talukaId !== f.talukaId) return false;
+      if (f.districtId > 0 || f.divisionCode || f.stateId > 0) {
+        const taluka = this.talukas().find((t) => t.id === record.talukaId);
+        if (!taluka) return f.talukaId <= 0;
+        if (f.districtId > 0 && taluka.districtId !== f.districtId) return false;
+        const dist = this.districts().find((d) => d.id === taluka.districtId);
+        if (dist) {
+          if (f.divisionCode && !this.districtMatchesDivisionCode(dist, f.divisionCode)) return false;
+          if (f.stateId > 0 && dist.stateId !== f.stateId) return false;
+        }
+      }
+      return true;
+    }
+    return true;
+  }
+
+  private talukaMatchesFormContext(record: MasterRecord, f: HierarchyFilter): boolean {
+    if (f.districtId > 0 && record.districtId !== f.districtId) return false;
+    if (f.divisionCode || f.stateId > 0) {
+      const dist = this.districts().find((d) => d.id === record.districtId);
+      if (!dist) return f.districtId <= 0;
+      if (f.divisionCode && !this.districtMatchesDivisionCode(dist, f.divisionCode)) return false;
+      if (f.stateId > 0 && dist.stateId !== f.stateId) return false;
+    }
+    return true;
+  }
+
+  private divisionCodeOfDivision(record: MasterRecord | undefined): string {
+    if (!record) return '';
+    return String(record.divisionCode ?? record.lgdCode ?? '').trim();
+  }
+
+  private districtDivisionCode(district: MasterRecord): string {
+    const direct = String(district.divisionCode ?? '').trim();
+    if (direct) return direct;
+    if (district.divisionId) {
+      const division = this.divisions().find((d) => d.id === district.divisionId);
+      return this.divisionCodeOfDivision(division);
+    }
+    return '';
+  }
+
+  private districtMatchesDivisionCode(district: MasterRecord, divisionCode: string): boolean {
+    const code = divisionCode.trim();
+    if (!code) return true;
+    if (this.districtDivisionCode(district) === code) return true;
+    const selectedDivision = this.divisions().find((d) => this.divisionCodeOfDivision(d) === code);
+    return selectedDivision != null && district.divisionId === selectedDivision.id;
+  }
+
+  protected resolveDivisionForRecord(record: MasterRecord): string {
+    if (record.divisionId) {
+      return this.resolveDivisionName(record.divisionId);
+    }
+    const code = this.districtDivisionCode(record);
+    if (code) {
+      const div = this.divisions().find((d) => this.divisionCodeOfDivision(d) === code);
+      return div?.name ?? code;
+    }
+    return '-';
+  }
+
   private formatError(err: unknown): string {
     if (err instanceof HttpErrorResponse) {
       const serverMsg =
@@ -1168,13 +1330,24 @@ export class AdminMastersComponent {
     });
   }
 
-  private loadDivisions(): void {
-    this.masters.getDivisions().subscribe({
+  private usesHierarchyDivisionList(): boolean {
+    const kind = this.selected();
+    return kind === 'DIVISION' || kind === 'DISTRICT' || kind === 'TALUKA' || kind === 'VILLAGE';
+  }
+
+  private hierarchyStateIdForApi(stateId?: number): number | undefined {
+    const raw = stateId ?? this.hierarchyFilterForm.controls.stateId.getRawValue();
+    return raw > 0 ? raw : undefined;
+  }
+
+  private loadDivisions(stateId?: number): void {
+    const id = this.hierarchyStateIdForApi(stateId);
+    this.masters.getDivisions(id).subscribe({
       next: (rows) => {
         this.divisions.set(rows);
         this.page.set(1);
-        if (this.districtForm.controls.divisionId.getRawValue() < 1 && rows.length === 1) {
-          this.districtForm.controls.divisionId.setValue(rows[0].id);
+        if (!this.districtForm.controls.divisionCode.getRawValue() && rows.length === 1) {
+          this.districtForm.controls.divisionCode.setValue(this.divisionCodeOfDivision(rows[0]));
         }
       },
       error: () => {
@@ -1195,18 +1368,6 @@ export class AdminMastersComponent {
     });
   }
 
-  private loadSubdistricts(): void {
-    this.masters.getSubdistricts().subscribe({
-      next: (rows) => {
-        this.subdistricts.set(rows);
-        this.page.set(1);
-      },
-      error: () => {
-        this.subdistricts.set([]);
-      }
-    });
-  }
-
   private loadTalukas(): void {
     this.masters.getTalukas().subscribe({
       next: (rows) => {
@@ -1219,8 +1380,24 @@ export class AdminMastersComponent {
     });
   }
 
-  private loadVillages(): void {
-    this.masters.getVillages().subscribe({
+  private lastVillageQueryKey: string | null = null;
+
+  private villageQueryFromFilter(f: HierarchyFilter): VillageQueryParams {
+    const params: VillageQueryParams = {};
+    if (f.stateId > 0) params.stateId = f.stateId;
+    const divisionCode = (f.divisionCode ?? '').trim();
+    if (divisionCode) params.divisionCode = divisionCode;
+    if (f.districtId > 0) params.districtId = f.districtId;
+    if (f.talukaId > 0) params.talukaId = f.talukaId;
+    return params;
+  }
+
+  private loadVillages(filter?: HierarchyFilter, force = false): void {
+    const params = this.villageQueryFromFilter(filter ?? this.hierarchyFilterForm.getRawValue());
+    const key = JSON.stringify(params);
+    if (!force && key === this.lastVillageQueryKey) return;
+    this.lastVillageQueryKey = key;
+    this.masters.getVillages(params).subscribe({
       next: (rows) => {
         this.villages.set(rows);
         this.page.set(1);
@@ -1396,11 +1573,9 @@ export class AdminMastersComponent {
   private resetOfficeLocationChain(): void {
     this.officeDivisions.set([]);
     this.officeDistricts.set([]);
-    this.officeSubdistricts.set([]);
     this.officeTalukas.set([]);
     this.officeForm.controls.divisionId.setValue(0);
     this.officeForm.controls.districtId.setValue(0);
-    this.officeForm.controls.subdistrictId.setValue(0);
     this.officeForm.controls.talukaId.setValue(0);
   }
 
@@ -1422,27 +1597,19 @@ export class AdminMastersComponent {
   private loadOfficeDistricts(): void {
     const stateId = this.officeForm.controls.stateId.getRawValue();
     const divisionId = this.officeForm.controls.divisionId.getRawValue();
-    if (!stateId || stateId < 1 || !divisionId || divisionId < 1) return;
-    this.masters.getDistricts(stateId, divisionId).subscribe({
+    const division = this.officeDivisions().find((d) => d.id === divisionId);
+    const divisionCode = this.divisionCodeOfDivision(division);
+    if (!stateId || stateId < 1 || !divisionId || divisionId < 1 || !divisionCode) return;
+    this.masters.getDistricts(stateId, divisionCode).subscribe({
       next: (rows) => this.officeDistricts.set(rows),
       error: () => this.officeDistricts.set([])
     });
   }
 
-  private loadOfficeSubdistricts(): void {
-    const districtId = this.officeForm.controls.districtId.getRawValue();
-    if (!districtId || districtId < 1) return;
-    this.masters.getSubdistricts(districtId).subscribe({
-      next: (rows) => this.officeSubdistricts.set(rows),
-      error: () => this.officeSubdistricts.set([])
-    });
-  }
-
   private loadOfficeTalukas(): void {
     const districtId = this.officeForm.controls.districtId.getRawValue();
-    const subdistrictId = this.officeForm.controls.subdistrictId.getRawValue();
     if (!districtId || districtId < 1) return;
-    this.masters.getTalukas(districtId, subdistrictId > 0 ? subdistrictId : undefined).subscribe({
+    this.masters.getTalukas(districtId).subscribe({
       next: (rows) => this.officeTalukas.set(rows),
       error: () => this.officeTalukas.set([])
     });
@@ -1492,7 +1659,6 @@ export class AdminMastersComponent {
       stateId: 0,
       divisionId: 0,
       districtId: 0,
-      subdistrictId: 0,
       talukaId: 0,
       name: row.name,
       localName: row.localName || '',
@@ -1511,7 +1677,6 @@ export class AdminMastersComponent {
       stateId: 0,
       divisionId: 0,
       districtId: 0,
-      subdistrictId: 0,
       talukaId: 0,
       name: '',
       localName: '',
@@ -1536,16 +1701,77 @@ export class AdminMastersComponent {
     });
   }
 
-  protected applyDistrictFilter(): void {
-    const f = this.districtFilterForm.getRawValue();
-    this.districtFilter.set({ stateId: f.stateId, divisionId: f.divisionId });
+  protected applyHierarchyFilter(): void {
+    const raw = this.hierarchyFilterForm.getRawValue();
+    this.hierarchyFilter.set({
+      stateId: raw.stateId,
+      divisionCode: raw.divisionCode,
+      districtId: raw.districtId,
+      talukaId: raw.talukaId
+    });
+    this.page.set(1);
+    if (this.selected() === 'VILLAGE') {
+      this.loadVillages(this.hierarchyFilter());
+    }
+  }
+
+  protected clearHierarchyFilter(): void {
+    const reset = {
+      stateId: this.hasFixedState ? environment.defaultState.id : 0,
+      divisionCode: '',
+      districtId: 0,
+      talukaId: 0
+    };
+    this.hierarchyFilterForm.reset(reset);
+    this.hierarchyFilter.set(emptyHierarchyFilter());
+    this.page.set(1);
+    if (this.selected() === 'VILLAGE') {
+      this.lastVillageQueryKey = null;
+      this.loadVillages(reset);
+    }
+  }
+
+  protected applySectionFilter(): void {
+    this.selectedSectionActId.set(this.sectionFilterForm.controls.actId.getRawValue());
     this.page.set(1);
   }
 
-  protected clearDistrictFilter(): void {
-    this.districtFilterForm.reset({ stateId: 0, divisionId: 0 });
-    this.districtFilter.set({ stateId: 0, divisionId: 0 });
+  protected clearSectionFilter(): void {
+    this.sectionFilterForm.reset({ actId: 0 });
+    this.selectedSectionActId.set(0);
     this.page.set(1);
+  }
+
+  protected applySubjectFilter(): void {
+    this.selectedSubjectDepartmentId.set(this.subjectFilterForm.controls.departmentId.getRawValue());
+    this.page.set(1);
+  }
+
+  protected clearSubjectFilter(): void {
+    this.subjectFilterForm.reset({ departmentId: 0 });
+    this.selectedSubjectDepartmentId.set(0);
+    this.page.set(1);
+  }
+
+  protected applyOfficeTypeFilter(): void {
+    this.selectedOfficeTypeDepartmentId.set(
+      this.officeTypeFilterForm.controls.departmentId.getRawValue()
+    );
+    this.page.set(1);
+  }
+
+  protected clearOfficeTypeFilter(): void {
+    this.officeTypeFilterForm.reset({ departmentId: 0 });
+    this.selectedOfficeTypeDepartmentId.set(0);
+    this.page.set(1);
+  }
+
+  protected applyDistrictFilter(): void {
+    this.applyHierarchyFilter();
+  }
+
+  protected clearDistrictFilter(): void {
+    this.clearHierarchyFilter();
   }
 
   protected applyOfficeFilters(): void {
@@ -1760,7 +1986,9 @@ export class AdminMastersComponent {
     this.masters.getSubjects(departmentId).subscribe({
       next: (rows) => {
         this.mappingSubjects.set(rows);
-        if (rows.length === 0) {
+        if (rows.length === 1) {
+          this.documentTypeMappingForm.controls.subjectId.setValue(rows[0].id, { emitEvent: true });
+        } else if (rows.length === 0) {
           this.apiMessage.set('No subjects found for this department. Create subjects under the Subject tab first.');
         }
       },
@@ -1768,7 +1996,10 @@ export class AdminMastersComponent {
         this.mappingSubjects.set([]);
         this.apiError.set(this.formatError(err));
       },
-      complete: () => this.mappingSubjectsLoading.set(false)
+      complete: () => {
+        this.mappingSubjectsLoading.set(false);
+        this.refreshMappingFormSignals();
+      }
     });
   }
 
@@ -1782,14 +2013,23 @@ export class AdminMastersComponent {
     subjectId: number;
     caseCategoryId: number;
   } | null {
-    const raw = this.documentTypeMappingForm.getRawValue();
-    const mappingDepartmentId = this.toPositiveInt(raw.mappingDepartmentId);
-    const subjectId = this.toPositiveInt(raw.subjectId);
-    const caseCategoryId = this.toPositiveInt(raw.caseCategoryId);
-    if (mappingDepartmentId > 0 && subjectId > 0 && caseCategoryId > 0) {
+    const mappingDepartmentId = this.toPositiveInt(
+      this.documentTypeMappingForm.controls.mappingDepartmentId.getRawValue()
+    );
+    const subjectId = this.toPositiveInt(this.documentTypeMappingForm.controls.subjectId.getRawValue());
+    const caseCategoryId = this.toPositiveInt(
+      this.documentTypeMappingForm.controls.caseCategoryId.getRawValue()
+    );
+    if (subjectId > 0 && caseCategoryId > 0) {
       return { mappingDepartmentId, subjectId, caseCategoryId };
     }
     return null;
+  }
+
+  private refreshMappingFormSignals(): void {
+    const raw = this.documentTypeMappingForm.getRawValue();
+    this.mappingFormSubjectId.set(this.toPositiveInt(raw.subjectId));
+    this.mappingSelectionReady.set(this.mappingFormSelection() !== null);
   }
 
   private resetMappingWorkspace(): void {
@@ -1807,7 +2047,9 @@ export class AdminMastersComponent {
     this.mappingSubjects.set([]);
     this.configuredMappingSubjects.set([]);
     this.configuredSubjectDocumentsBySubjectId.set(new Map());
+    this.mappingLoadToken += 1;
     this.resetMappingWorkspace();
+    this.refreshMappingFormSignals();
     if (departmentId > 0) {
       this.loadDocumentMappingSubjects(departmentId);
     }
@@ -1815,19 +2057,15 @@ export class AdminMastersComponent {
 
   protected onMappingSubjectChange(): void {
     this.documentTypeMappingForm.controls.caseCategoryId.setValue(0, { emitEvent: false });
-    this.configuredMappingSubjects.set([]);
-    this.configuredSubjectDocumentsBySubjectId.set(new Map());
+    this.mappingLoadToken += 1;
     this.resetMappingWorkspace();
+    this.refreshMappingFormSignals();
   }
 
   protected onMappingCategoryChange(): void {
-    const categoryId = this.toPositiveInt(this.documentTypeMappingForm.controls.caseCategoryId.getRawValue());
+    this.mappingLoadToken += 1;
     this.resetMappingWorkspace();
-    if (categoryId > 0) {
-      this.loadConfiguredSubjects(categoryId);
-    } else {
-      this.configuredMappingSubjects.set([]);
-    }
+    this.refreshMappingFormSignals();
     if (this.mappingFormSelection()) {
       this.loadDocumentTypeMappings();
     }
@@ -1905,37 +2143,40 @@ export class AdminMastersComponent {
     return items.map((item) => this.mappingDocumentName(item)).join(', ');
   }
 
-  protected selectConfiguredSubject(summary: ConfiguredSubjectSummary): void {
-    this.documentTypeMappingForm.controls.subjectId.setValue(summary.subjectId, { emitEvent: false });
-    if (this.mappingFormSelection()) {
-      this.loadDocumentTypeMappings();
-    }
-  }
-
   protected loadDocumentTypeMappings(): void {
     this.apiMessage.set(null);
     this.apiError.set(null);
 
     const selection = this.mappingFormSelection();
     if (!selection) {
-      this.apiError.set('Please select department, subject, and case category.');
+      this.apiError.set('Please select subject and case category.');
       return;
     }
 
+    const loadToken = ++this.mappingLoadToken;
     this.busy.set(true);
     this.masters.getDocumentTypeMappings(selection.caseCategoryId, selection.subjectId).subscribe({
       next: (resp) => {
+        if (loadToken !== this.mappingLoadToken) {
+          return;
+        }
         this.documentTypeMappings.set(resp.items ?? []);
         this.pendingDocumentTypeIds.set(new Set());
         const dept = this.departments().find((d) => d.id === selection.mappingDepartmentId);
         this.mappingContextLabel.set(
           `${dept?.name ?? 'Department'} · ${resp.subjectName} (${resp.subjectCode}) · ${resp.caseCategoryName} (${resp.caseCategoryCode})`
         );
-        this.apiMessage.set('Mapping loaded.');
-        this.loadConfiguredSubjects(selection.caseCategoryId);
       },
-      error: (err: unknown) => this.apiError.set(this.formatError(err)),
-      complete: () => this.busy.set(false)
+      error: (err: unknown) => {
+        if (loadToken === this.mappingLoadToken) {
+          this.apiError.set(this.formatError(err));
+        }
+      },
+      complete: () => {
+        if (loadToken === this.mappingLoadToken) {
+          this.busy.set(false);
+        }
+      }
     });
   }
 
@@ -1964,6 +2205,12 @@ export class AdminMastersComponent {
   }
 
   protected addPendingDocumentsToMapping(): void {
+    const selection = this.mappingFormSelection();
+    if (!selection) {
+      this.apiError.set('Please select subject and case category.');
+      return;
+    }
+
     const pending = this.pendingDocumentTypeIds();
     if (!pending.size) {
       this.apiError.set('Select at least one document from the master list.');
@@ -1992,7 +2239,7 @@ export class AdminMastersComponent {
       [...this.documentTypeMappings(), ...additions].sort((a, b) => a.displayOrder - b.displayOrder)
     );
     this.pendingDocumentTypeIds.set(new Set());
-    this.apiMessage.set(`${additions.length} document(s) added. Review required/order, then save mapping.`);
+    this.persistDocumentTypeMappings(`${additions.length} document(s) added.`);
   }
 
   protected isDocumentTypeMapped(documentTypeId: number): boolean {
@@ -2007,6 +2254,7 @@ export class AdminMastersComponent {
     this.documentTypeMappings.update((rows) =>
       rows.map((item) => (item.documentTypeId === documentTypeId ? { ...item, required } : item))
     );
+    this.persistDocumentTypeMappings('Mapping updated.');
   }
 
   protected setMappingDisplayOrder(documentTypeId: number, displayOrder: number): void {
@@ -2017,25 +2265,21 @@ export class AdminMastersComponent {
       );
       return updated.sort((a, b) => a.displayOrder - b.displayOrder);
     });
+    this.persistDocumentTypeMappings('Mapping updated.');
   }
 
   protected removeDocumentTypeMappingItem(documentTypeId: number): void {
     this.documentTypeMappings.set(this.documentTypeMappings().filter((item) => item.documentTypeId !== documentTypeId));
+    this.persistDocumentTypeMappings('Document removed from mapping.');
   }
 
-  protected clearAndSaveDocumentTypeMappings(): void {
-    if (!confirm('Remove all document mappings for this category and subject?')) return;
-    this.documentTypeMappings.set([]);
-    this.saveDocumentTypeMappings();
-  }
-
-  protected saveDocumentTypeMappings(): void {
+  private persistDocumentTypeMappings(successMessage: string): void {
     this.apiMessage.set(null);
     this.apiError.set(null);
 
     const selection = this.mappingFormSelection();
     if (!selection) {
-      this.apiError.set('Please select department, subject, and case category.');
+      this.apiError.set('Please select subject and case category.');
       return;
     }
 
@@ -2047,6 +2291,7 @@ export class AdminMastersComponent {
         displayOrder: item.displayOrder > 0 ? item.displayOrder : index + 1
       }));
 
+    this.mappingLoadToken += 1;
     this.busy.set(true);
     this.masters
       .replaceDocumentTypeMappings({
@@ -2057,12 +2302,12 @@ export class AdminMastersComponent {
       .subscribe({
         next: (resp) => {
           this.documentTypeMappings.set(resp.items ?? []);
+          this.pendingDocumentTypeIds.set(new Set());
           const dept = this.departments().find((d) => d.id === selection.mappingDepartmentId);
           this.mappingContextLabel.set(
             `${dept?.name ?? 'Department'} · ${resp.subjectName} (${resp.subjectCode}) · ${resp.caseCategoryName} (${resp.caseCategoryCode})`
           );
-          this.apiMessage.set(items.length ? 'Mapping saved.' : 'All mappings cleared for this combination.');
-          this.loadConfiguredSubjects(selection.caseCategoryId);
+          this.apiMessage.set(successMessage);
         },
         error: (err: unknown) => this.apiError.set(this.formatError(err)),
         complete: () => this.busy.set(false)
@@ -2380,8 +2625,8 @@ export class AdminMastersComponent {
     });
   }
 
-  private subdistrictPayload(): CreateSubdistrictRequest {
-    const raw = this.subdistrictForm.getRawValue();
+  private talukaPayload(): CreateTalukaRequest {
+    const raw = this.talukaForm.getRawValue();
     const district = this.districts().find((d) => d.id === raw.districtId);
     return {
       name: raw.name,
@@ -2389,21 +2634,6 @@ export class AdminMastersComponent {
       lgdCode: raw.lgdCode || undefined,
       districtId: raw.districtId,
       districtLgdCode: district?.lgdCode ?? undefined
-    };
-  }
-
-  private talukaPayload(): CreateTalukaRequest {
-    const raw = this.talukaForm.getRawValue();
-    const district = this.districts().find((d) => d.id === raw.districtId);
-    const subdistrict = this.subdistricts().find((s) => s.id === raw.subdistrictId);
-    return {
-      name: raw.name,
-      localName: raw.localName || undefined,
-      lgdCode: raw.lgdCode || undefined,
-      districtId: raw.districtId,
-      districtLgdCode: district?.lgdCode ?? undefined,
-      subdistrictId: raw.subdistrictId,
-      subdistrictLgdCode: subdistrict?.lgdCode ?? undefined
     };
   }
 

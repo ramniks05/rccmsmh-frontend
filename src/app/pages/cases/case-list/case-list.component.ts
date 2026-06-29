@@ -11,8 +11,8 @@ import {
   OfficerInboxItem
 } from '../../../services/officer-filing.service';
 import {
+  ApplicationDescriptionPreview,
   ApplicationHistoryResponse,
-  ApplicationPreviewApplication,
   ApplicationPreviewResponse,
   FilingApplicationService
 } from '../../../services/filing-application.service';
@@ -5170,23 +5170,29 @@ export class CaseListComponent implements OnInit {
     return descriptionParagraphs({
       applicationDescription: detail.applicationDescription,
       form: this.detailForm() ?? undefined,
-      description: this.toRecord((detail as unknown as Record<string, unknown>)['description'])
-    } as ApplicationPreviewApplication);
+      description: this.detailDescriptionPreview()
+    });
+  }
+
+  private detailDescriptionPreview(): ApplicationDescriptionPreview | undefined {
+    const detail = this.officerDetail();
+    if (!detail) return undefined;
+    const rawDesc = (detail as unknown as Record<string, unknown>)['description'];
+    if (!rawDesc || typeof rawDesc !== 'object') return undefined;
+    return rawDesc as ApplicationDescriptionPreview;
   }
 
   protected detailAffidavitText(): string {
-    const detail = this.officerDetail();
     return pickAffidavitPreviewText({
       form: this.detailForm() ?? undefined,
-      description: this.toRecord((detail as unknown as Record<string, unknown> | null)?.['description'])
+      description: this.detailDescriptionPreview()
     });
   }
 
   protected detailPrayerText(): string {
-    const detail = this.officerDetail();
     return pickPrayerPreviewText({
       form: this.detailForm() ?? undefined,
-      description: this.toRecord((detail as unknown as Record<string, unknown> | null)?.['description'])
+      description: this.detailDescriptionPreview()
     });
   }
 

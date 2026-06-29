@@ -59,7 +59,6 @@ export class PartyRegistrationComponent {
   protected readonly pincodeHint = signal('');
   protected readonly postOffices = signal<PincodePostOffice[]>([]);
   protected readonly districts = signal<BoundaryMasterResponse[]>([]);
-  protected readonly subdistricts = signal<BoundaryMasterResponse[]>([]);
 
   protected readonly form = this.formBuilder.nonNullable.group(
     {
@@ -72,8 +71,7 @@ export class PartyRegistrationComponent {
     stateName: ['', Validators.required],
     districtId: [null as number | null],
     districtName: ['', Validators.required],
-    subdistrictId: [null as number | null],
-    subdistrictName: [''],
+    talukaName: [''],
     village: [''],
     addressLine1: ['', [Validators.required, Validators.maxLength(120)]],
     addressLine2: ['', Validators.maxLength(120)],
@@ -113,14 +111,13 @@ export class PartyRegistrationComponent {
           this.postOffices.set(resp.postOffices || []);
           const stateName = resp.states?.[0] || resp.postOffices?.[0]?.state || '';
           const districtName = resp.districts?.[0] || resp.postOffices?.[0]?.district || '';
-          const subdistrictName = resp.talukas?.[0] || resp.postOffices?.[0]?.block || '';
           const village = resp.postOffices?.[0]?.name || '';
           const talukaName = resp.talukas?.[0] || resp.postOffices?.[0]?.block || '';
           const firstOffice = resp.postOffices?.[0];
           this.form.patchValue({
             stateName,
             districtName,
-            subdistrictName: talukaName,
+            talukaName,
             postOfficeValue: firstOffice?.value || '',
             village: firstOffice?.name || village || this.form.controls.village.getRawValue()
           });
@@ -146,14 +143,7 @@ export class PartyRegistrationComponent {
     const district = this.districts().find((d) => d.id === districtId);
     if (district) {
       this.form.patchValue({ districtName: district.name });
-      this.loadSubdistricts(district.id);
     }
-  }
-
-  protected onSubdistrictChange(): void {
-    const subId = this.form.controls.subdistrictId.getRawValue();
-    const sub = this.subdistricts().find((s) => s.id === subId);
-    if (sub) this.form.patchValue({ subdistrictName: sub.name });
   }
 
   protected selectRole(role: UserRole): void {
@@ -190,8 +180,7 @@ export class PartyRegistrationComponent {
       stateName: value.stateName.trim(),
       districtId: value.districtId ?? undefined,
       districtName: value.districtName.trim(),
-      subdistrictId: value.subdistrictId ?? undefined,
-      subdistrictName: value.subdistrictName.trim() || undefined,
+      talukaName: value.talukaName.trim() || undefined,
       village: value.village.trim() || undefined,
       addressLine1: value.addressLine1.trim(),
       addressLine2: value.addressLine2.trim() || undefined,
@@ -219,7 +208,7 @@ export class PartyRegistrationComponent {
           this.showPassword = false;
           this.postOffices.set([]);
           this.districts.set([]);
-          this.subdistricts.set([]);
+          this.districts.set([]);
           this.pincodeHint.set('');
         },
         error: (error: unknown) => {
@@ -238,7 +227,7 @@ export class PartyRegistrationComponent {
       value.addressLine2.trim(),
       value.addressLine3.trim(),
       value.village.trim(),
-      value.subdistrictName.trim(),
+      value.talukaName.trim(),
       value.districtName.trim(),
       value.stateName.trim(),
       value.pinCode.trim()
@@ -260,21 +249,12 @@ export class PartyRegistrationComponent {
             );
             if (district) {
               this.form.patchValue({ districtId: district.id, districtName: district.name });
-              this.loadSubdistricts(district.id);
             }
           }
         });
       }
     });
   }
-
-  private loadSubdistricts(districtId: number): void {
-    this.lookups.getSubdistricts(districtId).subscribe({
-      next: (list) => this.subdistricts.set(list),
-      error: () => this.subdistricts.set([])
-    });
-  }
-
   protected getFieldError(fieldName: string): string {
     if (fieldName === 'confirmPassword' && this.form.hasError('passwordMismatch')) {
       return 'Passwords do not match';

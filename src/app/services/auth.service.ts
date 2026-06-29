@@ -41,8 +41,7 @@ export interface PartyRegistrationRequest {
   stateName?: string;
   districtId?: number;
   districtName?: string;
-  subdistrictId?: number;
-  subdistrictName?: string;
+  talukaName?: string;
   village?: string;
   addressLine1?: string;
   addressLine2?: string;
