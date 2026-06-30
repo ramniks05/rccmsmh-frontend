@@ -6,6 +6,7 @@ import { map } from 'rxjs/operators';
 import { RCCMS_API } from '../core/rccms-api.paths';
 import { environment } from '../../environments/environment';
 import { normalizeApplicationPreviewResponse } from '../shared/application-preview.util';
+import { normalizeOfficerInboxResponse } from '../shared/officer-role.util';
 import {
   ApplicationHistoryResponse,
   ApplicationPreviewResponse
@@ -73,9 +74,9 @@ export class OfficerFilingService {
   private readonly apiBaseUrl = environment.apiBaseUrl;
 
   getInbox(): Observable<OfficerInboxItem[]> {
-    return this.http.get<OfficerInboxItem[]>(
-      `${this.apiBaseUrl}${RCCMS_API.filingApplications.officerInbox}`
-    );
+    return this.http
+      .get<unknown>(`${this.apiBaseUrl}${RCCMS_API.filingApplications.officerInbox}`)
+      .pipe(map((raw) => normalizeOfficerInboxResponse(raw)));
   }
 
   /** GET /api/filing-applications/officer/{applicationId} — officer workspace detail */

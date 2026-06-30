@@ -4,6 +4,8 @@ import { Router, RouterLink } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 
+import { matchesOfficerDeskAssignee } from '../../shared/officer-role.util';
+
 import {
   OfficerCaseStageService,
   OfficerDashboardResponse,
@@ -284,14 +286,14 @@ export class OfficerDashboardComponent implements OnInit {
           };
           this.dashboard.set(dash);
 
-          const filingFiltered = (r.filingInbox || []).filter(
-            (a) => String(a.currentAssigneeRole || '').toUpperCase() === assignee
+          const filingFiltered = (r.filingInbox || []).filter((a) =>
+            matchesOfficerDeskAssignee(a, assignee)
           );
           this.filingPendingCount.set(filingFiltered.length);
           this.recentPending.set(filingFiltered.slice(0, 6));
 
-          const pendingApps = (dash.pendingApplications || []).filter(
-            (a) => String(a.currentAssigneeRole || '').toUpperCase() === assignee
+          const pendingApps = (dash.pendingApplications || []).filter((a) =>
+            matchesOfficerDeskAssignee(a, assignee)
           );
           if (!filingFiltered.length && pendingApps.length) {
             this.filingPendingCount.set(pendingApps.length);

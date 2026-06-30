@@ -160,6 +160,14 @@ export interface CreateOrUpdateOfficeRequest {
   shortNameLocal?: string;
 }
 
+export interface OfficeListQuery {
+  departmentId?: number;
+  officeTypeId?: number;
+  divisionCode?: string;
+  districtId?: number;
+  talukaId?: number;
+}
+
 export interface DesignationRecord {
   id: number;
   departmentId: number;
@@ -435,8 +443,26 @@ export class AdminMastersService {
     return this.http.post<OfficeRecord>(`${this.apiBaseUrl}/api/admin/masters/offices`, payload);
   }
 
-  getOffices(): Observable<OfficeRecord[]> {
-    return this.http.get<OfficeRecord[]>(`${this.apiBaseUrl}/api/admin/masters/offices`);
+  getOffices(query?: OfficeListQuery): Observable<OfficeRecord[]> {
+    const params: Record<string, string | number> = {};
+    if (query?.departmentId && query.departmentId > 0) {
+      params['departmentId'] = query.departmentId;
+    }
+    if (query?.officeTypeId && query.officeTypeId > 0) {
+      params['officeTypeId'] = query.officeTypeId;
+    }
+    if (query?.divisionCode?.trim()) {
+      params['divisionCode'] = query.divisionCode.trim();
+    }
+    if (query?.districtId && query.districtId > 0) {
+      params['districtId'] = query.districtId;
+    }
+    if (query?.talukaId && query.talukaId > 0) {
+      params['talukaId'] = query.talukaId;
+    }
+    return this.http.get<OfficeRecord[]>(`${this.apiBaseUrl}/api/admin/masters/offices`, {
+      params: Object.keys(params).length ? params : undefined
+    });
   }
 
   updateOffice(id: number, payload: CreateOrUpdateOfficeRequest): Observable<OfficeRecord> {

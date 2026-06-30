@@ -1002,6 +1002,61 @@
             }
           </select>
         </label>
+
+        @if (officeFilterForm.controls.officeTypeId.value > 0 && officeFilterLevel() >= 1) {
+          <div class="location-chain">
+            <label>
+              State
+              @if (hasFixedState) {
+                <input type="text" [value]="defaultState.name" readonly />
+              } @else {
+                <select formControlName="stateId">
+                  <option [ngValue]="0">All</option>
+                  @for (s of states(); track s.id) {
+                    <option [ngValue]="s.id">{{ s.name }}</option>
+                  }
+                </select>
+              }
+            </label>
+
+            @if (officeFilterLevel() >= 2) {
+              <label>
+                Division
+                <select formControlName="divisionId">
+                  <option [ngValue]="0">All</option>
+                  @for (d of officeFilterDivisions(); track d.id) {
+                    <option [ngValue]="d.id">{{ d.name }}</option>
+                  }
+                </select>
+              </label>
+            }
+
+            @if (officeFilterLevel() >= 3) {
+              <label>
+                District
+                <select formControlName="districtId">
+                  <option [ngValue]="0">All</option>
+                  @for (d of officeFilterDistricts(); track d.id) {
+                    <option [ngValue]="d.id">{{ d.name }}</option>
+                  }
+                </select>
+              </label>
+            }
+
+            @if (officeFilterLevel() >= 4) {
+              <label>
+                Taluka (Tehsil)
+                <select formControlName="talukaId">
+                  <option [ngValue]="0">All</option>
+                  @for (t of officeFilterTalukas(); track t.id) {
+                    <option [ngValue]="t.id">{{ t.name }}</option>
+                  }
+                </select>
+              </label>
+            }
+          </div>
+        }
+
         <div class="row-actions">
           <button type="button" class="btn btn-primary" (click)="applyOfficeFilters()" [disabled]="busy()">
             Apply
@@ -1097,6 +1152,61 @@
             }
           </select>
         </label>
+
+        @if (postingForm.controls.officeTypeId.value > 0 && postingFormLevel() >= 1) {
+          <div class="location-chain">
+            <label>
+              State *
+              @if (hasFixedState) {
+                <input type="text" [value]="defaultState.name" readonly />
+              } @else {
+                <select formControlName="stateId">
+                  <option [ngValue]="0">Select state</option>
+                  @for (s of states(); track s.id) {
+                    <option [ngValue]="s.id">{{ s.name }}</option>
+                  }
+                </select>
+              }
+            </label>
+
+            @if (postingFormLevel() >= 2) {
+              <label>
+                Division *
+                <select formControlName="divisionId">
+                  <option [ngValue]="0">Select division</option>
+                  @for (d of postingDivisions(); track d.id) {
+                    <option [ngValue]="d.id">{{ d.name }}</option>
+                  }
+                </select>
+              </label>
+            }
+
+            @if (postingFormLevel() >= 3) {
+              <label>
+                District *
+                <select formControlName="districtId">
+                  <option [ngValue]="0">Select district</option>
+                  @for (d of postingDistricts(); track d.id) {
+                    <option [ngValue]="d.id">{{ d.name }}</option>
+                  }
+                </select>
+              </label>
+            }
+
+            @if (postingFormLevel() >= 4) {
+              <label>
+                Taluka (Tehsil) *
+                <select formControlName="talukaId">
+                  <option [ngValue]="0">Select taluka</option>
+                  @for (t of postingTalukas(); track t.id) {
+                    <option [ngValue]="t.id">{{ t.name }}</option>
+                  }
+                </select>
+              </label>
+            }
+          </div>
+        }
+
         <label>
           Office *
           <select formControlName="officeId">
@@ -1105,13 +1215,15 @@
                 Select department first
               } @else if (postingForm.controls.officeTypeId.value < 1) {
                 Select office type first
-              } @else if (postingOfficeOptions().length === 0) {
-                No offices for this office type
+              } @else if (!postingOfficeQueryReady()) {
+                Select department and office type first
+              } @else if (postingOffices().length === 0) {
+                No offices for this selection
               } @else {
                 Select office
               }
             </option>
-            @for (o of postingOfficeOptions(); track o.id) {
+            @for (o of postingOffices(); track o.id) {
               <option [ngValue]="o.id">{{ o.name }}</option>
             }
           </select>

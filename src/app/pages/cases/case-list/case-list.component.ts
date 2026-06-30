@@ -65,6 +65,11 @@ import {
   toDevanagariDigits
 } from '../../../shared/sunvai-marathi-template';
 import { formatSearchModeLabel, descriptionParagraphs, pickAffidavitPreviewText, pickPrayerPreviewText } from '../../../shared/application-preview.util';
+import {
+  isClerkDeskInboxItem,
+  isPoDeskInboxItem,
+  isPresidingOfficerDesignation
+} from '../../../shared/officer-role.util';
 import { filingDocumentPreviewInnerHtml } from '../../../shared/filing-affidavit-prayer.util';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { landDetailDisplayFields } from '../../../shared/land-display.util';
@@ -1884,17 +1889,12 @@ export class CaseListComponent implements OnInit {
   protected filteredOfficerInbox(): OfficerInboxItem[] {
     const rows = this.mergedInbox();
     const menu = this.officerMenu();
+    const caseMap = this.caseMapByAppId();
     const up = (v: unknown) => String(v || '').toUpperCase();
 
     if (menu === 'CLERK_DESK') {
-      const caseMap = this.caseMapByAppId();
       return rows.filter((r) => {
-        const stage = up(r.processingStage);
-        if (
-          stage === 'CLERK_DRAFT_REVIEW' ||
-          stage === 'PO_SENT_BACK_TO_CLERK' ||
-          up(r.currentAssigneeRole) === 'CLERK'
-        ) {
+        if (isClerkDeskInboxItem(r, caseMap.has(r.applicationId))) {
           return true;
         }
         const c = caseMap.get(r.applicationId);
@@ -1909,14 +1909,8 @@ export class CaseListComponent implements OnInit {
     }
 
     if (menu === 'PO_DESK') {
-      // Applications assigned to PO, not yet converted to a case
-      return rows.filter((r) => {
-        const stage = up(r.processingStage);
-        return (stage === 'PO_UNDER_REVIEW') && !this.caseMapByAppId().has(r.applicationId);
-      });
+      return rows.filter((r) => isPoDeskInboxItem(r, caseMap.has(r.applicationId)));
     }
-
-    const caseMap = this.caseMapByAppId();
 
     if (menu === 'ASSIGN_HEARING') {
       return rows.filter((r) => up(caseMap.get(r.applicationId)?.status) === 'ACTIVE');
@@ -1968,12 +1962,7 @@ export class CaseListComponent implements OnInit {
     if (menu === 'CLERK_DESK') {
       const caseMap = this.caseMapByAppId();
       return rows.filter((r) => {
-        const stage = up(r.processingStage);
-        if (
-          stage === 'CLERK_DRAFT_REVIEW' ||
-          stage === 'PO_SENT_BACK_TO_CLERK' ||
-          up(r.currentAssigneeRole) === 'CLERK'
-        ) {
+        if (isClerkDeskInboxItem(r, caseMap.has(r.applicationId))) {
           return true;
         }
         const c = caseMap.get(r.applicationId);
@@ -1986,7 +1975,9 @@ export class CaseListComponent implements OnInit {
         );
       }).length;
     }
-    if (menu === 'PO_DESK') return rows.filter((r) => up(r.processingStage) === 'PO_UNDER_REVIEW' && !caseMap.has(r.applicationId)).length;
+    if (menu === 'PO_DESK') {
+      return rows.filter((r) => isPoDeskInboxItem(r, caseMap.has(r.applicationId))).length;
+    }
     if (menu === 'ASSIGN_HEARING') return rows.filter((r) => up(caseMap.get(r.applicationId)?.status) === 'ACTIVE').length;
     if (menu === 'PENDING_NOTICE') return this.pendingServeRows().length;
     if (menu === 'PENDING_JUDGMENT') {
@@ -5065,7 +5056,9 @@ export class CaseListComponent implements OnInit {
 
     const designation = String(this.tokenStorage.getDesignationName() || '').toLowerCase();
     if (designation.includes('clerk')) return 'CLERK';
-    if (designation.includes('presid') || designation.includes('po')) return 'PRESIDING_OFFICER';
+    if (isPresidingOfficerDesignation(this.tokenStorage.getDesignationName(), this.tokenStorage.getDesignationId())) {
+      return 'PRESIDING_OFFICER';
+    }
 
     const stage = String(_detail?.processingStage || '').toUpperCase();
     if (stage === 'CLERK_DRAFT_REVIEW' || stage === 'PO_SENT_BACK_TO_CLERK') return 'CLERK';

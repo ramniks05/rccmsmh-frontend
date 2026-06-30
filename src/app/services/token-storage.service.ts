@@ -1,6 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 
 import { LoginResponse } from './auth.service';
+import { isPresidingOfficerDesignation } from '../shared/officer-role.util';
 
 const ACCESS_TOKEN_KEY = 'rccms.access_token';
 const ROLE_KEY = 'rccms.role';
@@ -245,11 +246,9 @@ export class TokenStorageService {
     return (this.getRole() || '').trim().toUpperCase() === 'OFFICER';
   }
 
-  /** PO = designation id 1, or name contains presiding / PO. */
+  /** PO = designation id 1, or name matches presiding officer / DYSLR patterns. */
   isPresidingOfficer(): boolean {
-    if (this.getDesignationId() === 1) return true;
-    const d = String(this.getDesignationName() || '').toLowerCase();
-    return d.includes('presid') || d === 'po' || d.includes('presiding');
+    return isPresidingOfficerDesignation(this.getDesignationName(), this.getDesignationId());
   }
 
   isClerkOfficer(): boolean {
