@@ -67,13 +67,16 @@ export const authInterceptor: HttpInterceptorFn = (
 
       if (error instanceof HttpErrorResponse) {
 
-        // 401 → token expired/invalid (do not hijack public registration/home)
+        // 401 → token expired/invalid (do not hijack public registration/home or third-party integration failures)
         if (error.status === 401) {
-          tokenStorage.clear();
-          if (!isPublicAppRoute(router.url)) {
-            void router.navigate(['/login'], {
-              queryParams: { sessionExpired: '1' }
-            });
+          const isIntegrationApi = skipAuth || req.url.includes('/api/land-records/');
+          if (!isIntegrationApi) {
+            tokenStorage.clear();
+            if (!isPublicAppRoute(router.url)) {
+              void router.navigate(['/login'], {
+                queryParams: { sessionExpired: '1' }
+              });
+            }
           }
         }
 

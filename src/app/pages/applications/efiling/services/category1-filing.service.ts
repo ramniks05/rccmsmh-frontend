@@ -194,6 +194,25 @@ export class Category1FilingService {
         queueMicrotask(() => this.ensureDescriptionTemplates());
       });
     });
+
+    effect(() => {
+      const subject = this.selectedSubject();
+      if (!subject) return;
+      untracked(() => {
+        if (this.isEpicsSubject() && this.urbanSearchDistricts().length === 0) {
+          this.loadUrbanSearchDistricts();
+        }
+        if (this.isRural712Subject() && this.ruralSearchDistricts().length === 0) {
+          this.loadRuralSearchDistricts();
+        }
+        if (this.acts().length === 0) {
+          this.loadActs();
+        }
+        if (this.occupations().length === 0) {
+          this.loadOccupations();
+        }
+      });
+    });
   }
   
   public hydrating = false;
@@ -280,6 +299,7 @@ export class Category1FilingService {
     const code = String(subject.subjectCode || '').trim().toUpperCase();
     const name = String(subject.subjectName || '').trim().toUpperCase();
     return (
+      code === '003' ||
       code === '001' ||
       name.includes('7/12') ||
       name.includes('712') ||
@@ -533,10 +553,7 @@ export class Category1FilingService {
         }
       });
 
-    this.loadActs();
-    this.loadOccupations();
-    this.loadUrbanSearchDistricts();
-    this.loadRuralSearchDistricts();
+
 
     this.form.controls.subjectId.valueChanges.subscribe((subjectId) => {
       if (this.hydrating) return;
